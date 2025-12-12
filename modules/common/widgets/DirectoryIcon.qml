@@ -20,12 +20,12 @@ Image {
         if ([Directories.documents, Directories.downloads, Directories.music, Directories.pictures, Directories.videos].some(dir => FileUtils.trimFileProtocol(dir) === fileModelData.filePath))
             return Quickshell.iconPath(`folder-${fileModelData.fileName.toLowerCase()}`);
 
-        return Quickshell.iconPath("inode-directory");
+        return Quickshell.iconPath("inode-directory", "folder");
     }
 
     onStatusChanged: {
         if (status === Image.Error)
-            source = Quickshell.iconPath("error");
+            source = Quickshell.iconPath("folder", "error");
     }
 
     Process {

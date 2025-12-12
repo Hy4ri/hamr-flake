@@ -97,6 +97,22 @@ MouseArea {
         } else if (event.modifiers & Qt.AltModifier && event.key === Qt.Key_Right) {
             FolderBrowser.navigateForward();
             event.accepted = true;
+        // Vim navigation: h/j/k/l for grid movement, H for parent directory
+        } else if (event.key === Qt.Key_H && (event.modifiers & Qt.ShiftModifier)) {
+            FolderBrowser.navigateUp();
+            event.accepted = true;
+        } else if (event.key === Qt.Key_H) {
+            grid.moveSelection(-1);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_L) {
+            grid.moveSelection(1);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_K) {
+            grid.moveSelection(-grid.columns);
+            event.accepted = true;
+        } else if (event.key === Qt.Key_J) {
+            grid.moveSelection(grid.columns);
+            event.accepted = true;
         } else if (event.key === Qt.Key_Left) {
             grid.moveSelection(-1);
             event.accepted = true;
@@ -115,14 +131,19 @@ MouseArea {
         } else if (event.key === Qt.Key_Backspace) {
             if (filterField.text.length > 0) {
                 filterField.text = filterField.text.substring(0, filterField.text.length - 1);
+            } else {
+                FolderBrowser.navigateUp();
             }
-            filterField.forceActiveFocus();
             event.accepted = true;
         } else if (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_L) {
             addressBar.focusBreadcrumb();
             event.accepted = true;
         } else if (event.key === Qt.Key_Slash) {
             filterField.forceActiveFocus();
+            event.accepted = true;
+        } else if (event.key === Qt.Key_Minus) {
+            // Minus key to go up one directory (like vim-vinegar)
+            FolderBrowser.navigateUp();
             event.accepted = true;
         } else {
             if (event.text.length > 0) {
@@ -230,6 +251,52 @@ MouseArea {
                             }
                         }
                     }
+
+                    // Key guide
+                    ColumnLayout {
+                        id: keyGuideColumn
+                        Layout.fillWidth: true
+                        Layout.margins: 8
+                        Layout.topMargin: 0
+                        spacing: 4
+
+                        StyledText {
+                            font {
+                                pixelSize: Appearance.font.pixelSize.smaller
+                                weight: Font.Medium
+                            }
+                            color: Appearance.colors.colOnLayer1
+                            text: "Keys"
+                        }
+
+                        Repeater {
+                            model: [
+                                { keys: "h j k l", desc: "Navigate" },
+                                { keys: "Enter", desc: "Open" },
+                                { keys: "- or H", desc: "Parent dir" },
+                                { keys: "/", desc: "Search" },
+                                { keys: "Esc", desc: "Close" },
+                            ]
+                            delegate: RowLayout {
+                                required property var modelData
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                StyledText {
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    color: Appearance.colors.colOnLayer1
+                                    text: modelData.keys
+                                    Layout.preferredWidth: 56
+                                }
+                                StyledText {
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    color: Appearance.colors.colOnLayer1
+                                    text: modelData.desc
+                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -301,8 +368,13 @@ MouseArea {
                         }
 
                         function activateCurrent() {
-                            const filePath = grid.model.get(currentIndex, "filePath")
-                            root.selectFilePath(filePath);
+                            const filePath = grid.model.get(currentIndex, "filePath");
+                            const isDir = grid.model.get(currentIndex, "fileIsDir");
+                            if (isDir) {
+                                FolderBrowser.setDirectory(filePath);
+                            } else {
+                                root.selectFilePath(filePath);
+                            }
                         }
 
                         model: FolderBrowser.folderModel
@@ -321,7 +393,11 @@ MouseArea {
                             }
                             
                             onActivated: {
-                                root.selectFilePath(fileModelData.filePath);
+                                if (fileModelData.fileIsDir) {
+                                    FolderBrowser.setDirectory(fileModelData.filePath);
+                                } else {
+                                    root.selectFilePath(fileModelData.filePath);
+                                }
                             }
                         }
 

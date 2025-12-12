@@ -16,13 +16,14 @@ StyledImage {
     required property string sourcePath
     property string thumbnailSizeName: Images.thumbnailSizeNameForDimensions(sourceSize.width, sourceSize.height)
     property string thumbnailPath: {
-        if (sourcePath.length == 0) return;
+        if (sourcePath.length == 0) return "";
         const resolvedUrlWithoutFileProtocol = FileUtils.trimFileProtocol(`${Qt.resolvedUrl(sourcePath)}`);
         const encodedUrlWithoutFileProtocol = resolvedUrlWithoutFileProtocol.split("/").map(part => encodeURIComponent(part)).join("/");
         const md5Hash = Qt.md5(`file://${encodedUrlWithoutFileProtocol}`);
         return `${Directories.genericCache}/thumbnails/${thumbnailSizeName}/${md5Hash}.png`;
     }
-    source: thumbnailPath
+    // Don't set source directly - check if thumbnail exists first
+    source: ""
 
     asynchronous: true
     smooth: true
@@ -31,6 +32,25 @@ StyledImage {
     opacity: status === Image.Ready ? 1 : 0
     Behavior on opacity {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+    }
+
+    onThumbnailPathChanged: {
+        if (thumbnailPath.length === 0) return;
+        thumbnailExistsCheck.running = false;
+        thumbnailExistsCheck.running = true;
+    }
+
+    // Check if thumbnail exists before trying to load it
+    Process {
+        id: thumbnailExistsCheck
+        command: ["test", "-f", FileUtils.trimFileProtocol(root.thumbnailPath)]
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                // Thumbnail exists, load it
+                root.source = root.thumbnailPath;
+            }
+            // If thumbnail doesn't exist, source stays empty (no warning)
+        }
     }
 
     onSourceSizeChanged: {
