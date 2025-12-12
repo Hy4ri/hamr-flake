@@ -160,10 +160,42 @@ Item { // Wrapper
                     }
                 }
                 onSelectCurrent: {
-                    if (appResults.count > 0) {
+                    // If workflow is active in submit mode with user input,
+                    // submit the query to the workflow handler
+                    if (WorkflowRunner.isActive() && WorkflowRunner.inputMode === "submit" && root.searchingText.trim() !== "") {
+                        LauncherSearch.submitWorkflowQuery();
+                        return;
+                    }
+                    
+                    if (appResults.count > 0 && appResults.currentIndex >= 0) {
                         let currentItem = appResults.itemAtIndex(appResults.currentIndex);
-                        if (currentItem && currentItem.clicked) {
-                            currentItem.clicked();
+                        if (currentItem) {
+                            // Check if an action is focused via Tab
+                            if (currentItem.focusedActionIndex >= 0) {
+                                currentItem.executeCurrentAction();
+                            } else if (currentItem.clicked) {
+                                currentItem.clicked();
+                            }
+                        }
+                    }
+                }
+                
+                Connections {
+                    target: searchBar.searchInput
+                    function onCycleActionNext() {
+                        if (appResults.count > 0 && appResults.currentIndex >= 0) {
+                            let currentItem = appResults.itemAtIndex(appResults.currentIndex);
+                            if (currentItem) {
+                                currentItem.cycleActionNext();
+                            }
+                        }
+                    }
+                    function onCycleActionPrev() {
+                        if (appResults.count > 0 && appResults.currentIndex >= 0) {
+                            let currentItem = appResults.itemAtIndex(appResults.currentIndex);
+                            if (currentItem) {
+                                currentItem.cycleActionPrev();
+                            }
                         }
                     }
                 }
@@ -213,7 +245,7 @@ Item { // Wrapper
                         { key: "^J", label: "down" },
                         { key: "^K", label: "up" },
                         { key: "^L", label: "select" },
-                        { key: "1-4", label: "actions" },
+                        { key: "Tab", label: "actions" },
                     ] : []
                     
                     Text {
@@ -228,27 +260,46 @@ Item { // Wrapper
 
             Rectangle {
                 // Separator
-                visible: root.showResults || root.showCard
+                visible: root.showResults || root.showCard || WorkflowRunner.workflowBusy
                 Layout.fillWidth: true
                 height: 1
                 color: Appearance.colors.colOutlineVariant
             }
 
+            // Loading indicator when workflow is processing
+            RowLayout {
+                visible: WorkflowRunner.workflowBusy
+                Layout.fillWidth: true
+                Layout.margins: 20
+                spacing: 12
+                
+                StyledIndeterminateProgressBar {
+                    Layout.fillWidth: true
+                }
+                
+                StyledText {
+                    text: "Processing..."
+                    font.pixelSize: Appearance.font.pixelSize.small
+                    color: Appearance.colors.colSubtext
+                }
+            }
+
             // Workflow card display (shown instead of results when card is present)
             WorkflowCard {
                 id: workflowCard
-                visible: root.showCard
+                visible: root.showCard && !WorkflowRunner.workflowBusy
                 Layout.fillWidth: true
-                Layout.maximumHeight: 400
                 card: WorkflowRunner.workflowCard
             }
 
             ListView { // App results
                 id: appResults
-                visible: root.showResults && !root.showCard
+                visible: root.showResults && !root.showCard && !WorkflowRunner.workflowBusy
                 Layout.fillWidth: true
                 implicitHeight: Math.min(600, appResults.contentHeight + topMargin + bottomMargin)
                 clip: true
+                cacheBuffer: 500  // Keep more delegates cached to reduce flicker
+                reuseItems: true  // Enable delegate reuse
                 topMargin: 10
                 bottomMargin: 10
                 spacing: 2

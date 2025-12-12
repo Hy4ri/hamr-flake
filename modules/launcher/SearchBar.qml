@@ -101,8 +101,23 @@ RowLayout {
             }
         }
 
-        // Vim-style navigation (Ctrl+J/K/L)
+        // Signals for action navigation
+        signal cycleActionNext()
+        signal cycleActionPrev()
+
+        // Vim-style navigation (Ctrl+J/K/L) and Tab for action cycling
         Keys.onPressed: event => {
+            // Tab cycles through actions on current item
+            if (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ControlModifier)) {
+                if (event.modifiers & Qt.ShiftModifier) {
+                    searchInput.cycleActionPrev();
+                } else {
+                    searchInput.cycleActionNext();
+                }
+                event.accepted = true;
+                return;
+            }
+            
             if (event.modifiers & Qt.ControlModifier) {
                 if (event.key === Qt.Key_J) {
                     root.navigateDown();

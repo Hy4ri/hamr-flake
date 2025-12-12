@@ -40,6 +40,56 @@ RippleButton {
     property int buttonHorizontalPadding: 10
     property int buttonVerticalPadding: 6
     property bool keyboardDown: false
+    
+    // Action focus: -1 = main item focused, 0+ = action button index
+    property int focusedActionIndex: -1
+    
+    function cycleActionNext() {
+        const actions = root.entry.actions ?? [];
+        if (actions.length === 0) return;
+        
+        if (root.focusedActionIndex < actions.length - 1) {
+            root.focusedActionIndex++;
+        } else {
+            root.focusedActionIndex = -1; // Wrap back to main item
+        }
+    }
+    
+    function cycleActionPrev() {
+        const actions = root.entry.actions ?? [];
+        if (actions.length === 0) return;
+        
+        if (root.focusedActionIndex > -1) {
+            root.focusedActionIndex--;
+        } else {
+            root.focusedActionIndex = actions.length - 1; // Wrap to last action
+        }
+    }
+    
+    function executeCurrentAction() {
+        const actions = root.entry.actions;
+        if (actions && root.focusedActionIndex >= 0 && root.focusedActionIndex < actions.length) {
+            const action = actions[root.focusedActionIndex];
+            if (action && typeof action.execute === "function") {
+                LauncherSearch.skipNextAutoFocus = true;
+                const listView = root.ListView.view;
+                if (listView) listView.currentIndex = -1;
+                action.execute();
+            } else {
+                root.clicked();
+            }
+        } else {
+            root.clicked();
+        }
+    }
+    
+    // Reset action focus when item changes or loses list selection
+    onEntryChanged: root.focusedActionIndex = -1
+    ListView.onIsCurrentItemChanged: {
+        if (!ListView.isCurrentItem) {
+            root.focusedActionIndex = -1;
+        }
+    }
 
     implicitHeight: rowLayout.implicitHeight + root.buttonVerticalPadding * 2
     implicitWidth: rowLayout.implicitWidth + root.buttonHorizontalPadding * 2
@@ -252,7 +302,7 @@ RippleButton {
                     color: Appearance.m3colors.m3onSurface
                     horizontalAlignment: Text.AlignLeft
                     elide: Text.ElideRight
-                    text: `${root.displayContent}`
+                    text: root.displayContent
                 }
             }
             StyledText { // Comment/description (e.g., file path)
@@ -280,6 +330,7 @@ RippleButton {
                     property var iconType: modelData.iconType
                     property string iconName: modelData.iconName ?? ""
                     property string keyHint: (index + 1).toString()
+                    property bool isFocused: root.focusedActionIndex === index && root.ListView.isCurrentItem
                     implicitHeight: 34
                     implicitWidth: 34
 
@@ -287,7 +338,8 @@ RippleButton {
                         id: actionBg
                         anchors.fill: parent
                         radius: Appearance.rounding.small
-                        color: actionMouse.containsMouse ? Appearance.colors.colSecondaryContainerHover : "transparent"
+                        color: actionButton.isFocused ? Appearance.colors.colPrimary :
+                               actionMouse.containsMouse ? Appearance.colors.colSecondaryContainerHover : "transparent"
                         Behavior on color {
                             ColorAnimation { duration: 100 }
                         }
@@ -299,7 +351,7 @@ RippleButton {
                         sourceComponent: MaterialSymbol {
                             text: actionButton.iconName || "video_settings"
                             font.pixelSize: Appearance.font.pixelSize.hugeass
-                            color: Appearance.m3colors.m3onSurface
+                            color: actionButton.isFocused ? Appearance.m3colors.m3onPrimary : Appearance.m3colors.m3onSurface
                         }
                     }
                     Loader {
