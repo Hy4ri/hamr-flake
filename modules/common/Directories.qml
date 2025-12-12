@@ -35,6 +35,7 @@ Singleton {
     property string quicklinksConfig: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/quicklinks.json`)
     property string searchHistory: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/search-history.json`)
     property string shellConfigPath: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/config.json`)
+    property string favicons: FileUtils.trimFileProtocol(`${Directories.cache}/favicons`)
     
     // Default wallpaper directory
     property string defaultWallpaperDir: FileUtils.trimFileProtocol(`${Directories.pictures}/Wallpapers`)
@@ -43,5 +44,6 @@ Singleton {
     Component.onCompleted: {
         Quickshell.execDetached(["mkdir", "-p", hamrConfig])
         Quickshell.execDetached(["mkdir", "-p", userActions])
+        Quickshell.execDetached(["mkdir", "-p", favicons])
     }
 }
