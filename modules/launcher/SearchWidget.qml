@@ -246,6 +246,11 @@ Item { // Wrapper
                     objectProp: "key"
                     values: LauncherSearch.results
                     onValuesChanged: {
+                        if (LauncherSearch.skipNextAutoFocus) {
+                            LauncherSearch.skipNextAutoFocus = false;
+                            appResults.currentIndex = -1;
+                            return;
+                        }
                         root.focusFirstItem();
                     }
                 }

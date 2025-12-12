@@ -14,6 +14,9 @@ Singleton {
     id: root
 
     property string query: ""
+    
+    // Flag to skip auto-focus on next results update (set by action buttons)
+    property bool skipNextAutoFocus: false
 
     // File search prefix - fallback if not in config
     property string filePrefix: Config.options.search.prefix.file ?? "~"

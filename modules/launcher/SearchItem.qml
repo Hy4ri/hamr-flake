@@ -34,8 +34,7 @@ RippleButton {
     property string bigText: entry?.iconType === LauncherSearchResult.IconType.Text ? entry?.iconName ?? "" : ""
     property string materialSymbol: entry.iconType === LauncherSearchResult.IconType.Material ? entry?.iconName ?? "" : ""
     property string thumbnail: entry?.thumbnail ?? ""
-    property bool actionButtonClicked: false
-    
+
     visible: root.entryShown
     property int horizontalMargin: 10
     property int buttonHorizontalPadding: 10
@@ -101,20 +100,14 @@ RippleButton {
     }
 
     onClicked: {
-        // If an action button was clicked, don't handle the main click
-        if (root.actionButtonClicked) {
-            root.actionButtonClicked = false
-            return
-        }
-        
         // For workflow results, don't auto-close - let the handler decide via execute.close
         // For workflow entry (starting a workflow), keep open
         // For everything else (apps, actions, etc.), close
         const isWorkflow = entry?.resultType === LauncherSearchResult.ResultType.WorkflowEntry ||
                           entry?.resultType === LauncherSearchResult.ResultType.WorkflowResult;
-        
+
         root.itemExecute()
-        
+
         if (!isWorkflow) {
             GlobalStates.launcherOpen = false
         }
@@ -149,6 +142,7 @@ RippleButton {
         // Icon or Thumbnail
         Loader {
             id: iconLoader
+            Layout.alignment: Qt.AlignVCenter
             active: true
             sourceComponent: {
                 // Thumbnail takes priority if present
@@ -261,65 +255,68 @@ RippleButton {
             }
         }
 
-        // Action text
-        StyledText {
-            Layout.fillWidth: false
-            visible: (root.hovered || root.focus)
-            id: clickAction
-            font.pixelSize: Appearance.font.pixelSize.normal
-            color: Appearance.colors.colOnPrimaryContainer
-            horizontalAlignment: Text.AlignRight
-            text: root.itemClickActionName
-        }
-
         RowLayout {
-            Layout.alignment: Qt.AlignTop
-            Layout.topMargin: root.buttonVerticalPadding
-            Layout.bottomMargin: -root.buttonVerticalPadding // Why is this necessary? Good question.
+            Layout.alignment: Qt.AlignVCenter
+            Layout.fillHeight: false
             spacing: 4
             Repeater {
                 model: (root.entry.actions ?? []).slice(0, 4)
-                delegate: RippleButton {
+                delegate: Item {
                     id: actionButton
                     required property var modelData
                     property var iconType: modelData.iconType
                     property string iconName: modelData.iconName ?? ""
                     implicitHeight: 34
                     implicitWidth: 34
-                    z: 1  // Ensure action buttons are above parent's mouse area
 
-                    colBackgroundHover: Appearance.colors.colSecondaryContainerHover
-                    colRipple: Appearance.colors.colSecondaryContainerActive
-
-                    contentItem: Item {
-                        id: actionContentItem
-                        anchors.centerIn: parent
-                        Loader {
-                            anchors.centerIn: parent
-                            active: actionButton.iconType === LauncherSearchResult.IconType.Material || actionButton.iconName === ""
-                            sourceComponent: MaterialSymbol {
-                                text: actionButton.iconName || "video_settings"
-                                font.pixelSize: Appearance.font.pixelSize.hugeass
-                                color: Appearance.m3colors.m3onSurface
-                            }
-                        }
-                        Loader {
-                            anchors.centerIn: parent
-                            active: actionButton.iconType === LauncherSearchResult.IconType.System && actionButton.iconName !== ""
-                            sourceComponent: IconImage {
-                                source: Quickshell.iconPath(actionButton.iconName)
-                                implicitSize: 20
-                            }
+                    Rectangle {
+                        id: actionBg
+                        anchors.fill: parent
+                        radius: Appearance.rounding.small
+                        color: actionMouse.containsMouse ? Appearance.colors.colSecondaryContainerHover : "transparent"
+                        Behavior on color {
+                            ColorAnimation { duration: 100 }
                         }
                     }
 
-                    onClicked: {
-                        root.actionButtonClicked = true
-                        modelData.execute()
+                    Loader {
+                        anchors.centerIn: parent
+                        active: actionButton.iconType === LauncherSearchResult.IconType.Material || actionButton.iconName === ""
+                        sourceComponent: MaterialSymbol {
+                            text: actionButton.iconName || "video_settings"
+                            font.pixelSize: Appearance.font.pixelSize.hugeass
+                            color: Appearance.m3colors.m3onSurface
+                        }
+                    }
+                    Loader {
+                        anchors.centerIn: parent
+                        active: actionButton.iconType === LauncherSearchResult.IconType.System && actionButton.iconName !== ""
+                        sourceComponent: IconImage {
+                            source: Quickshell.iconPath(actionButton.iconName)
+                            implicitSize: 20
+                        }
+                    }
+
+                    MouseArea {
+                        id: actionMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: (event) => {
+                            event.accepted = true
+                            LauncherSearch.skipNextAutoFocus = true
+                            // Clear selection immediately
+                            const listView = root.ListView.view
+                            if (listView) listView.currentIndex = -1
+                            actionButton.modelData.execute()
+                        }
+                        onPressed: (event) => { event.accepted = true }
+                        onReleased: (event) => { event.accepted = true }
                     }
 
                     StyledToolTip {
-                        text: modelData.name
+                        text: actionButton.modelData.name
+                        extraVisibleCondition: actionMouse.containsMouse
                     }
                 }
             }
