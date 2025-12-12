@@ -25,7 +25,7 @@ Symlinked to `~/.config/quickshell/` for testing.
 
 **cd4ae2cc** - `feat(launcher): add frecency-based ranking, quicklinks, and intent detection`
 - Frecency scoring system inspired by zoxide for ranking search results
-- Quicklinks support loaded from `~/.config/illogical-impulse/quicklinks.json`
+- Quicklinks support loaded from `~/.config/hamr/quicklinks.json`
 - Intent detection to auto-detect commands, math, URLs, and file searches
 - Tiered ranking system with category-based prioritization
 - Search history persistence with aging and pruning
@@ -33,7 +33,7 @@ Symlinked to `~/.config/quickshell/` for testing.
 - Tab completion support properties
 
 **b966e2d5** - `feat: add support for custom user action scripts`
-- Custom actions by placing executable scripts in `~/.config/illogical-impulse/actions/`
+- Custom actions by placing executable scripts in `~/.config/hamr/actions/`
 - Script filename becomes the action name
 - Use `/script-name` in search bar to execute
 
@@ -41,7 +41,7 @@ Symlinked to `~/.config/quickshell/` for testing.
 
 **Multi-Step Workflow System**
 - New `services/WorkflowRunner.qml` - Manages bidirectional JSON communication with workflow handlers
-- Workflows are folders in `~/.config/illogical-impulse/actions/` containing:
+- Workflows are folders in `~/.config/hamr/actions/` containing:
   - `manifest.json` - Workflow metadata (name, description, icon)
   - `handler.py` - Python script using JSON protocol
 - New `modules/ii/overview/WorkflowCard.qml` - Card UI for rich content display (markdown support)
@@ -182,12 +182,15 @@ Singleton {
 **Output from handler (stdout):**
 ```json
 // Show results (multi-turn: stays open)
+// inputMode: "realtime" (default) = search on every keystroke
+//            "submit" = search only when user presses Enter (for text input, AI chat)
 // Optional: placeholder = custom search bar placeholder, clearInput = clear search text
 // Optional: context = set lastSelectedItem for subsequent search calls (useful for edit modes)
-{"type": "results", "results": [...], "placeholder": "Search...", "clearInput": true, "context": "__edit__:itemId"}
+{"type": "results", "results": [...], "inputMode": "realtime", "placeholder": "Search...", "clearInput": true, "context": "__edit__:itemId"}
 
 // Show card (stays open)
-{"type": "card", "card": {"title": "...", "content": "...", "markdown": true}}
+// inputMode works the same way for cards - controls when next search is triggered
+{"type": "card", "card": {"title": "...", "content": "...", "markdown": true}, "inputMode": "submit", "placeholder": "Type reply..."}
 
 // Execute command (close: true = close overview)
 {"type": "execute", "execute": {"command": ["cmd", "arg"], "notify": "message", "close": true}}
@@ -219,6 +222,52 @@ Singleton {
     ]
 }
 ```
+
+### Input Modes
+
+The `inputMode` field controls when the UI sends search queries to your handler:
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `realtime` | Every keystroke triggers `step: "search"` | Fuzzy filtering, file search |
+| `submit` | Only Enter key triggers `step: "search"` | Text input, AI chat, adding items |
+
+**Key insight:** Input mode is a property of the *current step*, not the workflow. The same workflow can use different modes for different steps:
+
+```python
+# Fuzzy search mode - realtime filtering
+if step == "initial":
+    print(json.dumps({
+        "type": "results",
+        "results": get_items(),
+        "inputMode": "realtime",  # Filter on every keystroke
+        "placeholder": "Search items..."
+    }))
+
+# Add item mode - submit on Enter
+if selected_id == "__add__":
+    print(json.dumps({
+        "type": "results",
+        "results": [],
+        "inputMode": "submit",  # Only send on Enter
+        "placeholder": "Type new item... (Enter to add)"
+    }))
+
+# AI chat mode - submit on Enter, show card response
+if step == "search" and context == "chat":
+    response = call_ai(query)
+    print(json.dumps({
+        "type": "card",
+        "card": {"title": "AI", "content": response, "markdown": True},
+        "inputMode": "submit",  # Wait for Enter before sending reply
+        "placeholder": "Type reply... (Enter to send)",
+        "clearInput": True
+    }))
+```
+
+**Visual indication:** Use placeholder text to hint at the mode:
+- Realtime: "Search files..." 
+- Submit: "Type your message... (Enter to send)"
 
 ### Multi-Turn Flow
 1. User clicks item → `selectItem(id, action)` → handler receives `step: "action"`
@@ -264,7 +313,7 @@ def main():
 ```
 
 ### Creating a New Workflow
-1. Create folder: `~/.config/illogical-impulse/actions/myworkflow/`
+1. Create folder: `~/.config/hamr/actions/myworkflow/`
 2. Create `manifest.json`:
    ```json
    {"name": "My Workflow", "description": "Does something", "icon": "extension"}
