@@ -18,6 +18,18 @@ Singleton {
     // Flag to skip auto-focus on next results update (set by action buttons)
     property bool skipNextAutoFocus: false
 
+    // ==================== WINDOW PICKER SUPPORT ====================
+    // Window picker state is managed in GlobalStates
+
+    // Launch new instance of the app currently in window picker
+    function launchNewInstance(appId) {
+        const entry = DesktopEntries.byId(appId);
+        if (entry) {
+            root.recordSearch("app", appId, root.query);
+            entry.execute();
+        }
+    }
+
     // File search prefix - fallback if not in config
     property string filePrefix: Config.options.search.prefix.file ?? "~"
     
@@ -378,6 +390,55 @@ Singleton {
                 entryPoint: actionInfo.entryPoint ?? null,
                 icon: actionInfo.icon,
                 thumbnail: actionInfo.thumbnail,
+                count: 1,
+                lastUsed: now
+            });
+        }
+        
+        newHistory = ageAndPruneHistory(newHistory, now);
+        
+        if (newHistory.length > maxHistoryItems) {
+            newHistory = newHistory.slice(0, maxHistoryItems);
+        }
+        
+        searchHistoryData = newHistory;
+        searchHistoryFileView.setText(JSON.stringify({ history: newHistory }, null, 2));
+    }
+    
+    // Record a window focus action (for switching to specific windows)
+    // Stores: app ID, app name, window title for replay
+    function recordWindowFocus(appId, appName, windowTitle, iconName) {
+        const now = Date.now();
+        // Use appId + windowTitle as unique key
+        const key = `windowFocus:${appId}:${windowTitle}`;
+        const existingIndex = searchHistoryData.findIndex(
+            h => h.type === "windowFocus" && h.key === key
+        );
+        
+        let newHistory = searchHistoryData.slice();
+        
+        if (existingIndex >= 0) {
+            // Update existing entry
+            const existing = newHistory[existingIndex];
+            newHistory[existingIndex] = {
+                type: existing.type,
+                key: existing.key,
+                appId: appId,
+                appName: appName,
+                windowTitle: windowTitle,
+                iconName: iconName,
+                count: existing.count + 1,
+                lastUsed: now
+            };
+        } else {
+            // Add new entry
+            newHistory.unshift({
+                type: "windowFocus",
+                key: key,
+                appId: appId,
+                appName: appName,
+                windowTitle: windowTitle,
+                iconName: iconName,
                 count: 1,
                 lastUsed: now
             });
@@ -781,6 +842,10 @@ Singleton {
     
     // Create a scored result object for an app entry
     function createAppResult(entry, score, type) {
+        // Get running window info from WindowManager
+        const windows = WindowManager.getWindowsForApp(entry.id);
+        const windowCount = windows.length;
+        
         return {
             score: score,
             result: resultComp.createObject(null, {
@@ -789,13 +854,34 @@ Singleton {
                 name: entry.name,
                 iconName: entry.icon,
                 iconType: LauncherSearchResult.IconType.System,
-                verb: "Open",
+                verb: windowCount > 0 ? "Focus" : "Open",
+                // Inject window info
+                windowCount: windowCount,
+                windows: windows,
                 execute: () => {
-                    root.recordSearch("app", entry.id, root.query);
-                    if (!entry.runInTerminal)
-                        entry.execute();
-                    else {
-                        Quickshell.execDetached(["bash", '-c', `${Config.options.apps.terminal} -e '${StringUtils.shellSingleQuoteEscape(entry.command.join(' '))}'`]);
+                    // Re-fetch windows at execution time (not creation time)
+                    // This ensures correct behavior when clicking from history
+                    const currentWindows = WindowManager.getWindowsForApp(entry.id);
+                    const currentWindowCount = currentWindows.length;
+                    
+                    // Smart execute based on current window count
+                    if (currentWindowCount === 0) {
+                        // No windows - launch new instance, record as app
+                        root.recordSearch("app", entry.id, root.query);
+                        if (!entry.runInTerminal)
+                            entry.execute();
+                        else {
+                            Quickshell.execDetached(["bash", '-c', `${Config.options.apps.terminal} -e '${StringUtils.shellSingleQuoteEscape(entry.command.join(' '))}'`]);
+                        }
+                    } else if (currentWindowCount === 1) {
+                        // Single window - auto-focus it, record as windowFocus
+                        root.recordWindowFocus(entry.id, entry.name, currentWindows[0].title, entry.icon);
+                        WindowManager.focusWindow(currentWindows[0]);
+                        GlobalStates.launcherOpen = false;
+                    } else {
+                        // Multiple windows - open WindowPicker panel
+                        // Don't record here - WindowPicker will record when user selects
+                        GlobalStates.openWindowPicker(entry.id, currentWindows);
                     }
                 },
                 comment: entry.comment,
@@ -1055,8 +1141,19 @@ Singleton {
                             iconType: LauncherSearchResult.IconType.System,
                             verb: "Open",
                             execute: () => {
-                                root.recordSearch("app", entry.id, "");
-                                entry.execute();
+                                // Smart execute: check windows at execution time
+                                const currentWindows = WindowManager.getWindowsForApp(entry.id);
+                                if (currentWindows.length === 0) {
+                                    root.recordSearch("app", entry.id, "");
+                                    entry.execute();
+                                } else if (currentWindows.length === 1) {
+                                    root.recordWindowFocus(entry.id, entry.name, currentWindows[0].title, entry.icon);
+                                    WindowManager.focusWindow(currentWindows[0]);
+                                    GlobalStates.launcherOpen = false;
+                                } else {
+                                    // Don't record - WindowPicker will record when user selects
+                                    GlobalStates.openWindowPicker(entry.id, currentWindows);
+                                }
                             }
                         });
                     } else if (item.type === "action") {
@@ -1157,6 +1254,40 @@ Singleton {
                                 } else if (item.entryPoint && item.workflowId) {
                                     // Workflow replay via entryPoint (complex actions)
                                     WorkflowRunner.replayAction(item.workflowId, item.entryPoint);
+                                }
+                            }
+                        });
+                    } else if (item.type === "windowFocus") {
+                        return resultComp.createObject(null, {
+                            type: "Recent",
+                            id: item.appId,
+                            name: item.appName,
+                            comment: item.windowTitle,
+                            iconName: item.iconName,
+                            iconType: LauncherSearchResult.IconType.System,
+                            verb: "Focus",
+                            execute: () => {
+                                // Find window by title
+                                const windows = WindowManager.getWindowsForApp(item.appId);
+                                const targetWindow = windows.find(w => w.title === item.windowTitle);
+                                
+                                if (targetWindow) {
+                                    // Found the exact window - focus it
+                                    root.recordWindowFocus(item.appId, item.appName, item.windowTitle, item.iconName);
+                                    WindowManager.focusWindow(targetWindow);
+                                    GlobalStates.launcherOpen = false;
+                                } else if (windows.length === 1) {
+                                    // Only one window - focus it (title may have changed)
+                                    root.recordWindowFocus(item.appId, item.appName, windows[0].title, item.iconName);
+                                    WindowManager.focusWindow(windows[0]);
+                                    GlobalStates.launcherOpen = false;
+                                } else if (windows.length > 1) {
+                                    // Multiple windows but can't find exact match - show picker
+                                    GlobalStates.openWindowPicker(item.appId, windows);
+                                } else {
+                                    // No windows - launch new instance
+                                    const entry = DesktopEntries.byId(item.appId);
+                                    if (entry) entry.execute();
                                 }
                             }
                         });

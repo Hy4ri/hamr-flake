@@ -45,4 +45,33 @@ Singleton {
             closeImageBrowser();
         }
     }
+
+    // ==================== WINDOW PICKER ====================
+    // Window picker for switching between multiple windows of an app
+    property bool windowPickerOpen: false
+    property string windowPickerAppId: ""
+    property var windowPickerWindows: []
+
+    // Signal emitted when user selects a window
+    signal windowPickerSelected(var toplevel)
+
+    // Open window picker for an app with multiple windows
+    function openWindowPicker(appId, windows) {
+        windowPickerAppId = appId;
+        windowPickerWindows = windows;
+        windowPickerOpen = true;
+    }
+
+    // Close window picker
+    function closeWindowPicker() {
+        windowPickerOpen = false;
+        windowPickerAppId = "";
+        windowPickerWindows = [];
+    }
+
+    // Called when user selects a window
+    function windowPickerSelection(toplevel) {
+        windowPickerSelected(toplevel);
+        closeWindowPicker();
+    }
 }

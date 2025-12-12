@@ -34,6 +34,16 @@ RippleButton {
     property string bigText: entry?.iconType === LauncherSearchResult.IconType.Text ? entry?.iconName ?? "" : ""
     property string materialSymbol: entry.iconType === LauncherSearchResult.IconType.Material ? entry?.iconName ?? "" : ""
     property string thumbnail: entry?.thumbnail ?? ""
+    // Check running state dynamically from WindowManager for apps
+    // This ensures correct state even for history items (type "Recent")
+    property int windowCount: {
+        const entryId = entry?.id ?? "";
+        if (entryId && (itemType === "App" || itemType === "Recent")) {
+            return WindowManager.getWindowsForApp(entryId).length;
+        }
+        return entry?.windowCount ?? 0;
+    }
+    property bool isRunning: windowCount > 0
 
     visible: root.entryShown
     property int horizontalMargin: 10
@@ -148,6 +158,19 @@ RippleButton {
         anchors.leftMargin: root.horizontalMargin
         anchors.rightMargin: root.horizontalMargin
     }
+    
+    // Subtle left accent bar for running apps
+    Rectangle {
+        visible: root.isRunning
+        anchors.left: root.left
+        anchors.verticalCenter: root.verticalCenter
+        anchors.leftMargin: root.horizontalMargin + 2
+        height: 16
+        width: 3
+        radius: 1.5
+        color: Appearance.colors.colPrimary
+        opacity: 0.7
+    }
 
     onClicked: {
         // For workflow results, don't auto-close - let the handler decide via execute.close
@@ -227,6 +250,8 @@ RippleButton {
                 }
             }
         }
+
+
 
         Component {
             id: thumbnailComponent

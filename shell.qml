@@ -30,6 +30,7 @@ ShellRoot {
     // Main launcher components
     Launcher {}
     ImageBrowser {}
+    WindowPicker {}
 
     // Reload popup for development
     ReloadPopup {}

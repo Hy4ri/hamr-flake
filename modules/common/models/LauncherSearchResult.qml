@@ -55,6 +55,16 @@ QtObject {
     // Each action: { id, name, icon }
     property var workflowActions: []
     
-    // Thumbnail image path (for workflow results with images)
-    property string thumbnail: ""
+     // Thumbnail image path (for workflow results with images)
+     property string thumbnail: ""
+     
+     // ==================== RUNNING WINDOW SUPPORT ====================
+     // Number of open windows for this app (0 = not running)
+     property int windowCount: 0
+     
+     // List of Toplevel objects for this app's open windows
+     property list<var> windows: []
+     
+     // Whether this app has running windows
+     property bool isRunning: windowCount > 0
 }
