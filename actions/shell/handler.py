@@ -154,25 +154,26 @@ def main():
             print(json.dumps({"type": "error", "message": "No command selected"}))
             return
 
-        # Escape single quotes in command for shell
-        escaped_cmd = cmd.replace("'", "'\\''")
-
         # Truncate command for history display
         display_cmd = cmd if len(cmd) <= 50 else cmd[:50] + "..."
 
+        # Use Python repr for proper escaping in bash
+        cmd_repr = repr(cmd)
+
+        # Use $TERMINAL env var, fall back to common terminals
+        terminal = os.environ.get("TERMINAL", "ghostty")
+
         if action == "run-float":
-            # Run command in bash, then exec into interactive zsh
-            # This runs the command first, then gives you an interactive shell
+            # Launch floating terminal, type command with ydotool, press Enter
             print(
                 json.dumps(
                     {
                         "type": "execute",
                         "execute": {
                             "command": [
-                                "hyprctl",
-                                "dispatch",
-                                "exec",
-                                f"[float] ghostty -e bash -c '{escaped_cmd}; exec zsh'",
+                                "bash",
+                                "-c",
+                                f"hyprctl dispatch exec '[float] {terminal}' && sleep 0.3 && ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0",
                             ],
                             "name": f"Run: {display_cmd}",
                             "icon": "terminal",
@@ -182,17 +183,16 @@ def main():
                 )
             )
         elif action == "run-tiled":
+            # Launch tiled terminal, type command with ydotool, press Enter
             print(
                 json.dumps(
                     {
                         "type": "execute",
                         "execute": {
                             "command": [
-                                "ghostty",
-                                "-e",
                                 "bash",
                                 "-c",
-                                f"{escaped_cmd}; exec zsh",
+                                f"{terminal} & sleep 0.3 && ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0",
                             ],
                             "name": f"Run: {display_cmd}",
                             "icon": "terminal",
@@ -218,17 +218,16 @@ def main():
                 )
             )
         else:
-            # Default action: run in floating terminal with interactive shell after
+            # Default action: run in floating terminal with ydotool, press Enter
             print(
                 json.dumps(
                     {
                         "type": "execute",
                         "execute": {
                             "command": [
-                                "hyprctl",
-                                "dispatch",
-                                "exec",
-                                f"[float] ghostty -e bash -c '{escaped_cmd}; exec zsh'",
+                                "bash",
+                                "-c",
+                                f"hyprctl dispatch exec '[float] {terminal}' && sleep 0.3 && ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0",
                             ],
                             "name": f"Run: {display_cmd}",
                             "icon": "terminal",

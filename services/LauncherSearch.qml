@@ -34,7 +34,7 @@ Singleton {
     property string filePrefix: Config.options.search.prefix.file ?? "~"
     
     function ensurePrefix(prefix) {
-        if ([Config.options.search.prefix.action, Config.options.search.prefix.app, Config.options.search.prefix.emojis, Config.options.search.prefix.math, Config.options.search.prefix.shellCommand, Config.options.search.prefix.shellHistory, Config.options.search.prefix.webSearch, root.filePrefix].some(i => root.query.startsWith(i))) {
+        if ([Config.options.search.prefix.action, Config.options.search.prefix.app, Config.options.search.prefix.emojis, Config.options.search.prefix.math, Config.options.search.prefix.shellCommand, Config.options.search.prefix.webSearch, root.filePrefix].some(i => root.query.startsWith(i))) {
             root.query = prefix + root.query.slice(1);
         } else {
             root.query = prefix + root.query;
@@ -137,14 +137,19 @@ Singleton {
     // Convert workflow results to LauncherSearchResult objects
     function workflowResultsToSearchResults(workflowResults: var): var {
         return workflowResults.map(item => {
+            // Store item.id in local const to ensure closure captures value
+            const itemId = item.id;
+            
             // Convert workflow actions to LauncherSearchResult action objects
             const itemActions = (item.actions ?? []).map(action => {
+                // Store action.id in local const to ensure closure captures value
+                const actionId = action.id;
                 return resultComp.createObject(null, {
                     name: action.name,
                     iconName: action.icon ?? 'play_arrow',
                     iconType: LauncherSearchResult.IconType.Material,
                     execute: () => {
-                        WorkflowRunner.selectItem(item.id, action.id);
+                        WorkflowRunner.selectItem(itemId, actionId);
                     }
                 });
             });
@@ -158,13 +163,13 @@ Singleton {
                 iconType: LauncherSearchResult.IconType.Material,
                 resultType: LauncherSearchResult.ResultType.WorkflowResult,
                 workflowId: WorkflowRunner.activeWorkflow?.id ?? "",
-                workflowItemId: item.id,
+                workflowItemId: itemId,
                 workflowActions: item.actions ?? [],
                 thumbnail: item.thumbnail ?? "",
                 actions: itemActions,
                 execute: () => {
                     // Default action: select without specific action
-                    WorkflowRunner.selectItem(item.id, "");
+                    WorkflowRunner.selectItem(itemId, "");
                 }
             });
         });
@@ -574,7 +579,6 @@ Singleton {
         URL: "url",
         FILE: "file",
         EMOJI: "emoji",
-        SHELL_HISTORY: "shell_history",
         GENERAL: "general"
     })
     
@@ -587,7 +591,6 @@ Singleton {
         if (trimmed.startsWith(Config.options.search.prefix.emojis)) return root.intent.EMOJI;
         if (trimmed.startsWith(root.filePrefix)) return root.intent.FILE;
         if (trimmed.startsWith(Config.options.search.prefix.shellCommand)) return root.intent.COMMAND;
-        if (trimmed.startsWith(Config.options.search.prefix.shellHistory)) return root.intent.SHELL_HISTORY;
         if (trimmed.startsWith(Config.options.search.prefix.math)) return root.intent.MATH;
         
         // Auto-detect intent from query pattern
@@ -631,7 +634,6 @@ Singleton {
         URL_HISTORY: "url_history",
         EMOJI: "emoji",
         COMMAND: "command",
-        SHELL_HISTORY: "shell_history",
         MATH: "math",
         WEB_SEARCH: "web_search"
     })
@@ -652,10 +654,6 @@ Singleton {
             case root.intent.COMMAND:
                 tier1 = [root.category.COMMAND];
                 break;
-            case root.intent.SHELL_HISTORY:
-                // Only promote shell history when using ! prefix
-                tier1 = [root.category.SHELL_HISTORY];
-                break;
             case root.intent.MATH:
                 tier1 = [root.category.MATH];
                 break;
@@ -667,7 +665,7 @@ Singleton {
         return {
             tier1: tier1,  // Intent-specific (shown first, in order)
             tier2: [root.category.APP, root.category.ACTION, root.category.WORKFLOW, root.category.QUICKLINK],  // Primary (compete)
-            tier3: [root.category.WORKFLOW_EXECUTION, root.category.SHELL_HISTORY, root.category.URL_HISTORY, root.category.EMOJI],  // Secondary (compete)
+            tier3: [root.category.WORKFLOW_EXECUTION, root.category.URL_HISTORY, root.category.EMOJI],  // Secondary (compete)
             tier4: [root.category.WEB_SEARCH]  // Fallback (always last)
         };
     }
@@ -970,6 +968,9 @@ Singleton {
         } else if (root.query === Config.options.search.prefix.clipboard) {
             // Start clipboard workflow when ; is typed
             root.startWorkflow("clipboard");
+        } else if (root.query === Config.options.search.prefix.shellHistory) {
+            // Start shell workflow when ! is typed
+            root.startWorkflow("shell");
         }
     }
     
@@ -1369,42 +1370,7 @@ Singleton {
             }).filter(Boolean);
         }
         
-        // Shell history with prefix - show full shell history results
-        if (root.query.startsWith(Config.options.search.prefix.shellHistory)) {
-            const searchString = StringUtils.cleanPrefix(root.query, Config.options.search.prefix.shellHistory);
-            return ShellHistory.fuzzyQuery(searchString).map(cmd => {
-                return resultComp.createObject(null, {
-                    name: cmd,
-                    verb: "Run",
-                    type: "Shell History",
-                    fontType: LauncherSearchResult.FontType.Monospace,
-                    iconName: 'terminal',
-                    iconType: LauncherSearchResult.IconType.Material,
-                    execute: () => {
-                        // Run command in terminal with interactive shell
-                        Quickshell.execDetached(["ghostty", "--class=floating.terminal", "-e", ShellHistory.detectedShell || "bash", "-ic", cmd]);
-                    },
-                    actions: [
-                        resultComp.createObject(null, {
-                            name: "Copy",
-                            iconName: "content_copy",
-                            iconType: LauncherSearchResult.IconType.Material,
-                            execute: () => {
-                                Quickshell.clipboardText = cmd;
-                            }
-                        }),
-                        resultComp.createObject(null, {
-                            name: "Run in terminal",
-                            iconName: "terminal",
-                            iconType: LauncherSearchResult.IconType.Material,
-                            execute: () => {
-                                Quickshell.execDetached([Config.options.apps.terminal, "-e", ShellHistory.detectedShell || "bash", "-ic", cmd]);
-                            }
-                        })
-                    ]
-                });
-            }).filter(Boolean);
-        }
+
         
         ////////////////// Tiered Ranking System ///////////////////
         // Uses intent detection and category-based ranking instead of magic score numbers.
@@ -1425,7 +1391,6 @@ Singleton {
             [root.category.CLIPBOARD]: 3,
             [root.category.EMOJI]: 3,
             [root.category.COMMAND]: 1,
-            [root.category.SHELL_HISTORY]: 5,
             [root.category.MATH]: 1,
             [root.category.WEB_SEARCH]: 1
         };
@@ -1778,50 +1743,6 @@ Singleton {
             categorized[root.category.COMMAND] = [];
         }
         
-        // ========== SHELL HISTORY ==========
-        // Include shell history commands that fuzzy match the query
-        if (ShellHistory.enabled && ShellHistory.ready) {
-            const shellHistoryResults = ShellHistory.fuzzyQueryWithScores(root.query).slice(0, 10).map(item => {
-                const cmd = item.command;
-                return {
-                    matchType: root.getMatchType(root.query, cmd),
-                    fuzzyScore: item.score,
-                    frecency: 0, // Shell history doesn't use frecency from launcher
-                    result: resultComp.createObject(null, {
-                        name: cmd,
-                        verb: "Run",
-                        type: "Shell History",
-                        fontType: LauncherSearchResult.FontType.Monospace,
-                        iconName: 'terminal',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        execute: () => {
-                            Quickshell.execDetached(["ghostty", "--class=floating.terminal", "-e", ShellHistory.detectedShell || "bash", "-ic", cmd]);
-                        },
-                        actions: [
-                            resultComp.createObject(null, {
-                                name: "Copy",
-                                iconName: "content_copy",
-                                iconType: LauncherSearchResult.IconType.Material,
-                                execute: () => {
-                                    Quickshell.clipboardText = cmd;
-                                }
-                            }),
-                            resultComp.createObject(null, {
-                                name: "Run in terminal",
-                                iconName: "terminal",
-                                iconType: LauncherSearchResult.IconType.Material,
-                                execute: () => {
-                                    Quickshell.execDetached([Config.options.apps.terminal, "-e", ShellHistory.detectedShell || "bash", "-ic", cmd]);
-                                }
-                            })
-                        ]
-                    })
-                };
-            });
-            categorized[root.category.SHELL_HISTORY] = shellHistoryResults.sort(root.compareResults);
-        } else {
-            categorized[root.category.SHELL_HISTORY] = [];
-        }
         
         // ========== MATH ==========
         const isMath = root.isMathExpression(root.query);
