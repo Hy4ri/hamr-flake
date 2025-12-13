@@ -70,6 +70,7 @@ Singleton {
     property var workflows: []
     property var pendingManifestLoads: []
     property bool workflowsLoaded: false  // True when all manifests have been loaded
+    property string pendingWorkflowStart: ""  // Workflow ID to start once loaded
     
     // Force refresh workflows - call this when launcher opens to detect new workflows
     // This works around FolderListModel not detecting changes in symlinked directories
@@ -110,6 +111,12 @@ Singleton {
     function loadNextManifest() {
         if (root.pendingManifestLoads.length === 0) {
             root.workflowsLoaded = true;
+            // Start pending workflow if one was requested before loading finished
+            if (root.pendingWorkflowStart !== "") {
+                const workflowId = root.pendingWorkflowStart;
+                root.pendingWorkflowStart = "";
+                root.startWorkflow(workflowId);
+            }
             return;
         }
         
@@ -178,6 +185,12 @@ Singleton {
     
     // Start a workflow
     function startWorkflow(workflowId) {
+        // Queue if workflows not loaded yet (or still loading - count 0 but folder not ready)
+        if (!root.workflowsLoaded || (root.workflows.length === 0 && workflowsFolder.status !== FolderListModel.Ready)) {
+            root.pendingWorkflowStart = workflowId;
+            return true;  // Return true to indicate it will start
+        }
+        
         const workflow = root.workflows.find(w => w.id === workflowId);
         if (!workflow || !workflow.manifest) {
             return false;

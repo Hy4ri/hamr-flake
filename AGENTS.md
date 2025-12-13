@@ -121,6 +121,71 @@ property JsonObject shellHistory: JsonObject {
 3. **Tier 3**: Workflow Executions, Shell History, URL History, Clipboard, Emoji
 4. **Tier 4**: Web Search (fallback)
 
+## IPC API
+
+Hamr exposes IPC targets via Quickshell's `IpcHandler`. These can be called from external scripts or other Quickshell configs.
+
+### Available Targets
+
+| Target | Method | Description |
+|--------|--------|-------------|
+| `hamr` | `toggle()` | Toggle launcher visibility |
+| `hamr` | `open()` | Open the launcher |
+| `hamr` | `close()` | Close the launcher |
+| `hamr` | `openWith(prefix)` | Open with prefix (**TODO**: not yet implemented) |
+| `hamr` | `workflow(name)` | Start a specific workflow by name |
+| `shellHistoryService` | `update()` | Refresh shell history entries |
+
+### CLI Usage
+
+```bash
+# List all available IPC targets
+qs -c hamr ipc show
+
+# Toggle launcher
+qs -c hamr ipc call hamr toggle
+
+# Start bitwarden workflow directly
+qs -c hamr ipc call hamr workflow bitwarden
+
+# Refresh shell history
+qs -c hamr ipc call shellHistoryService update
+```
+
+### Hotkeys for Workflows
+
+Use the `workflow` IPC method to bind hotkeys directly to your favorite plugins. This opens hamr and immediately starts the specified workflow.
+
+**Hyprland example** (`~/.config/hypr/hyprland.conf`):
+```bash
+# Open bitwarden password manager with Super+P
+bind = SUPER, P, exec, qs -c hamr ipc call hamr workflow bitwarden
+
+# Open clipboard history with Super+V
+bind = SUPER, V, exec, qs -c hamr ipc call hamr workflow clipboard
+
+# Open file browser with Super+E
+bind = SUPER, E, exec, qs -c hamr ipc call hamr workflow files
+
+# Open screenshot tool with Super+Shift+S
+bind = SUPER SHIFT, S, exec, qs -c hamr ipc call hamr workflow screenshot
+```
+
+**Other compositors/WMs**: Use your compositor's keybind config to execute the same `qs -c hamr ipc call hamr workflow <name>` command.
+
+To find available workflow names, check `~/.config/hamr/actions/` - each folder name is a workflow ID.
+
+### Cross-Config IPC
+
+Handlers can call IPC on other Quickshell configs. For example, the todo plugin refreshes end-4's sidebar:
+
+```bash
+# Refresh todo sidebar in ii config (end-4 shell)
+qs -c ii ipc call todo refresh
+```
+
+See [`actions/AGENTS.md`](actions/AGENTS.md) for Python helper functions.
+
 ## Testing Commands
 
 ```bash

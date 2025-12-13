@@ -399,25 +399,58 @@ print(json.dumps({
 
 ## IPC Calls
 
-Refresh UI components after changes:
+Hamr and other Quickshell configs expose IPC targets for inter-process communication.
+
+### Hamr IPC Targets
+
+```bash
+# List available hamr targets
+qs -c hamr ipc show
+
+# Toggle launcher visibility
+qs -c hamr ipc call hamr toggle
+
+# Open/close launcher
+qs -c hamr ipc call hamr open
+qs -c hamr ipc call hamr close
+
+# Start a specific workflow directly
+qs -c hamr ipc call hamr workflow bitwarden
+
+# Refresh shell history
+qs -c hamr ipc call shellHistoryService update
+```
+
+### Calling IPC from Python Handlers
 
 ```python
 import subprocess
 
-def call_hamr_ipc(target, method, *args):
+def call_ipc(config, target, method, *args):
+    """Call IPC on any Quickshell config"""
     subprocess.Popen(
-        ["qs", "-c", "hamr", "ipc", "call", target, method] + list(args),
+        ["qs", "-c", config, "ipc", "call", target, method] + list(args),
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
-# Example: refresh todo sidebar after adding item
-call_hamr_ipc("todo", "refresh")
+# Hamr IPC examples
+call_ipc("hamr", "hamr", "toggle")
+call_ipc("hamr", "shellHistoryService", "update")
 ```
 
-**Available targets:** Run `qs -c hamr ipc show` to list all.
+### Cross-Config IPC (External Shells)
 
-**Example plugin:** [`todo/`](todo/handler.py) - Refreshes sidebar after changes
+Handlers can also call IPC on other Quickshell configs running on the system.
+This is useful for syncing state with external UI components.
+
+```python
+# Example: Refresh end-4/ii sidebar after todo changes
+# The todo sidebar lives in the "ii" config, not hamr
+call_ipc("ii", "todo", "refresh")
+```
+
+**Example plugin:** [`todo/`](todo/handler.py) - Calls `qs -c ii ipc call todo refresh` to update end-4's sidebar widget after adding/editing/deleting tasks
 
 ---
 
