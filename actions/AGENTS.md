@@ -602,3 +602,238 @@ Users navigate with:
 6. **Use `context`** - Preserve state across search calls
 7. **Debug with** `journalctl --user -f` - Check for errors
 8. **Test edge cases** - Empty results, errors, special characters
+
+---
+
+## Converting Raycast Extensions
+
+Hamr can replicate functionality from [Raycast](https://raycast.com) extensions. When porting a Raycast extension, understand these key differences:
+
+### Architecture Comparison
+
+| Aspect | Raycast | Hamr |
+|--------|---------|------|
+| **Language** | TypeScript/React | Any (Python recommended) |
+| **UI Model** | React components | JSON responses |
+| **Data Flow** | React hooks + state | stdin/stdout per step |
+| **Platform** | macOS | Linux (Wayland/Hyprland) |
+
+### Raycast Extension Structure
+
+```
+raycast-extension/
+├── package.json          # Manifest + commands + preferences
+├── src/
+│   ├── index.tsx         # Main command (React component)
+│   ├── hooks/            # Data fetching hooks
+│   ├── components/       # Reusable UI
+│   └── utils/            # Helper functions
+└── assets/               # Icons
+```
+
+### Component Mapping
+
+| Raycast Component | Hamr Equivalent |
+|-------------------|-----------------|
+| `<List>` | `{"type": "results", "results": [...]}` |
+| `<List.Item>` | `{"id": "...", "name": "...", "icon": "..."}` |
+| `<List.Item.Detail>` | `{"type": "card", "card": {...}}` |
+| `<Detail>` | `{"type": "card", "card": {...}}` |
+| `<Grid>` | `{"type": "imageBrowser", ...}` or results with thumbnails |
+| `<Form>` | Multi-step workflow with `inputMode: "submit"` |
+| `<ActionPanel>` | `"actions": [...]` array on result items |
+| `Action.CopyToClipboard` | `{"command": ["wl-copy", "text"]}` |
+| `Action.OpenInBrowser` | `{"command": ["xdg-open", "url"]}` |
+| `Action.Push` | Return new results (multi-turn navigation) |
+| `showToast()` | `{"notify": "message"}` in execute |
+| `getPreferenceValues()` | Read from config file or environment |
+
+### Hook Translation
+
+| Raycast Hook | Hamr Equivalent |
+|--------------|-----------------|
+| `usePromise` | Fetch data in handler, return results |
+| `useCachedPromise` | Cache to JSON file, check on each call |
+| `useCachedState` | Use `context` field or file-based cache |
+| `useState` | Use `context` field for state across steps |
+| `useEffect` | Not needed - each call is stateless |
+
+### Path Mapping (macOS → Linux)
+
+| macOS Path | Linux Path |
+|------------|------------|
+| `~/Library/Application Support/Google/Chrome` | `~/.config/google-chrome` |
+| `~/Library/Application Support/BraveSoftware/Brave-Browser` | `~/.config/BraveSoftware/Brave-Browser` |
+| `~/Library/Application Support/Microsoft Edge` | `~/.config/microsoft-edge` |
+| `~/Library/Application Support/Chromium` | `~/.config/chromium` |
+| `~/Library/Application Support/Arc` | `~/.config/arc` |
+| `~/Library/Application Support/Vivaldi` | `~/.config/vivaldi` |
+| `~/Library/Safari/Bookmarks.plist` | N/A (Safari not on Linux) |
+| `~/.mozilla/firefox` | `~/.mozilla/firefox` (same) |
+| `~/Library/Preferences` | `~/.config` |
+| `~/Library/Caches` | `~/.cache` |
+
+### API Mapping (macOS → Linux)
+
+| Raycast/macOS API | Linux Equivalent |
+|-------------------|------------------|
+| `Clipboard.copy()` | `wl-copy` (Wayland) or `xclip` (X11) |
+| `Clipboard.paste()` | `wl-paste` or `xclip -o` |
+| `Clipboard.read()` | `wl-paste` or `xclip -selection clipboard -o` |
+| `showHUD()` | `notify-send` |
+| `open` (command) | `xdg-open` |
+| `getFrontmostApplication()` | `hyprctl activewindow -j` |
+| `getSelectedFinderItems()` | Not directly available |
+| AppleScript | Not available - use D-Bus or CLI tools |
+| Keychain | `secret-tool` (libsecret) or file-based |
+
+### Example: Raycast List → Hamr Results
+
+**Raycast (TypeScript/React):**
+```tsx
+import { List, ActionPanel, Action } from "@raycast/api";
+
+export default function Command() {
+  const items = [
+    { id: "1", title: "First", url: "https://example.com" },
+    { id: "2", title: "Second", url: "https://example.org" },
+  ];
+  
+  return (
+    <List searchBarPlaceholder="Search bookmarks...">
+      {items.map(item => (
+        <List.Item
+          key={item.id}
+          title={item.title}
+          subtitle={item.url}
+          actions={
+            <ActionPanel>
+              <Action.OpenInBrowser url={item.url} />
+              <Action.CopyToClipboard content={item.url} />
+            </ActionPanel>
+          }
+        />
+      ))}
+    </List>
+  );
+}
+```
+
+**Hamr (Python):**
+```python
+#!/usr/bin/env python3
+import json
+import sys
+
+def main():
+    input_data = json.load(sys.stdin)
+    step = input_data.get("step", "initial")
+    selected = input_data.get("selected", {})
+    action = input_data.get("action", "")
+    
+    items = [
+        {"id": "1", "title": "First", "url": "https://example.com"},
+        {"id": "2", "title": "Second", "url": "https://example.org"},
+    ]
+    
+    if step in ("initial", "search"):
+        query = input_data.get("query", "").lower()
+        filtered = [i for i in items if query in i["title"].lower()] if query else items
+        
+        print(json.dumps({
+            "type": "results",
+            "results": [
+                {
+                    "id": item["id"],
+                    "name": item["title"],
+                    "description": item["url"],
+                    "icon": "bookmark",
+                    "actions": [
+                        {"id": "open", "name": "Open", "icon": "open_in_new"},
+                        {"id": "copy", "name": "Copy URL", "icon": "content_copy"},
+                    ]
+                }
+                for item in filtered
+            ],
+            "placeholder": "Search bookmarks..."
+        }))
+        return
+    
+    if step == "action":
+        item_id = selected.get("id")
+        item = next((i for i in items if i["id"] == item_id), None)
+        if not item:
+            return
+        
+        if action == "copy":
+            print(json.dumps({
+                "type": "execute",
+                "execute": {
+                    "command": ["wl-copy", item["url"]],
+                    "notify": "URL copied",
+                    "close": True
+                }
+            }))
+        else:  # Default: open
+            print(json.dumps({
+                "type": "execute",
+                "execute": {
+                    "command": ["xdg-open", item["url"]],
+                    "name": f"Open {item['title']}",
+                    "icon": "bookmark",
+                    "close": True
+                }
+            }))
+
+if __name__ == "__main__":
+    main()
+```
+
+### Conversion Checklist
+
+When converting a Raycast extension:
+
+1. **Identify the data source**
+   - [ ] API calls → Use `requests` or `subprocess`
+   - [ ] Local files → Update paths for Linux
+   - [ ] System APIs → Find Linux equivalents
+
+2. **Map UI components**
+   - [ ] `List` → results response
+   - [ ] `Detail`/`List.Item.Detail` → card response
+   - [ ] `Grid` → imageBrowser or thumbnails
+   - [ ] `Form` → multi-step with submit mode
+
+3. **Handle actions**
+   - [ ] `Action.OpenInBrowser` → `xdg-open`
+   - [ ] `Action.CopyToClipboard` → `wl-copy`
+   - [ ] `Action.Push` → return new results
+   - [ ] Custom actions → map to execute commands
+
+4. **Replace platform APIs**
+   - [ ] Clipboard → `wl-copy`/`wl-paste`
+   - [ ] Notifications → `notify-send`
+   - [ ] File paths → Linux equivalents
+   - [ ] Keychain → `secret-tool` or config file
+
+5. **Test edge cases**
+   - [ ] Empty results
+   - [ ] Missing files/directories
+   - [ ] Network errors
+   - [ ] Permission errors
+
+### Using AI to Convert
+
+The [`create-plugin`](create-plugin/) workflow can help convert Raycast extensions:
+
+1. Run `/create-plugin` in Hamr
+2. Provide the Raycast extension URL (e.g., `https://github.com/raycast/extensions/tree/main/extensions/browser-bookmarks`)
+3. The AI will analyze the extension and create a Hamr equivalent
+
+Example prompt:
+```
+Create a Hamr plugin that replicates the functionality of this Raycast extension:
+https://github.com/raycast/extensions/tree/main/extensions/browser-bookmarks
+
+Focus on Chrome and Firefox support for Linux.
+```

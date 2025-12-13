@@ -89,11 +89,48 @@ Output JSON (stdout) - one of:
 - {{"type": "results", "results": [{{"id": "...", "name": "...", "description": "...", "icon": "..."}}]}}
 - {{"type": "card", "card": {{"title": "...", "content": "markdown content", "markdown": true}}}}
 - {{"type": "execute", "execute": {{"command": ["cmd", "args"], "close": true}}}}
+- {{"type": "imageBrowser", "imageBrowser": {{"directory": "~/Pictures", "title": "...", "actions": [...]}}}}
 - {{"type": "prompt", "prompt": {{"text": "Enter something..."}}}}
 
 Make handler.py executable (chmod +x).
 
-Look at existing plugins in {actions_dir} for examples."""
+Look at existing plugins in {actions_dir} for examples.
+Read {actions_dir}/AGENTS.md for comprehensive documentation on the plugin protocol.
+
+## Converting Raycast Extensions
+
+If the user provides a Raycast extension URL or asks to replicate Raycast functionality:
+
+1. **Fetch and analyze** the Raycast extension source code
+2. **Identify the core functionality** - what data does it fetch/display?
+3. **Map components** to Hamr equivalents:
+   - Raycast `List` → Hamr `results` response
+   - Raycast `List.Item` → Hamr result object with id, name, description, icon, actions
+   - Raycast `Detail` → Hamr `card` response with markdown
+   - Raycast `Grid` → Hamr `imageBrowser` or results with thumbnails
+   - Raycast `Form` → Multi-step workflow with `inputMode: "submit"`
+   - Raycast `ActionPanel` → Hamr `actions` array on result items
+
+4. **Translate platform APIs** (macOS → Linux):
+   - `Clipboard.copy()` → `["wl-copy", "text"]`
+   - `Action.OpenInBrowser` → `["xdg-open", "url"]`
+   - `showToast()` → `"notify": "message"` in execute response
+   - `showHUD()` → `notify-send` command
+
+5. **Update file paths** for Linux:
+   - `~/Library/Application Support/Google/Chrome` → `~/.config/google-chrome`
+   - `~/Library/Application Support/BraveSoftware/Brave-Browser` → `~/.config/BraveSoftware/Brave-Browser`
+   - `~/Library/Application Support/Microsoft Edge` → `~/.config/microsoft-edge`
+   - `~/Library/Caches` → `~/.cache`
+   - `~/Library/Preferences` → `~/.config`
+
+6. **Handle hooks** - Raycast uses React hooks, Hamr is stateless:
+   - `usePromise`/`useCachedPromise` → Fetch data directly in handler
+   - `useCachedState` → Use file-based JSON cache or `context` field
+   - `useState` → Use `context` field to persist state across search calls
+
+When converting, focus on the CORE FUNCTIONALITY. Don't try to replicate every feature - 
+prioritize what works well on Linux. Safari support doesn't make sense on Linux, for example."""
 
 
 def chat_with_opencode(user_message: str, session: dict) -> tuple[bool, dict]:

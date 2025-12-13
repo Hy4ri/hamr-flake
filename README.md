@@ -356,6 +356,49 @@ Terms naturally age out based on frecency, so your shortcuts stay relevant as ha
 
 </details>
 
+## Why Hamr?
+
+### Comparison with Other Launchers
+
+| | **Hamr** | **Vicinae** | **rofi/wofi** |
+|---|---|---|---|
+| **Plugin Language** | Any (Python, Bash, Go...) | TypeScript/React | Bash scripts |
+| **Plugin Protocol** | Simple JSON stdin/stdout | Raycast-compatible SDK | Custom modes |
+| **Linux Native** | Yes, built for Linux | Raycast shim layer | Yes |
+| **Rich UI** | Cards, thumbnails, image browser | React components | Text-based |
+| **Dependencies** | Quickshell only | Qt + Node.js runtime | Minimal |
+| **Learning Curve** | ~10 min to first plugin | TypeScript + React knowledge | Script-based |
+
+### Why Not Raycast Compatibility?
+
+Launchers like [Vicinae](https://github.com/vicinaehq/vicinae) aim for Raycast extension compatibility, but this approach has limitations on Linux:
+
+- **macOS-hardcoded paths** - Many Raycast extensions use paths like `~/Library/...` that don't exist on Linux ([example issue](https://github.com/vicinaehq/vicinae/issues/784))
+- **macOS APIs** - Extensions often rely on macOS-specific APIs (AppleScript, Finder, Keychain)
+- **Heavy runtime** - Requires Node.js + TypeScript toolchain for plugins
+
+**Hamr takes a different approach:** plugins are native Linux scripts using a simple JSON protocol. Write in any language, use Linux-native tools (fd, fzf, wl-copy), and integrate with your existing dotfiles.
+
+```python
+# A complete Hamr plugin - no SDK, no build step
+#!/usr/bin/env python3
+import json, sys
+print(json.dumps({"type": "results", "results": [{"id": "1", "name": "Hello"}]}))
+```
+
+This means browser bookmarks on Linux just read from `~/.config/google-chrome/Default/Bookmarks` directly - no compatibility layer needed.
+
+### AI-Powered Raycast Conversion
+
+Want functionality from a Raycast extension? Use the built-in `create-plugin` workflow:
+
+```
+/create-plugin
+> Replicate this Raycast extension: https://github.com/raycast/extensions/tree/main/extensions/browser-bookmarks
+```
+
+The AI will analyze the Raycast extension, translate the patterns to Hamr's protocol, and create a native Linux plugin. See [`actions/AGENTS.md`](actions/AGENTS.md#converting-raycast-extensions) for the full conversion guide.
+
 ## License
 
 MIT License. Based on [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland).
