@@ -83,58 +83,70 @@ Rectangle {
             color: Appearance.colors.colOutlineVariant
         }
         
-        // Scrollable content area
-        ScrollView {
-            id: scrollView
+        // Content sheet - visual separation for markdown content
+        Rectangle {
+            id: contentSheet
             Layout.fillWidth: true
-            Layout.fillHeight: true
             visible: root.content !== ""
+            implicitHeight: scrollView.implicitHeight + 24
+            radius: Appearance.rounding.verysmall
+            color: Appearance.colors.colSurfaceContainerLow
+            border.width: 1
+            border.color: Appearance.m3colors.m3surfaceContainerLowest
             
-            clip: true
-            
-            ScrollBar.vertical: StyledScrollBar {
-                policy: ScrollBar.AsNeeded
-            }
-            ScrollBar.horizontal: ScrollBar {
-                policy: ScrollBar.AlwaysOff
-            }
-            
-            // Content - supports markdown
-            TextArea {
-                id: contentText
-                width: scrollView.availableWidth
-                
-                text: root.content
-                textFormat: root.markdown ? TextEdit.MarkdownText : TextEdit.PlainText
-
-                
-                readOnly: true
-                selectByMouse: true
-                wrapMode: TextEdit.Wrap
-                
-                font.family: Appearance.font.family.reading
-                font.pixelSize: root.markdown ? Appearance.font.pixelSize.smaller : Appearance.font.pixelSize.small
-                font.underline: false
-                color: Appearance.m3colors.m3onSurface
-                selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
-                selectionColor: Appearance.colors.colSecondaryContainer
-                
-                background: null
-                padding: 0
-                leftPadding: 0
-                rightPadding: 0
-                topPadding: 0
-                bottomPadding: 0
-                
-                onLinkActivated: (link) => {
-                    Qt.openUrlExternally(link)
+            ScrollView {
+                id: scrollView
+                anchors {
+                    fill: parent
+                    margins: 12
                 }
                 
-                MouseArea {
-                    anchors.fill: parent
-                    acceptedButtons: Qt.NoButton
-                    hoverEnabled: true
-                    cursorShape: parent.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor
+                clip: true
+                
+                ScrollBar.vertical: StyledScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+                ScrollBar.horizontal: ScrollBar {
+                    policy: ScrollBar.AlwaysOff
+                }
+                
+                // Content - supports markdown
+                TextArea {
+                    id: contentText
+                    width: scrollView.availableWidth
+                    
+                    text: root.content
+                    textFormat: root.markdown ? TextEdit.MarkdownText : TextEdit.PlainText
+
+                    
+                    readOnly: true
+                    selectByMouse: true
+                    wrapMode: TextEdit.Wrap
+                    
+                    font.family: Appearance.font.family.reading
+                    font.pixelSize: root.markdown ? Appearance.font.pixelSize.smaller : Appearance.font.pixelSize.small
+                    font.underline: false
+                    color: Appearance.m3colors.m3onSurface
+                    selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+                    selectionColor: Appearance.colors.colSecondaryContainer
+                    
+                    background: null
+                    padding: 0
+                    leftPadding: 0
+                    rightPadding: 0
+                    topPadding: 0
+                    bottomPadding: 0
+                    
+                    onLinkActivated: (link) => {
+                        Qt.openUrlExternally(link)
+                    }
+                    
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        hoverEnabled: true
+                        cursorShape: parent.hoveredLink !== "" ? Qt.PointingHandCursor : Qt.IBeamCursor
+                    }
                 }
             }
         }

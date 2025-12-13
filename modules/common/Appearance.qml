@@ -205,15 +205,20 @@ Singleton {
             })
         }
         property QtObject pixelSize: QtObject {
-            property int smallest: 10
-            property int smaller: 12
-            property int smallie: 13
-            property int small: 15
-            property int normal: 16
-            property int large: 17
-            property int larger: 19
-            property int huge: 22
-            property int hugeass: 23
+            // Scale based on system font size
+            // Base sizes are designed for a 14px system font (typical default)
+            readonly property real systemFontSize: Qt.application.font.pixelSize > 0 ? Qt.application.font.pixelSize : 14
+            readonly property real scaleFactor: systemFontSize / 14.0
+            
+            property int smallest: Math.round(9 * scaleFactor)
+            property int smaller: Math.round(11 * scaleFactor)
+            property int smallie: Math.round(12 * scaleFactor)
+            property int small: Math.round(13 * scaleFactor)
+            property int normal: Math.round(14 * scaleFactor)
+            property int large: Math.round(15 * scaleFactor)
+            property int larger: Math.round(17 * scaleFactor)
+            property int huge: Math.round(20 * scaleFactor)
+            property int hugeass: Math.round(21 * scaleFactor)
             property int title: huge
         }
     }

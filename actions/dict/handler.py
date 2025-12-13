@@ -80,38 +80,27 @@ def main():
         data = get_definition(query)
 
         if data:
-            # Found definition - show as result with actions
+            # Found definition - show as markdown card
             content = format_definition(data)
             word = data.get("word", query)
-            phonetic = data.get("phonetic", "")
-
-            # Get first definition for description
-            first_def = ""
-            meanings = data.get("meanings", [])
-            if meanings and meanings[0].get("definitions"):
-                first_def = meanings[0]["definitions"][0].get("definition", "")[:80]
 
             print(
                 json.dumps(
                     {
-                        "type": "results",
-                        "results": [
-                            {
-                                "id": f"define:{word}",
-                                "name": f"{word} {phonetic}".strip(),
-                                "icon": "menu_book",
-                                "description": first_def,
-                                "actions": [
-                                    {
-                                        "id": "copy",
-                                        "name": "Copy definition",
-                                        "icon": "content_copy",
-                                    },
-                                ],
-                            }
-                        ],
+                        "type": "card",
+                        "card": {
+                            "content": content,
+                            "markdown": True,
+                            "actions": [
+                                {
+                                    "id": "copy",
+                                    "name": "Copy",
+                                    "icon": "content_copy",
+                                },
+                            ],
+                        },
                         "inputMode": "realtime",
-                        "_definition": content,  # Store for action
+                        "context": word,  # Store word for copy action
                     }
                 )
             )
@@ -136,33 +125,35 @@ def main():
 
     if step == "action":
         item_id = selected.get("id", "")
+        context = input_data.get("context", "")
 
         if item_id == "__not_found__":
             return
 
-        if item_id.startswith("define:"):
-            word = item_id.split(":", 1)[1]
+        # Copy action from card
+        if action == "copy" or item_id == "copy":
+            word = context if context else query
+            if word:
+                # Re-fetch definition for copy
+                data = get_definition(word)
+                if data:
+                    content = format_definition(data)
+                    # Copy to clipboard using wl-copy
+                    import subprocess
 
-            # Re-fetch definition for copy
-            data = get_definition(word)
-            if data:
-                content = format_definition(data)
-                # Copy to clipboard using wl-copy
-                import subprocess
+                    subprocess.run(["wl-copy", content], check=False)
 
-                subprocess.run(["wl-copy", content], check=False)
-
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "execute": {
-                                "command": ["true"],
-                                "close": True,
-                            },
-                        }
+                    print(
+                        json.dumps(
+                            {
+                                "type": "execute",
+                                "execute": {
+                                    "notify": f"Definition of '{word}' copied",
+                                    "close": True,
+                                },
+                            }
+                        )
                     )
-                )
             return
 
 
