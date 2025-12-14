@@ -296,9 +296,10 @@ Item { // Wrapper
             }
 
             // Loading indicator when plugin is processing and no card is shown.
+            // Only show in submit mode - realtime mode should not show loading on every keystroke.
             // For card-based plugins (chat), the card itself shows its busy state.
             RowLayout {
-                visible: PluginRunner.pluginBusy && !root.showCard
+                visible: PluginRunner.pluginBusy && !root.showCard && PluginRunner.inputMode === "submit"
                 Layout.fillWidth: true
                 Layout.margins: 20
                 spacing: 12
@@ -372,9 +373,11 @@ Item { // Wrapper
             }
 
             // Results container with recessed background
+            // In realtime mode, keep results visible during processing to avoid flickering.
+            // In submit mode, hide results while loading indicator is shown.
             Rectangle {
                 id: resultsContainer
-                visible: root.showResults && !root.showCard && !root.showForm && !PluginRunner.pluginBusy
+                visible: root.showResults && !root.showCard && !root.showForm && !(PluginRunner.pluginBusy && PluginRunner.inputMode === "submit")
                 Layout.fillWidth: true
                 Layout.leftMargin: 6
                 Layout.rightMargin: 6
