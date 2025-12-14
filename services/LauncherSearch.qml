@@ -120,7 +120,7 @@ Singleton {
 
     FolderListModel {
         id: userActionsFolder
-        folder: `file://${Directories.userPlugins}`
+        folder: Qt.resolvedUrl(Directories.userPlugins)
         showDirs: false
         showHidden: false
         sortField: FolderListModel.Name

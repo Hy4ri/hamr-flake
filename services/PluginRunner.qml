@@ -171,7 +171,7 @@ Singleton {
     // Watch for plugin folders
     FolderListModel {
         id: pluginsFolder
-        folder: `file://${Directories.userPlugins}`
+        folder: Qt.resolvedUrl(Directories.userPlugins)
         showDirs: true
         showFiles: false
         showHidden: false
