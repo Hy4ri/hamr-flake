@@ -105,7 +105,7 @@ Singleton {
                 }
                 
                 const actionName = fileName.replace(/\.[^/.]+$/, ""); // strip extension
-                const scriptPath = filePath.toString().replace("file://", "");
+                const scriptPath = FileUtils.trimFileProtocol(filePath);
                 actions.push({
                     action: actionName,
                     execute: ((path) => (args) => {
@@ -2162,14 +2162,14 @@ Singleton {
                 fuzzyScore: 1000,
                 frecency: 0,
                 result: resultComp.createObject(null, {
-                    name: StringUtils.cleanPrefix(root.query, Config.options.search.prefix.shellCommand).replace("file://", ""),
+                    name: FileUtils.trimFileProtocol(StringUtils.cleanPrefix(root.query, Config.options.search.prefix.shellCommand)),
                     verb: "Run",
                     type: "Command",
                     fontType: LauncherSearchResult.FontType.Monospace,
                     iconName: 'terminal',
                     iconType: LauncherSearchResult.IconType.Material,
                     execute: () => {
-                        let cleanedCommand = root.query.replace("file://", "");
+                        let cleanedCommand = FileUtils.trimFileProtocol(root.query);
                         cleanedCommand = StringUtils.cleanPrefix(cleanedCommand, Config.options.search.prefix.shellCommand);
                         Quickshell.execDetached(["ghostty", "--class=floating.terminal", "-e", "zsh", "-ic", cleanedCommand]);
                     }
