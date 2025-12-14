@@ -1,5 +1,27 @@
 # AGENTS.md - Hamr Launcher Development
 
+## Quick Reference for AI Agents
+
+**Testing:**
+```bash
+journalctl --user -u quickshell -f          # View logs (Quickshell auto-reloads on file change)
+```
+
+**Code Style (QML - modules/, services/):**
+- Pragmas: `pragma Singleton` and `pragma ComponentBehavior: Bound` for singletons
+- Imports: Quickshell/Qt imports first, then `qs.*` project imports
+- Properties: Use `readonly property var` for computed, typed (`list<string>`, `int`) when possible
+- Naming: `camelCase` for properties/functions, `id: root` for root element
+
+**Code Style (Python - plugins/handler.py):**
+- Imports: stdlib first (`json`, `os`, `sys`, `subprocess`, `pathlib`), then third-party
+- Types: Use `list[dict]`, `str`, `bool` (Python 3.9+ style, not `List[Dict]`)
+- Naming: `snake_case` functions/variables, `UPPER_SNAKE` constants
+- Test mode: Check `TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"` for mock data
+- Errors: Return `{"type": "error", "message": "..."}` JSON, don't raise exceptions
+
+---
+
 ## Project Scope
 
 This is the **hamr** launcher - a standalone search bar / launcher for Quickshell.
