@@ -84,7 +84,9 @@ Singleton {
     // Uses FolderListModel to auto-reload when scripts are added/removed
     // Note: Plugin folders (containing manifest.json) are handled by PluginRunner
     // Excludes text/config files like .md, .txt, .json, .yaml, etc.
-    readonly property var excludedActionExtensions: [".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".log", ".csv"]
+    // Excludes test-* prefixed files (test utilities)
+    readonly property var excludedActionExtensions: [".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".log", ".csv", ".sh"]
+    readonly property var excludedActionPrefixes: ["test-", "hamr-test"]
     
     property var userActionScripts: {
         const actions = [];
@@ -95,6 +97,10 @@ Singleton {
                 // Skip text/config files
                 const lowerName = fileName.toLowerCase();
                 if (root.excludedActionExtensions.some(ext => lowerName.endsWith(ext))) {
+                    continue;
+                }
+                // Skip test utilities (test-*, hamr-test)
+                if (root.excludedActionPrefixes.some(prefix => lowerName.startsWith(prefix))) {
                     continue;
                 }
                 
