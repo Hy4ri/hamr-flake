@@ -1,0 +1,5 @@
+# Code Owners for Hamr
+# These owners will be requested for review on PRs that modify matching paths
+
+# Default owner for everything
+* @Stewart86
