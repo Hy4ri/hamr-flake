@@ -67,7 +67,7 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 
 - **Frecency-based ranking** - Results sorted by frequency + recency (inspired by [zoxide](https://github.com/ajeetdsouza/zoxide))
 - **Learned search affinity** - System learns your search shortcuts (type "q" to find QuickLinks if that's how you found it before)
-- **Intent detection** - Auto-detects URLs, math expressions, and commands
+- **Intent detection** - Auto-detects URLs, math expressions, currency, temperature, and commands
 - **Fuzzy matching** - Fast, typo-tolerant search powered by [fuzzysort](https://github.com/farzher/fuzzysort), includes desktop entry keywords (e.g., "whatsapp" finds ZapZap)
 - **Extensible plugins** - Language-agnostic handlers with simple JSON protocol (Python, Bash, Go, Rust, etc.)
 - **History tracking** - Search, plugin actions, and shell command history
@@ -79,7 +79,28 @@ Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.co
 |--------|----------|--------|----------|
 | `~` | File search | `;` | Clipboard history |
 | `/` | Actions & plugins | `!` | Shell history |
-| `=` | Math calculation | `:` | Emoji picker |
+| `=` | Calculator | `:` | Emoji picker |
+
+### Smart Calculator
+
+Type math expressions directly - no prefix needed:
+
+| Input | Output | Description |
+|-------|--------|-------------|
+| `2+2` | `4` | Basic math |
+| `sqrt(16)` | `4` | Math functions |
+| `10c` | `50 °F` | Temperature (Celsius to Fahrenheit) |
+| `34f` | `1.11 °C` | Temperature (Fahrenheit to Celsius) |
+| `$50` | `50 USD` | Currency symbol conversion |
+| `S$100 to USD` | `$76.77` | Prefixed currency (SGD) |
+| `sgd100` | `100 SGD` | Currency code (no space) |
+| `VND 1,000,000` | `$38.06` | Thousand separators |
+| `20% of 32` | `6.4` | Percentage calculations |
+| `15% off 100` | `85` | Discount calculations |
+| `10ft to m` | `3.048 m` | Unit conversion |
+| `100 USD in EUR` | `€86.42` | Currency conversion |
+
+Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies with daily exchange rates (ECB), 100+ units, and advanced math. Run `qalc -e` to update rates.
 
 ### Built-in Plugins
 
