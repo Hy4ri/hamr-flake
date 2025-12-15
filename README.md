@@ -354,6 +354,8 @@ Each plugin is either:
 | **Multi-field forms** | Forms with text, textarea, select, checkbox fields |
 | **Image thumbnails** | Show image previews in result lists |
 | **Action buttons** | Add context actions per item (copy, delete, open folder) |
+| **Plugin action bar** | Toolbar buttons for plugin-level actions (Add, Wipe) with Ctrl+1-6 shortcuts |
+| **Confirmation dialogs** | Inline confirmation for dangerous actions (e.g., "Wipe All") |
 | **Image browser** | Full image browser UI with directory navigation |
 | **OCR text search** | Search images by text content (requires tesseract) |
 | **Execute commands** | Run any shell command, optionally save to history |
@@ -453,7 +455,11 @@ Type `/hello` to try it!
     }
   ],
   "placeholder": "Custom placeholder...",
-  "inputMode": "realtime"
+  "inputMode": "realtime",
+  "pluginActions": [
+    {"id": "add", "name": "Add", "icon": "add_circle"},
+    {"id": "wipe", "name": "Wipe", "icon": "delete_sweep", "confirm": "Are you sure?"}
+  ]
 }
 ```
 
@@ -519,6 +525,21 @@ Field types: `text`, `textarea`, `select`, `checkbox`, `password`. Keyboard: `Es
 | `submit` | Search only on Enter | Text input, AI chat, adding items |
 
 Set `"inputMode": "submit"` in results/card response to wait for Enter.
+
+#### Plugin Actions (Toolbar)
+
+Add `pluginActions` to display toolbar buttons below the search bar. Useful for plugin-level operations like "Add", "Wipe All", "Refresh".
+
+```json
+"pluginActions": [
+  {"id": "add", "name": "Add", "icon": "add_circle"},
+  {"id": "wipe", "name": "Wipe All", "icon": "delete_sweep", "confirm": "Wipe all? This cannot be undone."}
+]
+```
+
+- Keyboard shortcuts: Ctrl+1 through Ctrl+6
+- Use `confirm` field for dangerous actions (shows inline confirmation dialog)
+- Handler receives `{"step": "action", "selected": {"id": "__plugin__"}, "action": "add"}`
 
 #### Polling (Auto-Refresh)
 

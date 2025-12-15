@@ -120,7 +120,11 @@ Display a list of selectable items.
     "inputMode": "realtime",             # Optional: "realtime" (default) or "submit"
     "placeholder": "Search...",          # Optional: search bar placeholder
     "clearInput": true,                  # Optional: clear search text
-    "context": "my-state"                # Optional: persist state for search calls
+    "context": "my-state",               # Optional: persist state for search calls
+    "pluginActions": [                   # Optional: plugin-level action bar buttons
+        {"id": "add", "name": "Add", "icon": "add_circle"},
+        {"id": "wipe", "name": "Wipe All", "icon": "delete_sweep", "confirm": "Are you sure?"}
+    ]
 }
 ```
 
@@ -132,6 +136,96 @@ Display a list of selectable items.
 | `actions` | Up to 4 secondary action buttons. Each needs `id`, `name`, and `icon`. Shown as icon buttons on hover. |
 
 **Example plugins:** [`quicklinks/`](quicklinks/handler.py), [`todo/`](todo/handler.py), [`bitwarden/`](bitwarden/handler.py)
+
+---
+
+### Plugin Actions (Toolbar Buttons)
+
+The `pluginActions` field displays action buttons in a toolbar below the search bar. These are for plugin-level actions (e.g., "Add", "Wipe", "Refresh") that apply to the plugin itself, not specific items.
+
+```python
+"pluginActions": [
+    {
+        "id": "add",           # Required: action ID
+        "name": "Add Item",    # Required: button label
+        "icon": "add_circle",  # Required: material icon
+        "shortcut": "Ctrl+1",  # Optional: displayed shortcut (default: Ctrl+N)
+        "confirm": "..."       # Optional: confirmation message (shows dialog before executing)
+    }
+]
+```
+
+| Field      | Type   | Required | Description                                        |
+| ---------- | ------ | -------- | -------------------------------------------------- |
+| `id`       | string | Yes      | Action ID sent to handler                          |
+| `name`     | string | Yes      | Button label text                                  |
+| `icon`     | string | Yes      | Material icon name                                 |
+| `shortcut` | string | No       | Keyboard shortcut (default: Ctrl+1 through Ctrl+6) |
+| `confirm`  | string | No       | If set, shows confirmation dialog before executing |
+
+**Keyboard shortcuts:** Ctrl+1 through Ctrl+6 execute plugin actions directly.
+
+**Receiving plugin action clicks:**
+
+When user clicks a plugin action button (or confirms a dangerous action), handler receives:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "__plugin__"},   # Always "__plugin__" for plugin actions
+    "action": "add",                     # The plugin action ID
+    "context": "...",                    # Current context (if any)
+    "session": "..."
+}
+```
+
+**Example: Clipboard with Wipe action**
+
+```python
+def get_plugin_actions():
+    return [
+        {
+            "id": "wipe",
+            "name": "Wipe All",
+            "icon": "delete_sweep",
+            "confirm": "Wipe all clipboard history? This cannot be undone.",
+        }
+    ]
+
+def main():
+    input_data = json.load(sys.stdin)
+    step = input_data.get("step", "initial")
+    selected = input_data.get("selected", {})
+    action = input_data.get("action", "")
+
+    if step == "initial":
+        print(json.dumps({
+            "type": "results",
+            "results": get_clipboard_entries(),
+            "pluginActions": get_plugin_actions(),
+        }))
+        return
+
+    if step == "action":
+        # Plugin-level action (from toolbar)
+        if selected.get("id") == "__plugin__" and action == "wipe":
+            wipe_clipboard()
+            print(json.dumps({
+                "type": "execute",
+                "execute": {"notify": "Clipboard wiped", "close": True}
+            }))
+            return
+        
+        # Item-specific actions...
+```
+
+**Best practices:**
+- Maximum 6 actions (Ctrl+1 through Ctrl+6)
+- Use `confirm` for dangerous/irreversible actions
+- Hide actions during special modes (e.g., pass empty array during add mode)
+- Common actions: Add, Refresh, Clear/Wipe, Settings, Export
+
+**Example plugins:** [`clipboard/`](clipboard/handler.py), [`todo/`](todo/handler.py), [`notes/`](notes/handler.py)
 
 ---
 
@@ -599,7 +693,10 @@ def main():
                 {"id": "item1", "name": "First Item", "icon": "star"},
                 {"id": "item2", "name": "Second Item", "icon": "favorite"},
             ],
-            "placeholder": "Search items..."
+            "placeholder": "Search items...",
+            "pluginActions": [  # Optional: toolbar buttons
+                {"id": "add", "name": "Add", "icon": "add_circle"},
+            ]
         }))
         return
 
@@ -618,6 +715,18 @@ def main():
     # ===== ACTION: Handle selection =====
     if step == "action":
         item_id = selected.get("id", "")
+
+        # Plugin-level action (from toolbar, Ctrl+1)
+        if item_id == "__plugin__" and action == "add":
+            # Handle add action...
+            print(json.dumps({
+                "type": "results",
+                "results": [...],
+                "inputMode": "submit",
+                "placeholder": "Type new item name...",
+                "pluginActions": []  # Hide actions during add mode
+            }))
+            return
 
         # Back navigation
         if item_id == "__back__":
@@ -686,24 +795,25 @@ For desktop application icons from `.desktop` files, set `"iconType": "system"`:
 
 ## Built-in Plugins Reference
 
-| Plugin                             | Trigger          | Features                            | Key Patterns                            |
-| ---------------------------------- | ---------------- | ----------------------------------- | --------------------------------------- |
-| [`apps/`](apps/)                   | `/apps`          | App drawer with categories          | System icons, category navigation       |
-| [`files/`](files/)                 | `~`              | File search with fd+fzf, thumbnails | Results with thumbnails, action buttons |
-| [`clipboard/`](clipboard/)         | `;`              | Clipboard history with images       | Image thumbnails, wipe action           |
-| [`shell/`](shell/)                 | `!`              | Shell command history               | Simple results, execute commands        |
-| [`bitwarden/`](bitwarden/)         | `/bitwarden`     | Password manager                    | entryPoint replay, cache, error cards   |
-| [`quicklinks/`](quicklinks/)       | `/quicklinks`    | Web search quicklinks               | Submit mode, context, CRUD              |
-| [`dict/`](dict/)                   | `/dict`          | Dictionary lookup                   | Card response, API fetch                |
-| [`pictures/`](pictures/)           | `/pictures`      | Image browser                       | Thumbnails, multi-turn navigation       |
-| [`screenshot/`](screenshot/)       | `/screenshot`    | Screenshot browser                  | imageBrowser, enableOcr                 |
-| [`screenrecord/`](screenrecord/)   | `/screenrecord`  | Screen recorder                     | Launch timestamp API, ffmpeg trim       |
-| [`snippet/`](snippet/)             | `/snippet`       | Text snippets                       | Submit mode for add                     |
-| [`todo/`](todo/)                   | `/todo`          | Todo list                           | Submit mode, IPC refresh, CRUD          |
-| [`wallpaper/`](wallpaper/)         | `/wallpaper`     | Wallpaper selector                  | imageBrowser, history tracking          |
-| [`create-plugin/`](create-plugin/) | `/create-plugin` | AI plugin creator                   | OpenCode integration                    |
-| [`topcpu/`](topcpu/)               | `/topcpu`        | Process monitor (CPU)               | Polling API, process management         |
-| [`topmem/`](topmem/)               | `/topmem`        | Process monitor (memory)            | Polling API, process management         |
+| Plugin                             | Trigger          | Features                            | Key Patterns                                   |
+| ---------------------------------- | ---------------- | ----------------------------------- | ---------------------------------------------- |
+| [`apps/`](apps/)                   | `/apps`          | App drawer with categories          | System icons, category navigation              |
+| [`files/`](files/)                 | `~`              | File search with fd+fzf, thumbnails | Results with thumbnails, action buttons        |
+| [`clipboard/`](clipboard/)         | `;`              | Clipboard history with images       | Image thumbnails, pluginActions with confirm   |
+| [`shell/`](shell/)                 | `!`              | Shell command history               | Simple results, execute commands               |
+| [`bitwarden/`](bitwarden/)         | `/bitwarden`     | Password manager                    | entryPoint replay, cache, error cards          |
+| [`quicklinks/`](quicklinks/)       | `/quicklinks`    | Web search quicklinks               | Submit mode, context, CRUD, pluginActions      |
+| [`dict/`](dict/)                   | `/dict`          | Dictionary lookup                   | Card response, API fetch                       |
+| [`pictures/`](pictures/)           | `/pictures`      | Image browser                       | Thumbnails, multi-turn navigation              |
+| [`screenshot/`](screenshot/)       | `/screenshot`    | Screenshot browser                  | imageBrowser, enableOcr                        |
+| [`screenrecord/`](screenrecord/)   | `/screenrecord`  | Screen recorder                     | Launch timestamp API, ffmpeg trim              |
+| [`snippet/`](snippet/)             | `/snippet`       | Text snippets                       | Submit mode, pluginActions                     |
+| [`todo/`](todo/)                   | `/todo`          | Todo list                           | Submit mode, IPC refresh, CRUD, pluginActions  |
+| [`wallpaper/`](wallpaper/)         | `/wallpaper`     | Wallpaper selector                  | imageBrowser, history tracking                 |
+| [`create-plugin/`](create-plugin/) | `/create-plugin` | AI plugin creator                   | OpenCode integration                           |
+| [`notes/`](notes/)                 | `/notes`         | Quick notes manager                 | Form API, pluginActions                        |
+| [`topcpu/`](topcpu/)               | `/topcpu`        | Process monitor (CPU)               | Polling API, process management                |
+| [`topmem/`](topmem/)               | `/topmem`        | Process monitor (memory)            | Polling API, process management                |
 
 ---
 
@@ -714,6 +824,8 @@ Users navigate with:
 - **Ctrl+J/K** - Move down/up
 - **Ctrl+L** or **Enter** - Select
 - **Escape** - Exit workflow / close launcher
+- **Ctrl+1 through Ctrl+6** - Execute plugin actions (toolbar buttons)
+- **Tab / Shift+Tab** - Cycle through item action buttons
 
 ---
 
@@ -725,8 +837,10 @@ Users navigate with:
 4. **Use thumbnails sparingly** - They load images
 5. **Use `placeholder`** - Helps users know what to type
 6. **Use `context`** - Preserve state across search calls
-7. **Debug with** `journalctl --user -f` - Check for errors
-8. **Test edge cases** - Empty results, errors, special characters
+7. **Use `pluginActions`** - Move common actions (Add, Wipe) to the toolbar
+8. **Use `confirm`** - Require confirmation for dangerous plugin actions
+9. **Debug with** `journalctl --user -f` - Check for errors
+10. **Test edge cases** - Empty results, errors, special characters
 
 ---
 
