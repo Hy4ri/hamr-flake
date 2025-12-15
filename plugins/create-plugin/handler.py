@@ -33,10 +33,10 @@ OPENCODE_AVAILABLE = shutil.which("opencode") is not None or TEST_MODE
 SESSION_FILE = Path.home() / ".cache" / "hamr" / "create-plugin-session.json"
 
 
-def get_actions_dir() -> Path:
-    """Get the actions directory path"""
+def get_plugins_dir() -> Path:
+    """Get the plugins directory path"""
     config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-    return Path(config_home) / "hamr" / "actions"
+    return Path(config_home) / "hamr" / "plugins"
 
 
 def load_session() -> dict:
@@ -65,14 +65,14 @@ def clear_session():
 
 def get_system_prompt() -> str:
     """Get the system prompt for the AI"""
-    actions_dir = get_actions_dir()
+    plugins_dir = get_plugins_dir()
     return f"""You are a helpful assistant that helps users create plugins for the Hamr launcher.
 
 Your role is to:
 1. Understand what kind of plugin the user wants to create
 2. Ask clarifying questions if the request is unclear
 3. Discuss the approach and features before creating anything
-4. Only create the plugin when the user confirms they're ready
+4. Only create the plugin when the user confirms
 
 IMPORTANT RULES:
 - Do NOT create files or run commands until the user explicitly confirms
@@ -81,7 +81,7 @@ IMPORTANT RULES:
 - Only when user says yes/confirm/create it/go ahead, then create the files
 
 When creating a plugin:
-- Create it in: {actions_dir}
+- Create it in: {plugins_dir}
 - Use a descriptive folder name (lowercase, hyphens)
 - Create manifest.json with name, description, and icon (Material Symbols icon name)
 - Create handler.py following this protocol:
@@ -97,8 +97,8 @@ Output JSON (stdout) - one of:
 
 Make handler.py executable (chmod +x).
 
-Look at existing plugins in {actions_dir} for examples.
-Read {actions_dir}/AGENTS.md for comprehensive documentation on the plugin protocol.
+Look at existing plugins in {plugins_dir} for examples.
+Read {plugins_dir}/AGENTS.md for comprehensive documentation on the plugin protocol.
 
 ## Converting Raycast Extensions
 
@@ -178,7 +178,7 @@ def chat_with_opencode(user_message: str, session: dict) -> tuple[bool, dict]:
             capture_output=True,
             text=True,
             timeout=120,
-            cwd=str(get_actions_dir()),
+            cwd=str(get_plugins_dir()),
         )
 
         if result.returncode != 0:
@@ -371,7 +371,7 @@ Install from the official website: https://opencode.ai
 ## Manual Plugin Creation
 
 You can manually create plugins by:
-1. Creating a folder in `~/.config/hamr/actions/`
+1. Creating a folder in `~/.config/hamr/plugins/`
 2. Adding a `manifest.json` with name, description, and icon
 3. Adding a `handler.py` script that reads JSON from stdin and outputs JSON to stdout
 
@@ -498,7 +498,7 @@ See existing plugins for examples.""",
                             "title": "Hamr Plugin Protocol",
                             "content": """## How Plugins Work
 
-Plugins are folders in `~/.config/hamr/actions/` containing:
+Plugins are folders in `~/.config/hamr/plugins/` containing:
 
 ### manifest.json
 ```json
