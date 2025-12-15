@@ -111,8 +111,8 @@ Display a list of selectable items.
             "icon": "material_icon",     # Optional: icon name (see Icon Types below)
             "iconType": "material",      # Optional: "material" (default) or "system"
             "thumbnail": "/path/to/img", # Optional: image (overrides icon)
-            "verb": "Open",              # Optional: hover action text
-            "actions": [                 # Optional: action buttons
+            "verb": "Open",              # Optional: primary action text (shown on hover, triggered by Enter/click)
+            "actions": [                 # Optional: up to 4 secondary action buttons
                 {"id": "copy", "name": "Copy", "icon": "content_copy"}
             ]
         }
@@ -123,6 +123,13 @@ Display a list of selectable items.
     "context": "my-state"                # Optional: persist state for search calls
 }
 ```
+
+**Result item fields:**
+
+| Field | Description |
+|-------|-------------|
+| `verb` | Primary action text shown on hover. Triggered by Enter or click. Use contextual verbs like "Done" / "Undone" for todos, "Open" for files, "Copy" for clipboard items. |
+| `actions` | Up to 4 secondary action buttons. Each needs `id`, `name`, and `icon`. Shown as icon buttons on hover. |
 
 **Example plugins:** [`quicklinks/`](quicklinks/handler.py), [`todo/`](todo/handler.py), [`bitwarden/`](bitwarden/handler.py)
 
