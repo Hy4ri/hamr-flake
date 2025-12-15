@@ -18,44 +18,83 @@ MOCK_PROCESSES = [
 
 
 def get_processes() -> list[dict]:
-    """Get processes sorted by CPU usage"""
+    """Get processes sorted by CPU usage (real-time, like top/btop)"""
     if TEST_MODE:
         return MOCK_PROCESSES
 
     try:
-        # Use ps to get process info sorted by CPU
+        # Use top in batch mode for real-time CPU usage
+        # -b: batch mode, -n2: two iterations (second has accurate CPU delta)
+        # -d0.5: 0.5s delay between iterations, -w512: wide output
         result = subprocess.run(
-            ["ps", "axo", "pid,user,%cpu,%mem,comm", "--sort=-%cpu"],
+            ["top", "-b", "-n2", "-d0.5", "-w512"],
             capture_output=True,
             text=True,
             check=True,
         )
 
         processes = []
-        for line in result.stdout.strip().split("\n")[1:51]:  # Skip header, limit to 50
-            parts = line.split()
-            if len(parts) >= 5:
-                pid = parts[0]
-                user = parts[1]
-                cpu = float(parts[2])
-                mem = float(parts[3])
-                name = parts[4]
+        lines = result.stdout.strip().split("\n")
 
-                # Skip kernel threads and very low CPU processes
-                if cpu < 0.1:
+        # Find the SECOND header line (second iteration has accurate CPU usage)
+        header_idx = -1
+        header_count = 0
+        for i, line in enumerate(lines):
+            if "PID" in line and "USER" in line and "%CPU" in line:
+                header_count += 1
+                if header_count == 2:
+                    header_idx = i
+                    break
+
+        # Fall back to first header if only one iteration
+        if header_idx == -1:
+            for i, line in enumerate(lines):
+                if "PID" in line and "USER" in line and "%CPU" in line:
+                    header_idx = i
+                    break
+
+        if header_idx == -1:
+            return []
+
+        # Parse process lines after header - collect all first, then filter
+        # Parse many lines because kernel threads (root, 0% CPU) come before user processes
+        all_procs = []
+        for line in lines[header_idx + 1 :]:
+            parts = line.split()
+            if len(parts) >= 12:
+                try:
+                    pid = parts[0]
+                    user = parts[1]
+                    # top format: PID USER PR NI VIRT RES SHR S %CPU %MEM TIME+ COMMAND...
+                    cpu = float(parts[8])
+                    mem = float(parts[9])
+                    # COMMAND is everything after TIME+ (index 11+), join in case of spaces
+                    name = " ".join(parts[11:])
+
+                    all_procs.append(
+                        {
+                            "pid": pid,
+                            "name": name,
+                            "cpu": cpu,
+                            "mem": mem,
+                            "user": user,
+                        }
+                    )
+                except (ValueError, IndexError):
                     continue
 
-                processes.append(
-                    {
-                        "pid": pid,
-                        "name": name,
-                        "cpu": cpu,
-                        "mem": mem,
-                        "user": user,
-                    }
-                )
+        # Filter strategy:
+        # 1. Always show processes with CPU > 0
+        # 2. For ~0% CPU, only show user (non-root) processes
+        # This avoids cluttering with kernel threads while showing real apps
 
-        return processes[:30]  # Limit results
+        active_procs = [p for p in all_procs if p["cpu"] >= 0.1]
+        idle_user_procs = [
+            p for p in all_procs if p["cpu"] < 0.1 and p["user"] != "root"
+        ]
+
+        processes = active_procs + idle_user_procs
+        return processes[:30]
     except (subprocess.CalledProcessError, FileNotFoundError):
         return []
 
