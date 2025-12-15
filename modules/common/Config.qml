@@ -86,6 +86,8 @@ Singleton {
             // ==================== SEARCH ====================
             property JsonObject search: JsonObject {
                 property int nonAppResultDelay: 30 // Prevents lagging when typing
+                property int debounceMs: 50 // Debounce for search input (ms)
+                property int maxHistoryItems: 500 // Max search history entries (affects memory & fuzzy search speed)
                 property string engineBaseUrl: "https://www.google.com/search?q="
                 property list<string> excludedSites: ["quora.com", "facebook.com"]
                 property JsonObject prefix: JsonObject {

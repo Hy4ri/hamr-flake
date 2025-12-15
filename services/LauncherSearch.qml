@@ -293,148 +293,278 @@ Singleton {
         }
         return items;
     }
+    
+    // ==================== UNIFIED SEARCHABLES ====================
+    // Single prepared array combining all searchable sources.
+    // Each item has: { name, sourceType, id, data, isHistoryTerm }
+    //
+    // Source types:
+    //   - app: Desktop applications
+    //   - plugin: Actions (scripts) and plugins (workflows)
+    //   - quicklink: URL shortcuts with optional query
+    //   - url: URL history
+    //   - pluginExecution: Past workflow actions (replayable)
+    //   - webSearch: Past web searches
+    //   - emoji: Emoji picker
+    // ==============================================================
+    
+    readonly property var sourceType: ({
+        APP: "app",
+        PLUGIN: "plugin",
+        QUICKLINK: "quicklink",
+        URL: "url",
+        PLUGIN_EXECUTION: "pluginExecution",
+        WEB_SEARCH: "webSearch",
+        EMOJI: "emoji"
+    })
+    
+    // ==================== STATIC SEARCHABLES ====================
+    // Rebuilt only on reload (apps, plugins, actions, quicklinks, emojis)
+    // These change rarely - only when apps installed, plugins added, etc.
+    // ==============================================================
+    
+    property var preppedStaticSearchables: []
+    
+    function rebuildStaticSearchables() {
+        console.log("[LauncherSearch] Rebuilding static searchables...");
+        const items = [];
+        
+        // ========== APPS ==========
+        for (const preppedApp of AppSearch.preppedNames) {
+            const entry = preppedApp.entry;
+            items.push({
+                name: preppedApp.name,
+                sourceType: root.sourceType.APP,
+                id: entry.id,
+                data: { entry },
+                isHistoryTerm: false
+            });
+        }
+        
+        // ========== ACTIONS ==========
+        for (const preppedAction of root.preppedActions) {
+            const action = preppedAction.action;
+            items.push({
+                name: preppedAction.name,
+                sourceType: root.sourceType.PLUGIN,
+                id: `action:${action.action}`,
+                data: { action, isAction: true },
+                isHistoryTerm: false
+            });
+        }
+        
+        // ========== WORKFLOWS ==========
+        for (const preppedPlugin of root.preppedPlugins) {
+            const plugin = preppedPlugin.plugin;
+            items.push({
+                name: preppedPlugin.name,
+                sourceType: root.sourceType.PLUGIN,
+                id: `workflow:${plugin.id}`,
+                data: { plugin, isAction: false },
+                isHistoryTerm: false
+            });
+        }
+        
+        // ========== QUICKLINKS ==========
+        for (const preppedLink of root.preppedQuicklinks) {
+            const link = preppedLink.quicklink;
+            items.push({
+                name: preppedLink.name,
+                sourceType: root.sourceType.QUICKLINK,
+                id: link.name,
+                data: { link, isAlias: preppedLink.isAlias, aliasName: preppedLink.aliasName },
+                isHistoryTerm: false
+            });
+        }
+        
+        // ========== EMOJIS ==========
+        for (const preppedEmoji of Emojis.preparedEntries) {
+            const entry = preppedEmoji.entry;
+            items.push({
+                name: preppedEmoji.name,
+                sourceType: root.sourceType.EMOJI,
+                id: `emoji:${entry}`,
+                data: { entry },
+                isHistoryTerm: false
+            });
+        }
+        
+        root.preppedStaticSearchables = items;
+        console.log(`[LauncherSearch] Static searchables: ${items.length} items`);
+    }
+    
+    // Rebuild static searchables on reload
+    Connections {
+        target: Quickshell
+        function onReloadCompleted() {
+            root.rebuildStaticSearchables();
+        }
+    }
+    
+    // NOTE: Initial rebuild is done in the main Component.onCompleted below (search for binariesProc)
+    
+    // ==================== DYNAMIC SEARCHABLES ====================
+    // History-based items that change frequently.
+    // Rebuilt when history changes, but history changes are infrequent
+    // (only after user actions, not during search).
+    // ==============================================================
+    
+    property var preppedHistorySearchables: []
+    
+    function rebuildHistorySearchables() {
+        const items = [];
+        
+        // ========== LEARNED SHORTCUTS (history terms for static items) ==========
+        // These let users find apps/plugins/quicklinks by previously used search terms
+        
+        // App history terms (e.g., "ff" -> Firefox)
+        for (const historyItem of searchHistoryData.filter(h => h.type === "app" && h.recentSearchTerms?.length > 0)) {
+            const entry = AppSearch.list.find(app => app.id === historyItem.name);
+            if (!entry) continue;
+            for (const term of historyItem.recentSearchTerms) {
+                items.push({
+                    name: Fuzzy.prepare(term),
+                    sourceType: root.sourceType.APP,
+                    id: entry.id,
+                    data: { entry, historyItem },
+                    isHistoryTerm: true,
+                    matchedTerm: term
+                });
+            }
+        }
+        
+        // Action history terms
+        for (const historyItem of searchHistoryData.filter(h => h.type === "action" && h.recentSearchTerms?.length > 0)) {
+            const action = root.allActions.find(a => a.action === historyItem.name);
+            if (!action) continue;
+            for (const term of historyItem.recentSearchTerms) {
+                items.push({
+                    name: Fuzzy.prepare(term),
+                    sourceType: root.sourceType.PLUGIN,
+                    id: `action:${action.action}`,
+                    data: { action, historyItem, isAction: true },
+                    isHistoryTerm: true,
+                    matchedTerm: term
+                });
+            }
+        }
+        
+        // Workflow history terms
+        for (const historyItem of searchHistoryData.filter(h => h.type === "workflow" && h.recentSearchTerms?.length > 0)) {
+            const plugin = PluginRunner.getPlugin(historyItem.name);
+            if (!plugin) continue;
+            for (const term of historyItem.recentSearchTerms) {
+                items.push({
+                    name: Fuzzy.prepare(term),
+                    sourceType: root.sourceType.PLUGIN,
+                    id: `workflow:${plugin.id}`,
+                    data: { plugin, historyItem, isAction: false },
+                    isHistoryTerm: true,
+                    matchedTerm: term
+                });
+            }
+        }
+        
+        // Quicklink history terms
+        for (const historyItem of searchHistoryData.filter(h => h.type === "quicklink" && h.recentSearchTerms?.length > 0)) {
+            const link = root.quicklinks.find(q => q.name === historyItem.name);
+            if (!link) continue;
+            for (const term of historyItem.recentSearchTerms) {
+                items.push({
+                    name: Fuzzy.prepare(term),
+                    sourceType: root.sourceType.QUICKLINK,
+                    id: link.name,
+                    data: { link, historyItem, isAlias: false, aliasName: "" },
+                    isHistoryTerm: true,
+                    matchedTerm: term
+                });
+            }
+        }
+        
+        // ========== HISTORY-ONLY ITEMS ==========
+        // These are items that only exist in history (URLs, plugin executions, web searches)
+        
+        // URL history
+        for (const historyItem of searchHistoryData.filter(h => h.type === "url")) {
+            const url = historyItem.name;
+            items.push({
+                name: Fuzzy.prepare(root.stripProtocol(url)),
+                sourceType: root.sourceType.URL,
+                id: url,
+                data: { url, historyItem },
+                isHistoryTerm: false
+            });
+            // URL history terms
+            if (historyItem.recentSearchTerms) {
+                for (const term of historyItem.recentSearchTerms) {
+                    items.push({
+                        name: Fuzzy.prepare(term),
+                        sourceType: root.sourceType.URL,
+                        id: url,
+                        data: { url, historyItem },
+                        isHistoryTerm: true,
+                        matchedTerm: term
+                    });
+                }
+            }
+        }
+        
+        // Plugin executions
+        for (const historyItem of searchHistoryData.filter(h => h.type === "workflowExecution")) {
+            items.push({
+                name: Fuzzy.prepare(`${historyItem.workflowName} ${historyItem.name}`),
+                sourceType: root.sourceType.PLUGIN_EXECUTION,
+                id: historyItem.key,
+                data: { historyItem },
+                isHistoryTerm: false
+            });
+            // Plugin execution history terms
+            if (historyItem.recentSearchTerms) {
+                for (const term of historyItem.recentSearchTerms) {
+                    items.push({
+                        name: Fuzzy.prepare(term),
+                        sourceType: root.sourceType.PLUGIN_EXECUTION,
+                        id: historyItem.key,
+                        data: { historyItem },
+                        isHistoryTerm: true,
+                        matchedTerm: term
+                    });
+                }
+            }
+        }
+        
+        // Web search history
+        for (const historyItem of searchHistoryData.filter(h => h.type === "webSearch")) {
+            items.push({
+                name: Fuzzy.prepare(historyItem.name),
+                sourceType: root.sourceType.WEB_SEARCH,
+                id: `webSearch:${historyItem.name}`,
+                data: { query: historyItem.name, historyItem },
+                isHistoryTerm: false
+            });
+        }
+        
+        root.preppedHistorySearchables = items;
+    }
+    
+    // Rebuild history searchables when history data changes
+    onSearchHistoryDataChanged: {
+        root.rebuildHistorySearchables();
+    }
+    
+    // ==================== COMBINED SEARCHABLES ====================
+    // Simple concat of static + history (no rebuild, just reference)
+    // ==============================================================
+    
+    property var preppedSearchables: [...preppedStaticSearchables, ...preppedHistorySearchables]
 
     // Search history for frecency-based ranking
     property var searchHistoryData: []
-    property int maxHistoryItems: 200
+    property int maxHistoryItems: Config.options.search.maxHistoryItems
     
-    // Prepared URL history items for fuzzy search
     // Strip protocol for better fuzzy matching (https://github.com -> github.com)
     function stripProtocol(url) {
         return url.replace(/^https?:\/\//, '');
-    }
-    
-    property var preppedUrlHistory: {
-        return searchHistoryData
-            .filter(item => item.type === "url")
-            .map(item => ({
-                name: Fuzzy.prepare(root.stripProtocol(item.name)),
-                url: item.name,
-                historyItem: item
-            }));
-    }
-    
-    // Prepared app history items for fuzzy search against recent search terms
-    // This allows finding apps by the search terms previously used to find them
-    property var preppedAppHistoryTerms: {
-        const items = [];
-        for (const historyItem of searchHistoryData) {
-            if (historyItem.type === "app" && historyItem.recentSearchTerms) {
-                for (const term of historyItem.recentSearchTerms) {
-                    items.push({
-                        name: Fuzzy.prepare(term),
-                        appId: historyItem.name,
-                        searchTerm: term,
-                        historyItem: historyItem
-                    });
-                }
-            }
-        }
-        return items;
-    }
-    
-    // Prepared plugin history terms for fuzzy search
-    // Allows finding plugins by previously used search terms (e.g., "q" -> QuickLinks)
-    property var preppedPluginHistoryTerms: {
-        const items = [];
-        for (const historyItem of searchHistoryData) {
-            if (historyItem.type === "workflow" && historyItem.recentSearchTerms) {
-                for (const term of historyItem.recentSearchTerms) {
-                    items.push({
-                        name: Fuzzy.prepare(term),
-                        pluginId: historyItem.name,
-                        searchTerm: term,
-                        historyItem: historyItem
-                    });
-                }
-            }
-        }
-        return items;
-    }
-    
-    // Prepared action history terms for fuzzy search
-    property var preppedActionHistoryTerms: {
-        const items = [];
-        for (const historyItem of searchHistoryData) {
-            if (historyItem.type === "action" && historyItem.recentSearchTerms) {
-                for (const term of historyItem.recentSearchTerms) {
-                    items.push({
-                        name: Fuzzy.prepare(term),
-                        actionName: historyItem.name,
-                        searchTerm: term,
-                        historyItem: historyItem
-                    });
-                }
-            }
-        }
-        return items;
-    }
-    
-    // Prepared quicklink history terms for fuzzy search
-    property var preppedQuicklinkHistoryTerms: {
-        const items = [];
-        for (const historyItem of searchHistoryData) {
-            if (historyItem.type === "quicklink" && historyItem.recentSearchTerms) {
-                for (const term of historyItem.recentSearchTerms) {
-                    items.push({
-                        name: Fuzzy.prepare(term),
-                        quicklinkName: historyItem.name,
-                        searchTerm: term,
-                        historyItem: historyItem
-                    });
-                }
-            }
-        }
-        return items;
-    }
-    
-    // Prepared plugin execution history for fuzzy search
-    // Indexes both the action name and plugin name for matching
-    property var preppedPluginExecutions: {
-        return searchHistoryData
-            .filter(item => item.type === "workflowExecution")
-            .map(item => ({
-                name: Fuzzy.prepare(`${item.workflowName} ${item.name}`),
-                historyItem: item
-            }));
-    }
-    
-    // Prepared plugin execution history terms for fuzzy search
-    // Allows finding plugin executions by previously used search terms
-    property var preppedPluginExecutionHistoryTerms: {
-        const items = [];
-        for (const historyItem of searchHistoryData) {
-            if (historyItem.type === "workflowExecution" && historyItem.recentSearchTerms) {
-                for (const term of historyItem.recentSearchTerms) {
-                    items.push({
-                        name: Fuzzy.prepare(term),
-                        executionKey: historyItem.key,
-                        searchTerm: term,
-                        historyItem: historyItem
-                    });
-                }
-            }
-        }
-        return items;
-    }
-    
-    // Prepared URL history terms for fuzzy search
-    // Allows finding URLs by previously used search terms (e.g., "gh" -> "https://github.com")
-    property var preppedUrlHistoryTerms: {
-        const items = [];
-        for (const historyItem of searchHistoryData) {
-            if (historyItem.type === "url" && historyItem.recentSearchTerms) {
-                for (const term of historyItem.recentSearchTerms) {
-                    items.push({
-                        name: Fuzzy.prepare(term),
-                        url: historyItem.name,
-                        searchTerm: term,
-                        historyItem: historyItem
-                    });
-                }
-            }
-        }
-        return items;
     }
 
     FileView {
@@ -812,90 +942,6 @@ Singleton {
     //   COMMAND → Command > Apps > Actions > Quicklinks > Others > WebSearch
     //   MATH    → Math > Apps > Actions > Quicklinks > Others > WebSearch
     //   URL     → URL > URLHistory > Apps > Quicklinks > WebSearch
-    //   GENERAL → Apps > Actions > Quicklinks > URLHistory > Others > WebSearch
-    //
-    // Within each category, use tie-breaking:
-    //   1. Match Type: Exact > Prefix > Fuzzy
-    //   2. Fuzzy Score: Higher wins
-    //   3. Frecency: More recent/frequent wins
-    // ===========================================================
-    
-    readonly property var category: ({
-        APP: "app",
-        ACTION: "action",
-        QUICKLINK: "quicklink",
-        PLUGIN: "plugin",
-        PLUGIN_EXECUTION: "plugin_execution",
-        URL_DIRECT: "url_direct",
-        URL_HISTORY: "url_history",
-        EMOJI: "emoji",
-        COMMAND: "command",
-        MATH: "math",
-        WEB_SEARCH: "web_search"
-    })
-    
-    // ==================== TIERED + COMPETITIVE RANKING ====================
-    // Tier 1: Intent-specific (always first based on detected intent)
-    // Tier 2: Primary results (Apps, Actions, Quicklinks) - compete by match quality
-    // Tier 3: Secondary results (Emoji, URL History, Shell History) - compete by match quality
-    // Tier 4: Fallback (Web search) - always last
-    // ======================================================================
-    // FRECENCY-BASED RANKING
-    // All results compete in a single pool sorted by match quality + frecency.
-    // Web search always shown last as fallback.
-    // ======================================================================
-    
-    // Merge all results using pure frecency-based ranking
-    function mergeByFrecency(categorized, limits, detectedIntent) {
-        const merged = [];
-        const seenKeys = new Set();
-        
-        // Helper to add result if not duplicate
-        const addResult = (r) => {
-            const key = r.result?.id || r.result?.name;
-            if (!seenKeys.has(key)) {
-                seenKeys.add(key);
-                merged.push(r);
-            }
-        };
-        
-        // All categories compete in one pool (except web search)
-        const competingCategories = [
-            root.category.APP,
-            root.category.ACTION,
-            root.category.PLUGIN,
-            root.category.QUICKLINK,
-            root.category.PLUGIN_EXECUTION,
-            root.category.URL_HISTORY,
-            root.category.URL_DIRECT,
-            root.category.EMOJI,
-            root.category.COMMAND,
-            root.category.MATH
-        ];
-        
-        const allResults = [];
-        for (const cat of competingCategories) {
-            const results = categorized[cat] || [];
-            const limit = limits[cat] ?? 5;
-            results.slice(0, limit).forEach(r => allResults.push(r));
-        }
-        
-        // Sort by match quality + frecency
-        allResults.sort(root.compareResults);
-        
-        // Take top results
-        const maxResults = 15;
-        allResults.slice(0, maxResults).forEach(addResult);
-        
-        // Web search always last as fallback
-        const webResults = categorized[root.category.WEB_SEARCH] || [];
-        if (webResults.length > 0) {
-            addResult(webResults[0]);
-        }
-        
-        return merged;
-    }
-    
     // Match type for tie-breaking (higher = better)
     readonly property var matchType: ({
         EXACT: 3,
@@ -1014,50 +1060,125 @@ Singleton {
         return boost;
     }
     
-    // Create a scored result object for an app entry
-    function createAppResult(entry, score, type) {
-        // Get running window info from WindowManager
+    // ==================== UNIFIED SEARCH ====================
+    // Single Fuzzy.go() call with deduplication by (sourceType, id)
+    // ===========================================================
+    
+    // Perform unified fuzzy search and return deduplicated results
+    function unifiedFuzzySearch(query, limit) {
+        if (!query || query.trim() === "") return [];
+        
+        const fuzzyResults = Fuzzy.go(query, root.preppedSearchables, {
+            key: "name",
+            limit: limit * 3  // Fetch extra to account for deduplication
+        });
+        
+        // Dedupe by (sourceType, id), keeping highest score
+        const seen = new Map();
+        for (const match of fuzzyResults) {
+            const item = match.obj;
+            const key = `${item.sourceType}:${item.id}`;
+            const existing = seen.get(key);
+            
+            if (!existing || match._score > existing.score) {
+                seen.set(key, {
+                    score: match._score,
+                    item: item,
+                    isHistoryTerm: item.isHistoryTerm
+                });
+            }
+        }
+        
+        return Array.from(seen.values());
+    }
+    
+    // Create LauncherSearchResult from unified searchable item
+    function createResultFromSearchable(item, query, fuzzyScore) {
+        const st = root.sourceType;
+        const data = item.data;
+        const resultMatchType = item.isHistoryTerm ? root.matchType.EXACT : root.matchType.FUZZY;
+        
+        // Look up frecency from history at search time (for static items that don't store historyItem)
+        let frecency = 0;
+        if (data.historyItem) {
+            frecency = root.getFrecencyScore(data.historyItem);
+        } else {
+            // Look up history for static items
+            switch (item.sourceType) {
+                case st.APP:
+                    frecency = root.getHistoryBoost("app", item.id);
+                    break;
+                case st.PLUGIN:
+                    if (data.isAction) {
+                        frecency = root.getHistoryBoost("action", data.action.action);
+                    } else {
+                        frecency = root.getHistoryBoost("workflow", data.plugin.id);
+                    }
+                    break;
+                case st.QUICKLINK:
+                    frecency = root.getHistoryBoost("quicklink", item.id);
+                    break;
+            }
+        }
+        
+        switch (item.sourceType) {
+            case st.APP:
+                return createAppResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
+            case st.PLUGIN:
+                return createPluginResultFromData(data, item.id, query, fuzzyScore, frecency, resultMatchType);
+            case st.QUICKLINK:
+                return createQuicklinkResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
+            case st.URL:
+                return createUrlResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
+            case st.PLUGIN_EXECUTION:
+                return createPluginExecResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
+            case st.WEB_SEARCH:
+                return createWebSearchHistoryResultFromData(data, query, fuzzyScore, frecency, resultMatchType);
+            case st.EMOJI:
+                return createEmojiResultFromData(data, fuzzyScore);
+            default:
+                return null;
+        }
+    }
+    
+    // Factory: App result
+    function createAppResultFromData(data, query, fuzzyScore, frecency, resultMatchType) {
+        const entry = data.entry;
         const windows = WindowManager.getWindowsForApp(entry.id);
         const windowCount = windows.length;
         
         return {
-            score: score,
+            matchType: resultMatchType,
+            fuzzyScore: fuzzyScore,
+            frecency: frecency,
             result: resultComp.createObject(null, {
-                type: type,
+                type: "App",
                 id: entry.id,
                 name: entry.name,
                 iconName: entry.icon,
                 iconType: LauncherSearchResult.IconType.System,
                 verb: windowCount > 0 ? "Focus" : "Open",
-                // Inject window info
                 windowCount: windowCount,
                 windows: windows,
-                execute: () => {
-                    // Re-fetch windows at execution time (not creation time)
-                    // This ensures correct behavior when clicking from history
-                    const currentWindows = WindowManager.getWindowsForApp(entry.id);
+                execute: ((capturedEntry, capturedQuery) => () => {
+                    const currentWindows = WindowManager.getWindowsForApp(capturedEntry.id);
                     const currentWindowCount = currentWindows.length;
                     
-                    // Smart execute based on current window count
                     if (currentWindowCount === 0) {
-                        // No windows - launch new instance, record as app
-                        root.recordSearch("app", entry.id, root.query);
-                        if (!entry.runInTerminal)
-                            entry.execute();
+                        root.recordSearch("app", capturedEntry.id, capturedQuery);
+                        if (!capturedEntry.runInTerminal)
+                            capturedEntry.execute();
                         else {
-                            Quickshell.execDetached(["bash", '-c', `${Config.options.apps.terminal} -e '${StringUtils.shellSingleQuoteEscape(entry.command.join(' '))}'`]);
+                            Quickshell.execDetached(["bash", '-c', `${Config.options.apps.terminal} -e '${StringUtils.shellSingleQuoteEscape(capturedEntry.command.join(' '))}'`]);
                         }
                     } else if (currentWindowCount === 1) {
-                        // Single window - auto-focus it, record as windowFocus
-                        root.recordWindowFocus(entry.id, entry.name, currentWindows[0].title, entry.icon);
+                        root.recordWindowFocus(capturedEntry.id, capturedEntry.name, currentWindows[0].title, capturedEntry.icon);
                         WindowManager.focusWindow(currentWindows[0]);
                         GlobalStates.launcherOpen = false;
                     } else {
-                        // Multiple windows - open WindowPicker panel
-                        // Don't record here - WindowPicker will record when user selects
-                        GlobalStates.openWindowPicker(entry.id, currentWindows);
+                        GlobalStates.openWindowPicker(capturedEntry.id, currentWindows);
                     }
-                },
+                })(entry, query),
                 comment: entry.comment,
                 runInTerminal: entry.runInTerminal,
                 genericName: entry.genericName,
@@ -1076,6 +1197,227 @@ Singleton {
                         }
                     });
                 })
+            })
+        };
+    }
+    
+    // Factory: Plugin result (actions + workflows)
+    function createPluginResultFromData(data, itemId, query, fuzzyScore, frecency, resultMatchType) {
+        if (data.isAction) {
+            // Action (simple script)
+            const action = data.action;
+            const actionArgs = query.includes(" ") ? query.split(" ").slice(1).join(" ") : "";
+            const hasArgs = actionArgs.length > 0;
+            
+            return {
+                matchType: resultMatchType,
+                fuzzyScore: fuzzyScore,
+                frecency: frecency,
+                result: resultComp.createObject(null, {
+                    name: action.action + (hasArgs ? " " + actionArgs : ""),
+                    verb: "Run",
+                    type: "Action",
+                    iconName: 'settings_suggest',
+                    iconType: LauncherSearchResult.IconType.Material,
+                    acceptsArguments: !hasArgs,
+                    completionText: !hasArgs ? action.action + " " : "",
+                    execute: ((capturedAction, capturedArgs, capturedQuery) => () => {
+                        root.recordSearch("action", capturedAction.action, capturedQuery);
+                        capturedAction.execute(capturedArgs);
+                    })(action, actionArgs, query)
+                })
+            };
+        } else {
+            // Workflow (multi-step plugin)
+            const plugin = data.plugin;
+            const manifest = plugin.manifest;
+            
+            return {
+                matchType: resultMatchType,
+                fuzzyScore: fuzzyScore,
+                frecency: frecency,
+                result: resultComp.createObject(null, {
+                    name: manifest?.name ?? plugin.id,
+                    comment: manifest?.description ?? "",
+                    verb: "Start",
+                    type: "Plugin",
+                    iconName: manifest?.icon ?? 'extension',
+                    iconType: LauncherSearchResult.IconType.Material,
+                    resultType: LauncherSearchResult.ResultType.PluginEntry,
+                    pluginId: plugin.id,
+                    acceptsArguments: true,
+                    completionText: plugin.id + " ",
+                    execute: ((capturedPlugin, capturedQuery) => () => {
+                        root.recordSearch("workflow", capturedPlugin.id, capturedQuery);
+                        root.startPlugin(capturedPlugin.id);
+                    })(plugin, query)
+                })
+            };
+        }
+    }
+    
+    // Factory: Quicklink result
+    function createQuicklinkResultFromData(data, query, fuzzyScore, frecency, resultMatchType) {
+        const link = data.link;
+        const historyItem = data.historyItem;
+        const matchedVia = data.isAlias ? ` (${data.aliasName})` : "";
+        const acceptsQuery = link.url.includes("{query}");
+        
+        // Check if query has search term (e.g., "yt funny cats")
+        const queryParts = query.split(" ");
+        const quicklinkSearchTerm = queryParts.slice(1).join(" ");
+        const hasSearchTerm = quicklinkSearchTerm.length > 0;
+        
+        if (hasSearchTerm) {
+            return {
+                matchType: resultMatchType,
+                fuzzyScore: fuzzyScore,
+                frecency: frecency,
+                result: resultComp.createObject(null, {
+                    name: `${link.name}: ${quicklinkSearchTerm}`,
+                    verb: "Search",
+                    type: "Quicklink" + matchedVia,
+                    acceptsArguments: false,
+                    completionText: "",
+                    iconName: link.icon || 'link',
+                    iconType: LauncherSearchResult.IconType.Material,
+                    execute: ((capturedLink, capturedTerm, capturedQuery) => () => {
+                        root.recordSearch("quicklink", capturedLink.name, capturedQuery.split(" ")[0]);
+                        const url = capturedLink.url.replace("{query}", encodeURIComponent(capturedTerm));
+                        Qt.openUrlExternally(url);
+                    })(link, quicklinkSearchTerm, query)
+                })
+            };
+        } else {
+            return {
+                matchType: resultMatchType,
+                fuzzyScore: fuzzyScore,
+                frecency: frecency,
+                result: resultComp.createObject(null, {
+                    name: link.name,
+                    verb: acceptsQuery ? "Search" : "Open",
+                    type: "Quicklink" + matchedVia,
+                    iconName: link.icon || 'link',
+                    iconType: LauncherSearchResult.IconType.Material,
+                    acceptsArguments: acceptsQuery,
+                    completionText: acceptsQuery ? link.name + " " : "",
+                    execute: ((capturedLink, capturedQuery) => () => {
+                        root.recordSearch("quicklink", capturedLink.name, capturedQuery);
+                        const url = capturedLink.url.replace("{query}", "");
+                        Qt.openUrlExternally(url);
+                    })(link, query)
+                })
+            };
+        }
+    }
+    
+    // Factory: URL history result
+    function createUrlResultFromData(data, query, fuzzyScore, frecency, resultMatchType) {
+        const url = data.url;
+        
+        return {
+            matchType: resultMatchType,
+            fuzzyScore: fuzzyScore,
+            frecency: frecency,
+            result: resultComp.createObject(null, {
+                name: url,
+                verb: "Open",
+                type: "URL - recent",
+                fontType: LauncherSearchResult.FontType.Monospace,
+                iconName: 'open_in_browser',
+                iconType: LauncherSearchResult.IconType.Material,
+                execute: ((capturedUrl, capturedQuery) => () => {
+                    root.recordSearch("url", capturedUrl, capturedQuery);
+                    Quickshell.execDetached(["xdg-open", capturedUrl]);
+                })(url, query)
+            })
+        };
+    }
+    
+    // Factory: Plugin execution history result
+    function createPluginExecResultFromData(data, query, fuzzyScore, frecency, resultMatchType) {
+        const item = data.historyItem;
+        const iconType = item.iconType === "system" 
+            ? LauncherSearchResult.IconType.System 
+            : LauncherSearchResult.IconType.Material;
+        
+        return {
+            matchType: resultMatchType,
+            fuzzyScore: fuzzyScore,
+            frecency: frecency,
+            result: resultComp.createObject(null, {
+                type: item.workflowName || "Recent",
+                name: item.name,
+                iconName: item.icon || 'play_arrow',
+                iconType: iconType,
+                thumbnail: item.thumbnail || "",
+                verb: "Run",
+                execute: ((capturedItem, capturedQuery) => () => {
+                    root.recordWorkflowExecution({
+                        name: capturedItem.name,
+                        command: capturedItem.command,
+                        entryPoint: capturedItem.entryPoint,
+                        icon: capturedItem.icon,
+                        iconType: capturedItem.iconType,
+                        thumbnail: capturedItem.thumbnail,
+                        workflowId: capturedItem.workflowId,
+                        workflowName: capturedItem.workflowName
+                    }, capturedQuery);
+                    if (capturedItem.command && capturedItem.command.length > 0) {
+                        Quickshell.execDetached(capturedItem.command);
+                    } else if (capturedItem.entryPoint && capturedItem.workflowId) {
+                        PluginRunner.replayAction(capturedItem.workflowId, capturedItem.entryPoint);
+                    }
+                })(item, query)
+            })
+        };
+    }
+    
+    // Factory: Web search history result
+    function createWebSearchHistoryResultFromData(data, query, fuzzyScore, frecency, resultMatchType) {
+        const searchQuery = data.query;
+        
+        return {
+            matchType: resultMatchType,
+            fuzzyScore: fuzzyScore,
+            frecency: frecency,
+            result: resultComp.createObject(null, {
+                name: searchQuery,
+                verb: "Search",
+                type: "Web search - recent",
+                iconName: 'travel_explore',
+                iconType: LauncherSearchResult.IconType.Material,
+                execute: ((capturedQuery) => () => {
+                    root.recordSearch("webSearch", capturedQuery, capturedQuery);
+                    let url = Config.options.search.engineBaseUrl + capturedQuery;
+                    for (let site of Config.options.search.excludedSites) {
+                        url += ` -site:${site}`;
+                    }
+                    Qt.openUrlExternally(url);
+                })(searchQuery)
+            })
+        };
+    }
+    
+    // Factory: Emoji result
+    function createEmojiResultFromData(data, fuzzyScore) {
+        const entry = data.entry;
+        const emoji = entry.match(/^\s*(\S+)/)?.[1] || "";
+        
+        return {
+            matchType: root.matchType.FUZZY,
+            fuzzyScore: fuzzyScore,
+            frecency: 0,
+            result: resultComp.createObject(null, {
+                rawValue: entry,
+                name: entry.replace(/^\s*\S+\s+/, ""),
+                iconName: emoji,
+                iconType: LauncherSearchResult.IconType.Text,
+                verb: "Copy",
+                type: "Emoji",
+                execute: ((capturedEmoji) => () => {
+                    Quickshell.clipboardText = capturedEmoji;
+                })(emoji)
             })
         };
     }
@@ -1110,10 +1452,13 @@ Singleton {
     property bool binariesLoaded: false
     
     // Load binaries from common bin directories on startup (once only)
+    // Also rebuild static searchables on initial load
     Component.onCompleted: {
         if (!binariesLoaded) {
             binariesProc.running = true;
         }
+        // Delay slightly to ensure all dependencies are loaded
+        Qt.callLater(root.rebuildStaticSearchables);
     }
     
     Process {
@@ -1628,361 +1973,38 @@ Singleton {
             return recentItems;
         }
 
-        ////////////////// Tiered Ranking System ///////////////////
-        // Uses intent detection and category-based ranking instead of magic score numbers.
+        ////////////////// Unified Search System ///////////////////
+        // Single Fuzzy.go() call with deduplication for all sources.
         
         nonAppResultsTimer.restart();
         
         // Detect user intent from query pattern
         const detectedIntent = root.detectIntent(root.query);
         
-        // Category limits - how many results from each category
-        const categoryLimits = {
-            [root.category.APP]: 8,
-            [root.category.ACTION]: 5,
-            [root.category.PLUGIN]: 5,
-            [root.category.QUICKLINK]: 5,
-            [root.category.URL_DIRECT]: 1,
-            [root.category.URL_HISTORY]: 3,
-            [root.category.CLIPBOARD]: 3,
-            [root.category.EMOJI]: 3,
-            [root.category.COMMAND]: 1,
-            [root.category.MATH]: 1,
-            [root.category.WEB_SEARCH]: 1
-        };
+        // Perform unified fuzzy search
+        const unifiedResults = root.unifiedFuzzySearch(root.query, 50);
         
-        // Collect results by category
-        const categorized = {};
-        
-        // ========== APPS ==========
-        const appResults = AppSearch.fuzzyQueryWithScores(StringUtils.cleanPrefix(root.query, Config.options.search.prefix.app)).map(item => {
-            const entry = item.entry;
-            const frecency = root.getHistoryBoost("app", entry.id);
-            const historyItem = root.searchHistoryData.find(h => h.type === "app" && h.name === entry.id);
-            const recentTerms = historyItem?.recentSearchTerms || [];
-            const resultMatchType = root.getTermMatchBoost(recentTerms, root.query) > 0 
-                ? root.matchType.EXACT 
-                : root.getMatchType(root.query, entry.name);
-            
-            return {
-                matchType: resultMatchType,
-                fuzzyScore: item.score,
-                frecency: frecency,
-                result: root.createAppResult(entry, 0, "App").result
-            };
-        });
-        
-        // Add app history term matches
-        const appHistoryTermResults = Fuzzy.go(root.query, root.preppedAppHistoryTerms, { key: "name", limit: 5 });
-        const existingAppIds = new Set(appResults.map(a => a.result.id));
-        
-        appHistoryTermResults
-            .filter(result => !existingAppIds.has(result.obj.appId))
-            .forEach(result => {
-                const entry = AppSearch.list.find(app => app.id === result.obj.appId);
-                if (!entry) return;
-                appResults.push({
-                    matchType: root.matchType.EXACT, // Term match = treated as exact
-                    fuzzyScore: result._score,
-                    frecency: root.getFrecencyScore(result.obj.historyItem),
-                    result: root.createAppResult(entry, 0, "App").result
-                });
-            });
-        
-        categorized[root.category.APP] = appResults.sort(root.compareResults);
-        
-        // ========== ACTIONS ==========
-        const actionQuery = root.query.startsWith(Config.options.search.prefix.action) 
-            ? root.query.slice(Config.options.search.prefix.action.length).split(" ")[0]
-            : root.query.split(" ")[0];
-        const actionArgs = root.query.startsWith(Config.options.search.prefix.action)
-            ? root.query.split(" ").slice(1).join(" ")
-            : "";
-        
-        const seenActions = new Set();
-        const actionResults = Fuzzy.go(actionQuery, root.preppedActions, { key: "name", limit: 10 }).map(result => {
-            const action = result.obj.action;
-            seenActions.add(action.action);
-            const frecency = root.getHistoryBoost("action", action.action);
-            const historyItem = root.searchHistoryData.find(h => h.type === "action" && h.name === action.action);
-            const recentTerms = historyItem?.recentSearchTerms || [];
-            const resultMatchType = root.getTermMatchBoost(recentTerms, actionQuery) > 0 
-                ? root.matchType.EXACT 
-                : root.getMatchType(actionQuery, action.action);
-            
-            // Actions can accept arguments (passed to execute function)
-            const hasArgs = actionArgs.length > 0;
-            return {
-                matchType: resultMatchType,
-                fuzzyScore: result._score,
-                frecency: frecency,
-                result: resultComp.createObject(null, {
-                    name: action.action + (hasArgs ? " " + actionArgs : ""),
-                    verb: "Run",
-                    type: "Action",
-                    iconName: 'settings_suggest',
-                    iconType: LauncherSearchResult.IconType.Material,
-                    acceptsArguments: !hasArgs, // Can accept args if none provided yet
-                    completionText: !hasArgs ? action.action + " " : "",
-                    execute: () => {
-                        root.recordSearch("action", action.action, root.query);
-                        action.execute(actionArgs);
-                    }
-                })
-            };
-        });
-        
-        // Add action history term matches
-        const actionHistoryTermResults = Fuzzy.go(actionQuery, root.preppedActionHistoryTerms, { key: "name", limit: 5 });
-        
-        actionHistoryTermResults
-            .filter(result => !seenActions.has(result.obj.actionName))
-            .forEach(result => {
-                const action = root.allActions.find(a => a.action === result.obj.actionName);
-                if (!action) return;
-                seenActions.add(action.action);
-                const hasArgs = actionArgs.length > 0;
-                
-                actionResults.push({
-                    matchType: root.matchType.EXACT, // Term match = treated as exact
-                    fuzzyScore: result._score,
-                    frecency: root.getFrecencyScore(result.obj.historyItem),
-                    result: resultComp.createObject(null, {
-                        name: action.action + (hasArgs ? " " + actionArgs : ""),
-                        verb: "Run",
-                        type: "Action",
-                        iconName: 'settings_suggest',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        acceptsArguments: !hasArgs,
-                        completionText: !hasArgs ? action.action + " " : "",
-                        execute: () => {
-                            root.recordSearch("action", action.action, root.query);
-                            action.execute(actionArgs);
-                        }
-                    })
-                });
-            });
-        
-        categorized[root.category.ACTION] = actionResults.sort(root.compareResults);
-        
-        // ========== PLUGINS ==========
-        // Multi-step action plugins from ~/.config/hamr/plugins/
-        const seenPlugins = new Set();
-        const pluginResults = Fuzzy.go(actionQuery, root.preppedPlugins, { key: "name", limit: 10 })
-            .filter(result => {
-                const id = result.obj.plugin.id;
-                if (seenPlugins.has(id)) return false;
-                seenPlugins.add(id);
-                return true;
-            })
-            .map(result => {
-                const plugin = result.obj.plugin;
-                const manifest = plugin.manifest;
-                const frecency = root.getHistoryBoost("workflow", plugin.id);
-                const historyItem = root.searchHistoryData.find(h => h.type === "workflow" && h.name === plugin.id);
-                const recentTerms = historyItem?.recentSearchTerms || [];
-                const resultMatchType = root.getTermMatchBoost(recentTerms, actionQuery) > 0 
-                    ? root.matchType.EXACT 
-                    : root.getMatchType(actionQuery, plugin.id);
-                
-                return {
-                    matchType: resultMatchType,
-                    fuzzyScore: result._score,
-                    frecency: frecency,
-                    result: resultComp.createObject(null, {
-                        name: manifest.name ?? plugin.id,
-                        comment: manifest.description ?? "",
-                        verb: "Start",
-                        type: "Plugin",
-                        iconName: manifest.icon ?? 'extension',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        resultType: LauncherSearchResult.ResultType.PluginEntry,
-                        pluginId: plugin.id,
-                        acceptsArguments: true,
-                        completionText: plugin.id + " ",
-                        execute: () => {
-                            root.recordSearch("workflow", plugin.id, root.query);
-                            root.startPlugin(plugin.id);
-                        }
-                    })
-                };
-            });
-        
-        // Add plugin history term matches (e.g., "q" -> QuickLinks if user previously typed "q" to find it)
-        const pluginHistoryTermResults = Fuzzy.go(actionQuery, root.preppedPluginHistoryTerms, { key: "name", limit: 5 });
-        
-        pluginHistoryTermResults.forEach(result => {
-                if (seenPlugins.has(result.obj.pluginId)) return;
-                const plugin = PluginRunner.getPlugin(result.obj.pluginId);
-                if (!plugin) return;
-                seenPlugins.add(result.obj.pluginId);
-                const manifest = plugin.manifest;
-                pluginResults.push({
-                    matchType: root.matchType.EXACT, // Term match = treated as exact
-                    fuzzyScore: result._score,
-                    frecency: root.getFrecencyScore(result.obj.historyItem),
-                    result: resultComp.createObject(null, {
-                        name: manifest?.name ?? plugin.id,
-                        comment: manifest?.description ?? "",
-                        verb: "Start",
-                        type: "Plugin",
-                        iconName: manifest?.icon ?? 'extension',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        resultType: LauncherSearchResult.ResultType.PluginEntry,
-                        pluginId: plugin.id,
-                        acceptsArguments: true,
-                        completionText: plugin.id + " ",
-                        execute: () => {
-                            root.recordSearch("workflow", plugin.id, root.query);
-                            root.startPlugin(plugin.id);
-                        }
-                    })
-                });
-            });
-        
-        categorized[root.category.PLUGIN] = pluginResults.sort(root.compareResults).slice(0, 3);
-        
-        // ========== QUICKLINKS ==========
-        const queryParts = root.query.split(" ");
-        const quicklinkQuery = queryParts[0];
-        const quicklinkSearchTerm = queryParts.slice(1).join(" ");
-        const hasSearchTerm = quicklinkSearchTerm.length > 0;
-        
-        const quicklinkFuzzyResults = Fuzzy.go(quicklinkQuery, root.preppedQuicklinks, { key: "name", limit: 16 });
-        const seenQuicklinks = new Set();
-        const quicklinkResults = [];
-        
-        quicklinkFuzzyResults.filter(result => {
-            const linkName = result.obj.quicklink.name;
-            if (seenQuicklinks.has(linkName)) return false;
-            seenQuicklinks.add(linkName);
-            return true;
-        }).slice(0, 8).forEach(result => {
-            const link = result.obj.quicklink;
-            const displayName = link.name;
-            const matchedVia = result.obj.isAlias ? ` (${result.obj.aliasName})` : "";
-            const frecency = root.getHistoryBoost("quicklink", link.name);
-            const resultMatchType = root.getMatchType(quicklinkQuery, link.name);
-            
-            // Check if this quicklink accepts a query argument
-            const acceptsQuery = link.url.includes("{query}");
-            
-            // Check term match boost for discovery (how user found this quicklink)
-            const historyItem = searchHistoryData.find(h => h.type === "quicklink" && h.name === link.name);
-            const recentTerms = historyItem?.recentSearchTerms || [];
-            const termMatchBoost = root.getTermMatchBoost(recentTerms, quicklinkQuery);
-            const boostedMatchType = termMatchBoost > 0 ? root.matchType.EXACT : resultMatchType;
-            
-            if (hasSearchTerm) {
-                quicklinkResults.push({
-                    matchType: boostedMatchType,
-                    fuzzyScore: result._score,
-                    frecency: frecency,
-                    result: resultComp.createObject(null, {
-                        name: `${displayName}: ${quicklinkSearchTerm}`,
-                        verb: "Search",
-                        type: "Quicklink" + matchedVia,
-                        acceptsArguments: false, // Already has argument
-                        completionText: "",
-                        iconName: link.icon || 'link',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        execute: ((capturedDiscoveryTerm) => () => {
-                            // Record the discovery term (how user found quicklink)
-                            root.recordSearch("quicklink", link.name, capturedDiscoveryTerm);
-                            const url = link.url.replace("{query}", encodeURIComponent(quicklinkSearchTerm));
-                            Qt.openUrlExternally(url);
-                        })(quicklinkQuery)
-                    })
-                });
-            } else {
-                // Show recent search terms for this quicklink
-                recentTerms.forEach((term, idx) => {
-                    quicklinkResults.push({
-                        matchType: boostedMatchType,
-                        fuzzyScore: result._score - idx * 10, // Slight penalty for older terms
-                        frecency: frecency,
-                        result: resultComp.createObject(null, {
-                            name: `${displayName}: ${term}`,
-                            verb: "Search",
-                            type: "Quicklink" + matchedVia + " - recent",
-                            iconName: link.icon || 'link',
-                            iconType: LauncherSearchResult.IconType.Material,
-                            acceptsArguments: false, // Already has argument
-                            completionText: "",
-                            execute: ((capturedDiscoveryTerm, capturedSearchTerm) => () => {
-                                // Record the discovery term (how user found quicklink)
-                                root.recordSearch("quicklink", link.name, capturedDiscoveryTerm);
-                                const url = link.url.replace("{query}", encodeURIComponent(capturedSearchTerm));
-                                Qt.openUrlExternally(url);
-                            })(quicklinkQuery, term)
-                        })
-                    });
-                });
-                
-                quicklinkResults.push({
-                    matchType: boostedMatchType,
-                    fuzzyScore: result._score - 50, // Base quicklink below recent searches
-                    frecency: frecency,
-                    result: resultComp.createObject(null, {
-                        name: displayName,
-                        verb: acceptsQuery ? "Search" : "Open",
-                        type: "Quicklink" + matchedVia,
-                        iconName: link.icon || 'link',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        acceptsArguments: acceptsQuery,
-                        completionText: acceptsQuery ? displayName + " " : "",
-                        execute: ((capturedDiscoveryTerm) => () => {
-                            // Record the discovery term (how user found quicklink)
-                            root.recordSearch("quicklink", link.name, capturedDiscoveryTerm);
-                            const url = link.url.replace("{query}", "");
-                            Qt.openUrlExternally(url);
-                        })(quicklinkQuery)
-                    })
-                });
+        // Convert unified results to scored result objects
+        const allResults = [];
+        for (const match of unifiedResults) {
+            const resultObj = root.createResultFromSearchable(match.item, root.query, match.score);
+            if (resultObj) {
+                allResults.push(resultObj);
             }
-        });
+        }
         
-        // Add quicklink history term matches (find quicklinks by previously used search terms)
-        // This is for finding the quicklink itself, not the search terms used with it
-        const quicklinkHistoryTermResults = Fuzzy.go(quicklinkQuery, root.preppedQuicklinkHistoryTerms, { key: "name", limit: 5 });
+        // Sort by match quality + frecency
+        allResults.sort(root.compareResults);
         
-        quicklinkHistoryTermResults
-            .filter(result => !seenQuicklinks.has(result.obj.quicklinkName))
-            .forEach(result => {
-                const link = root.quicklinks.find(q => q.name === result.obj.quicklinkName);
-                if (!link) return;
-                seenQuicklinks.add(result.obj.quicklinkName);
-                const acceptsQuery = link.url.includes("{query}");
-                
-                quicklinkResults.push({
-                    matchType: root.matchType.EXACT, // Term match = treated as exact
-                    fuzzyScore: result._score,
-                    frecency: root.getFrecencyScore(result.obj.historyItem),
-                    result: resultComp.createObject(null, {
-                        name: link.name,
-                        verb: acceptsQuery ? "Search" : "Open",
-                        type: "Quicklink",
-                        iconName: link.icon || 'link',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        acceptsArguments: acceptsQuery,
-                        completionText: acceptsQuery ? link.name + " " : "",
-                        execute: ((capturedDiscoveryTerm) => () => {
-                            root.recordSearch("quicklink", link.name, capturedDiscoveryTerm);
-                            const url = link.url.replace("{query}", "");
-                            Qt.openUrlExternally(url);
-                        })(quicklinkQuery)
-                    })
-                });
-            });
+        // ========== SPECIAL RESULTS (not in unified search) ==========
         
-        categorized[root.category.QUICKLINK] = quicklinkResults.sort(root.compareResults);
-        
-        // ========== URL (Direct) ==========
+        // URL (Direct) - when query looks like a URL
         const isQueryUrl = root.isUrl(root.query);
         const normalizedUrl = isQueryUrl ? root.normalizeUrl(root.query) : "";
         
         if (isQueryUrl) {
-            categorized[root.category.URL_DIRECT] = [{
+            // Insert direct URL at the top
+            allResults.unshift({
                 matchType: root.matchType.EXACT,
                 fuzzyScore: 1000,
                 frecency: root.getHistoryBoost("url", normalizedUrl),
@@ -1993,200 +2015,18 @@ Singleton {
                     fontType: LauncherSearchResult.FontType.Monospace,
                     iconName: 'open_in_browser',
                     iconType: LauncherSearchResult.IconType.Material,
-                    execute: ((capturedQuery) => () => {
-                        root.recordSearch("url", normalizedUrl, capturedQuery);
-                        Quickshell.execDetached(["xdg-open", normalizedUrl]);
-                    })(root.query)
+                    execute: ((capturedUrl, capturedQuery) => () => {
+                        root.recordSearch("url", capturedUrl, capturedQuery);
+                        Quickshell.execDetached(["xdg-open", capturedUrl]);
+                    })(normalizedUrl, root.query)
                 })
-            }];
-        } else {
-            categorized[root.category.URL_DIRECT] = [];
+            });
         }
         
-        // ========== URL History ==========
-        const seenUrls = new Set([normalizedUrl]);
-        const urlHistoryResults = Fuzzy.go(root.query, root.preppedUrlHistory, { key: "name", limit: 5 })
-            .filter(result => result.obj.url !== normalizedUrl)
-            .map(result => {
-                const url = result.obj.url;
-                seenUrls.add(url);
-                const historyItem = result.obj.historyItem;
-                const recentTerms = historyItem?.recentSearchTerms || [];
-                const resultMatchType = root.getTermMatchBoost(recentTerms, root.query) > 0 
-                    ? root.matchType.EXACT 
-                    : root.getMatchType(root.query, root.stripProtocol(url));
-                
-                return {
-                    matchType: resultMatchType,
-                    fuzzyScore: result._score,
-                    frecency: root.getFrecencyScore(historyItem),
-                    result: resultComp.createObject(null, {
-                        name: url,
-                        verb: "Open",
-                        type: "URL" + " - recent",
-                        fontType: LauncherSearchResult.FontType.Monospace,
-                        iconName: 'open_in_browser',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        execute: ((capturedQuery) => () => {
-                            root.recordSearch("url", url, capturedQuery);
-                            Quickshell.execDetached(["xdg-open", url]);
-                        })(root.query)
-                    })
-                };
-            });
-        
-        // Add URL history term matches
-        const urlHistoryTermResults = Fuzzy.go(root.query, root.preppedUrlHistoryTerms, { key: "name", limit: 5 });
-        
-        urlHistoryTermResults
-            .filter(result => !seenUrls.has(result.obj.url))
-            .forEach(result => {
-                const url = result.obj.url;
-                seenUrls.add(url);
-                
-                urlHistoryResults.push({
-                    matchType: root.matchType.EXACT,
-                    fuzzyScore: result._score,
-                    frecency: root.getFrecencyScore(result.obj.historyItem),
-                    result: resultComp.createObject(null, {
-                        name: url,
-                        verb: "Open",
-                        type: "URL" + " - recent",
-                        fontType: LauncherSearchResult.FontType.Monospace,
-                        iconName: 'open_in_browser',
-                        iconType: LauncherSearchResult.IconType.Material,
-                        execute: ((capturedQuery) => () => {
-                            root.recordSearch("url", url, capturedQuery);
-                            Quickshell.execDetached(["xdg-open", url]);
-                        })(root.query)
-                    })
-                });
-            });
-        
-        categorized[root.category.URL_HISTORY] = urlHistoryResults.sort(root.compareResults);
-        
-        // ========== PLUGIN EXECUTIONS ==========
-        const seenPluginExecutions = new Set();
-        const pluginExecResults = Fuzzy.go(root.query, root.preppedPluginExecutions, { key: "name", limit: 5 })
-            .map(result => {
-                const item = result.obj.historyItem;
-                seenPluginExecutions.add(item.key);
-                const recentTerms = item.recentSearchTerms || [];
-                const resultMatchType = root.getTermMatchBoost(recentTerms, root.query) > 0 
-                    ? root.matchType.EXACT 
-                    : root.matchType.FUZZY;
-                
-                // Determine icon type from stored value
-                const pluginIconType = item.iconType === "system" 
-                    ? LauncherSearchResult.IconType.System 
-                    : LauncherSearchResult.IconType.Material;
-                return {
-                    matchType: resultMatchType,
-                    fuzzyScore: result._score,
-                    frecency: root.getFrecencyScore(item),
-                    result: resultComp.createObject(null, {
-                        type: item.workflowName || "Recent",
-                        name: item.name,
-                        iconName: item.icon || 'play_arrow',
-                        iconType: pluginIconType,
-                        thumbnail: item.thumbnail || "",
-                        verb: "Run",
-                        execute: ((capturedQuery) => () => {
-                            root.recordWorkflowExecution({
-                                name: item.name,
-                                command: item.command,
-                                entryPoint: item.entryPoint,
-                                icon: item.icon,
-                                iconType: item.iconType,
-                                thumbnail: item.thumbnail,
-                                workflowId: item.workflowId,
-                                workflowName: item.workflowName
-                            }, capturedQuery);
-                            // Hybrid replay: prefer command, fallback to entryPoint
-                            if (item.command && item.command.length > 0) {
-                                // Direct command execution (fast path)
-                                Quickshell.execDetached(item.command);
-                            } else if (item.entryPoint && item.workflowId) {
-                                // Plugin replay via entryPoint (complex actions)
-                                PluginRunner.replayAction(item.workflowId, item.entryPoint);
-                            }
-                        })(root.query)
-                    })
-                };
-            });
-        
-        // Add plugin execution history term matches
-        const pluginExecHistoryTermResults = Fuzzy.go(root.query, root.preppedPluginExecutionHistoryTerms, { key: "name", limit: 5 });
-        
-        pluginExecHistoryTermResults
-            .filter(result => !seenPluginExecutions.has(result.obj.executionKey))
-            .forEach(result => {
-                const item = result.obj.historyItem;
-                seenPluginExecutions.add(item.key);
-                
-                // Determine icon type from stored value
-                const termIconType = item.iconType === "system" 
-                    ? LauncherSearchResult.IconType.System 
-                    : LauncherSearchResult.IconType.Material;
-                pluginExecResults.push({
-                    matchType: root.matchType.EXACT, // Term match = treated as exact
-                    fuzzyScore: result._score,
-                    frecency: root.getFrecencyScore(item),
-                    result: resultComp.createObject(null, {
-                        type: item.workflowName || "Recent",
-                        name: item.name,
-                        iconName: item.icon || 'play_arrow',
-                        iconType: termIconType,
-                        thumbnail: item.thumbnail || "",
-                        verb: "Run",
-                        execute: ((capturedQuery) => () => {
-                            root.recordWorkflowExecution({
-                                name: item.name,
-                                command: item.command,
-                                entryPoint: item.entryPoint,
-                                icon: item.icon,
-                                iconType: item.iconType,
-                                thumbnail: item.thumbnail,
-                                workflowId: item.workflowId,
-                                workflowName: item.workflowName
-                            }, capturedQuery);
-                            if (item.command && item.command.length > 0) {
-                                Quickshell.execDetached(item.command);
-                            } else if (item.entryPoint && item.workflowId) {
-                                PluginRunner.replayAction(item.workflowId, item.entryPoint);
-                            }
-                        })(root.query)
-                    })
-                });
-            });
-        
-        categorized[root.category.PLUGIN_EXECUTION] = pluginExecResults.sort(root.compareResults);
-        
-        // ========== EMOJI ==========
-        const emojiResults = Fuzzy.go(root.query, Emojis.preparedEntries, { key: "name", limit: 3 }).map(result => {
-            const entry = result.obj.entry;
-            const emoji = entry.match(/^\s*(\S+)/)?.[1] || "";
-            return {
-                matchType: root.matchType.FUZZY,
-                fuzzyScore: result._score,
-                frecency: 0,
-                result: resultComp.createObject(null, {
-                    rawValue: entry,
-                    name: entry.replace(/^\s*\S+\s+/, ""),
-                    iconName: emoji,
-                    iconType: LauncherSearchResult.IconType.Text,
-                    verb: "Copy",
-                    type: "Emoji",
-                    execute: () => { Quickshell.clipboardText = emoji; }
-                })
-            };
-        });
-        categorized[root.category.EMOJI] = emojiResults.sort(root.compareResults);
-        
         // ========== COMMAND ==========
-        // Only include if intent is COMMAND
+        // Insert at top if intent is COMMAND
         if (detectedIntent === root.intent.COMMAND) {
-            categorized[root.category.COMMAND] = [{
+            allResults.unshift({
                 matchType: root.matchType.EXACT,
                 fuzzyScore: 1000,
                 frecency: 0,
@@ -2197,22 +2037,19 @@ Singleton {
                     fontType: LauncherSearchResult.FontType.Monospace,
                     iconName: 'terminal',
                     iconType: LauncherSearchResult.IconType.Material,
-                    execute: () => {
-                        let cleanedCommand = FileUtils.trimFileProtocol(root.query);
+                    execute: ((capturedQuery) => () => {
+                        let cleanedCommand = FileUtils.trimFileProtocol(capturedQuery);
                         cleanedCommand = StringUtils.cleanPrefix(cleanedCommand, Config.options.search.prefix.shellCommand);
                         Quickshell.execDetached(["ghostty", "--class=floating.terminal", "-e", "zsh", "-ic", cleanedCommand]);
-                    }
+                    })(root.query)
                 })
-            }];
-        } else {
-            categorized[root.category.COMMAND] = [];
+            });
         }
-        
         
         // ========== MATH ==========
         const isMath = root.isMathExpression(root.query);
         if (isMath && root.mathResult && root.mathResult !== root.query) {
-            categorized[root.category.MATH] = [{
+            allResults.unshift({
                 matchType: root.matchType.EXACT,
                 fuzzyScore: 1000,
                 frecency: 0,
@@ -2223,39 +2060,39 @@ Singleton {
                     fontType: LauncherSearchResult.FontType.Monospace,
                     iconName: 'calculate',
                     iconType: LauncherSearchResult.IconType.Material,
-                    execute: () => { Quickshell.clipboardText = root.mathResult; }
+                    execute: ((capturedResult) => () => {
+                        Quickshell.clipboardText = capturedResult;
+                    })(root.mathResult)
                 })
-            }];
-        } else {
-            categorized[root.category.MATH] = [];
+            });
         }
         
         // ========== WEB SEARCH (always last) ==========
-        categorized[root.category.WEB_SEARCH] = [{
+        const webSearchQuery = StringUtils.cleanPrefix(root.query, Config.options.search.prefix.webSearch);
+        allResults.push({
             matchType: root.matchType.NONE,
             fuzzyScore: 0,
             frecency: 0,
             result: resultComp.createObject(null, {
-                name: StringUtils.cleanPrefix(root.query, Config.options.search.prefix.webSearch),
+                name: webSearchQuery,
                 verb: "Search",
                 type: "Web search",
                 iconName: 'travel_explore',
                 iconType: LauncherSearchResult.IconType.Material,
-                execute: () => {
-                    let query = StringUtils.cleanPrefix(root.query, Config.options.search.prefix.webSearch);
-                    let url = Config.options.search.engineBaseUrl + query;
+                execute: ((capturedQuery) => () => {
+                    root.recordSearch("webSearch", capturedQuery, capturedQuery);
+                    let url = Config.options.search.engineBaseUrl + capturedQuery;
                     for (let site of Config.options.search.excludedSites) {
                         url += ` -site:${site}`;
                     }
                     Qt.openUrlExternally(url);
-                }
+                })(webSearchQuery)
             })
-        }];
+        });
         
-        // Merge results using pure frecency-based ranking
-        const merged = root.mergeByFrecency(categorized, categoryLimits, detectedIntent);
-        
-        return merged.map(item => item.result);
+        // Take top 15 results + web search fallback
+        const maxResults = 16;
+        return allResults.slice(0, maxResults).map(item => item.result);
     }
 
     Component {

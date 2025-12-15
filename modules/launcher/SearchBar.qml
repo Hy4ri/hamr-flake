@@ -108,7 +108,15 @@ RowLayout {
             }
         }
 
-        onTextChanged: LauncherSearch.query = text
+        onTextChanged: searchDebounce.restart()
+        
+        // Debounce timer - batches rapid keystrokes to reduce search overhead
+        // Default 50ms feels instant but prevents multiple searches during fast typing
+        Timer {
+            id: searchDebounce
+            interval: Config.options?.search?.debounceMs ?? 150
+            onTriggered: LauncherSearch.query = searchInput.text
+        }
         
         // Sync text when LauncherSearch.query changes externally (e.g., workflow start clears it)
         Connections {
