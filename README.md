@@ -644,4 +644,8 @@ The AI will analyze the Raycast extension, translate the patterns to Hamr's prot
 
 ## License
 
-MIT License. Based on [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland).
+This project is licensed under the **GNU General Public License v3.0** (GPL-3.0).
+
+Hamr is a derivative work based on [end-4/dots-hyprland](https://github.com/end-4/dots-hyprland), which is also licensed under GPL-3.0. Major thanks to end-4 for the Material Design theming, fuzzy search, widget components, and overall architecture that made this project possible.
+
+See the [LICENSE](LICENSE) file for the full license text.
