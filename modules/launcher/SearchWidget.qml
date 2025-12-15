@@ -226,6 +226,20 @@ Item { // Wrapper
                             }
                         }
                     }
+                    function onExecuteActionByIndex(index) {
+                        if (appResults.count > 0 && appResults.currentIndex >= 0) {
+                            let currentItem = appResults.itemAtIndex(appResults.currentIndex);
+                            if (currentItem) {
+                                const actions = currentItem.entry.actions ?? [];
+                                // Max 4 actions supported
+                                if (index < actions.length && index < 4) {
+                                    LauncherSearch.skipNextAutoFocus = true;
+                                    actions[index].execute();
+                                    // Keep selection - don't clear currentIndex
+                                }
+                            }
+                        }
+                    }
                 }
             }
             }
@@ -235,10 +249,10 @@ Item { // Wrapper
                 id: hintBar
                 visible: !PluginRunner.isActive()
                 Layout.fillWidth: true
-                Layout.leftMargin: 16
-                Layout.rightMargin: 16
+                Layout.leftMargin: 12
+                Layout.rightMargin: 12
                 Layout.bottomMargin: 8
-                spacing: 16
+                spacing: 12
                 
                 // Prefix hints (always shown when no workflow active)
                 Repeater {
@@ -251,21 +265,25 @@ Item { // Wrapper
                         { key: ":", label: "emoji" },
                     ]
                     
-                    Text {
+                    RowLayout {
                         required property var modelData
-                        text: `<font color="${Appearance.colors.colPrimary}">${modelData.key}</font> ${modelData.label}`
-                        textFormat: Text.RichText
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.m3colors.m3outline
+                        spacing: 4
+                        
+                        Kbd {
+                            keys: modelData.key
+                        }
+                        
+                        Text {
+                            text: modelData.label
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.m3colors.m3outline
+                        }
                     }
                 }
                 
-                // Separator
-                Text {
-                    visible: root.showResults
-                    text: "|"
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: Appearance.colors.colOutlineVariant
+                // Spacer
+                Item {
+                    Layout.fillWidth: true
                 }
                 
                 // Navigation hints (shown when results are displayed)
@@ -273,16 +291,22 @@ Item { // Wrapper
                     model: root.showResults ? [
                         { key: "^J", label: "down" },
                         { key: "^K", label: "up" },
-                        { key: "^L", label: "select" },
                         { key: "Tab", label: "actions" },
                     ] : []
                     
-                    Text {
+                    RowLayout {
                         required property var modelData
-                        text: `<font color="${Appearance.colors.colPrimary}">${modelData.key}</font> ${modelData.label}`
-                        textFormat: Text.RichText
-                        font.pixelSize: Appearance.font.pixelSize.smaller
-                        color: Appearance.m3colors.m3outline
+                        spacing: 4
+                        
+                        Kbd {
+                            keys: modelData.key
+                        }
+                        
+                        Text {
+                            text: modelData.label
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.m3colors.m3outline
+                        }
                     }
                 }
             }
@@ -291,6 +315,8 @@ Item { // Wrapper
                 // Separator
                 visible: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy
                 Layout.fillWidth: true
+                // Add top margin when hint bar is hidden (plugin active) to maintain consistent spacing
+                Layout.topMargin: hintBar.visible ? 0 : 8
                 height: 1
                 color: Appearance.colors.colOutlineVariant
             }
@@ -321,6 +347,10 @@ Item { // Wrapper
                 id: pluginCardLoader
                 visible: root.showCard
                 Layout.fillWidth: true
+                Layout.leftMargin: 6
+                Layout.rightMargin: 6
+                Layout.bottomMargin: 6
+                Layout.topMargin: 6
 
                 property var currentCard: PluginRunner.pluginCard
 
@@ -387,7 +417,7 @@ Item { // Wrapper
                 radius: Appearance.rounding.small
                 color: Appearance.colors.colSurfaceContainerLow
                 border.width: 1
-                border.color: Appearance.m3colors.m3surfaceContainerLowest
+                border.color: Appearance.colors.colOutlineVariant
                 
                 ListView { // App results
                     id: appResults
@@ -464,13 +494,28 @@ Item { // Wrapper
                             }
                         }
                         
-                        // Normal update (not poll) or item not found - reset to first
-                        appResults.currentIndex = -1;
-                        appResults.selectedActionIndex = -1;
+                        // Skip auto focus - keep current selection
                         if (LauncherSearch.skipNextAutoFocus) {
                             LauncherSearch.skipNextAutoFocus = false;
+                            // Try to preserve selection by key if results changed
+                            const savedKey = appResults.selectedItemKey;
+                            if (savedKey) {
+                                const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
+                                if (newIndex >= 0) {
+                                    appResults.currentIndex = newIndex;
+                                    return;
+                                }
+                            }
+                            // Item was removed, select next available
+                            if (appResults.currentIndex >= appResults.count) {
+                                appResults.currentIndex = Math.max(0, appResults.count - 1);
+                            }
                             return;
                         }
+                        
+                        // Normal update - reset to first
+                        appResults.currentIndex = -1;
+                        appResults.selectedActionIndex = -1;
                         root.focusFirstItem();
                     }
                 }

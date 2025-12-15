@@ -66,11 +66,12 @@ def get_todo_results(todos: list[dict], show_add: bool = True) -> list[dict]:
                 "name": content,
                 "icon": "check_circle" if done else "radio_button_unchecked",
                 "description": "Done" if done else "Pending",
+                "verb": "Undone" if done else "Done",
                 "actions": [
                     {
                         "id": "toggle",
-                        "name": "Toggle done",
-                        "icon": "check_circle" if not done else "undo",
+                        "name": "Undone" if done else "Done",
+                        "icon": "undo" if done else "check_circle",
                     },
                     {"id": "edit", "name": "Edit", "icon": "edit"},
                     {"id": "delete", "name": "Delete", "icon": "delete"},
@@ -221,11 +222,12 @@ def main():
                             if done
                             else "radio_button_unchecked",
                             "description": "Done" if done else "Pending",
+                            "verb": "Undone" if done else "Done",
                             "actions": [
                                 {
                                     "id": "toggle",
-                                    "name": "Toggle",
-                                    "icon": "check_circle" if not done else "undo",
+                                    "name": "Undone" if done else "Done",
+                                    "icon": "undo" if done else "check_circle",
                                 },
                                 {"id": "edit", "name": "Edit", "icon": "edit"},
                                 {"id": "delete", "name": "Delete", "icon": "delete"},

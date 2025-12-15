@@ -35,7 +35,7 @@ Rectangle {
     implicitWidth: keyText.implicitWidth + 8
     implicitHeight: keyText.implicitHeight + 4
     
-    radius: Appearance.rounding.verysmall
+    radius: 4
     color: Appearance.colors.colSurfaceContainerHighest
     border.width: 1
     border.color: Appearance.colors.colOutlineVariant
@@ -46,7 +46,7 @@ Rectangle {
         
         text: root.displayText
         font.family: Appearance.font.family.monospace ?? Appearance.font.family.main
-        font.pixelSize: Appearance.font.pixelSize.smaller
+        font.pixelSize: Appearance.font.pixelSize.smallest
         font.weight: Font.Medium
         color: root.textColor
     }

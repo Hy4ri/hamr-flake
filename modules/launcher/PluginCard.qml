@@ -34,15 +34,19 @@ Rectangle {
     Layout.fillWidth: true
     implicitHeight: Math.min(400, cardColumn.implicitHeight + 24)
     
-    color: "transparent"
+    radius: Appearance.rounding.small
+    color: Appearance.colors.colSurfaceContainerLow
+    border.width: 1
+    border.color: Appearance.colors.colOutlineVariant
     
     ColumnLayout {
         id: cardColumn
         anchors {
             fill: parent
-            margins: 12
-            leftMargin: 20
-            rightMargin: 20
+            topMargin: 6
+            bottomMargin: 6
+            leftMargin: 12
+            rightMargin: 12
         }
         spacing: 8
         
@@ -87,12 +91,12 @@ Rectangle {
         Rectangle {
             id: contentSheet
             Layout.fillWidth: true
+            Layout.topMargin: 6
             visible: root.content !== ""
             implicitHeight: scrollView.implicitHeight + 24
             radius: Appearance.rounding.verysmall
-            color: Appearance.colors.colSurfaceContainerLow
-            border.width: 1
-            border.color: Appearance.m3colors.m3surfaceContainerLowest
+            color: "transparent"
+            border.width: 0
             
             ScrollView {
                 id: scrollView

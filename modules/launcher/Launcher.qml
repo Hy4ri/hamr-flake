@@ -85,6 +85,8 @@ Scope {
                         if (LauncherSearch.isInExclusiveMode()) {
                             LauncherSearch.exclusiveMode = "";
                         }
+                        // Hide action hint
+                        GlobalStates.hideActionHint();
                     } else {
                         if (!launcherScope.dontAutoCancelSearch) {
                             searchWidget.cancelSearch();
@@ -164,6 +166,55 @@ Scope {
                             }
                             GlobalStates.launcherOpen = false;
                         }
+                    }
+                }
+            }
+
+            // Floating action hint popup - above all launcher content
+            Rectangle {
+                id: actionHintPopup
+                visible: opacity > 0
+                opacity: GlobalStates.actionHintVisible ? 1 : 0
+                scale: GlobalStates.actionHintVisible ? 1 : 0.9
+                z: 1000
+                
+                // Convert global position to local
+                x: {
+                    const localPos = fullScreenBackground.mapFromGlobal(GlobalStates.actionHintPosition.x, GlobalStates.actionHintPosition.y);
+                    return localPos.x - width / 2;
+                }
+                y: {
+                    const localPos = fullScreenBackground.mapFromGlobal(GlobalStates.actionHintPosition.x, GlobalStates.actionHintPosition.y);
+                    return localPos.y;
+                }
+                
+                implicitWidth: hintContent.implicitWidth + 12
+                implicitHeight: hintContent.implicitHeight + 6
+                radius: 4
+                color: Appearance.colors.colSurfaceContainerHigh
+                border.width: 1
+                border.color: Appearance.colors.colOutlineVariant
+                
+                Behavior on opacity {
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                }
+                Behavior on scale {
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                }
+                
+                RowLayout {
+                    id: hintContent
+                    anchors.centerIn: parent
+                    spacing: 6
+                    
+                    Kbd {
+                        keys: GlobalStates.actionHintKey
+                    }
+                    
+                    Text {
+                        text: GlobalStates.actionHintName
+                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        color: Appearance.m3colors.m3onSurfaceVariant
                     }
                 }
             }

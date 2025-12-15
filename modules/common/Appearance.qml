@@ -15,9 +15,9 @@ Singleton {
     property QtObject sizes
     property string syntaxHighlightingTheme
 
-    // Transparency disabled for Hamr
-    property real backgroundTransparency: 0
-    property real contentTransparency: 0
+    // Slight transparency for Hamr launcher
+    property real backgroundTransparency: 0.2
+    property real contentTransparency: 0.2
 
     m3colors: QtObject {
         property bool darkmode: true

@@ -62,7 +62,10 @@ Rectangle {
 
     implicitHeight: Math.min(root.maxHeight, cardColumn.implicitHeight + 24)
 
-    color: "transparent"
+    radius: Appearance.rounding.small
+    color: Appearance.colors.colSurfaceContainerLow
+    border.width: 1
+    border.color: Appearance.colors.colOutlineVariant
 
     function scrollToBottom() {
         if (!scrollView.contentItem) return
@@ -78,9 +81,10 @@ Rectangle {
         id: cardColumn
         anchors {
             fill: parent
-            margins: 12
-            leftMargin: 20
-            rightMargin: 20
+            topMargin: 6
+            bottomMargin: 6
+            leftMargin: 12
+            rightMargin: 12
         }
         spacing: 10
 

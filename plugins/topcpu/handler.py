@@ -119,6 +119,7 @@ def get_process_results(processes: list[dict], query: str = "") -> list[dict]:
                 "name": f"{proc['name']} ({proc['pid']})",
                 "icon": "memory",
                 "description": f"CPU: {proc['cpu']:.1f}%  |  Mem: {proc['mem']:.1f}%  |  User: {proc['user']}",
+                "verb": "Kill",
                 "actions": [
                     {"id": "kill", "name": "Kill (SIGTERM)", "icon": "cancel"},
                     {

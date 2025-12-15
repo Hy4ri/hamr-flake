@@ -218,6 +218,7 @@ def get_entry_results(entries: list[str], query: str = "") -> list[dict]:
             "name": display,
             "icon": icon,
             "description": entry_type,
+            "verb": "Paste",
             "actions": [
                 {"id": "copy", "name": "Copy", "icon": "content_copy"},
                 {"id": "delete", "name": "Delete", "icon": "delete"},

@@ -85,6 +85,7 @@ def get_note_results(notes: list[dict], show_add: bool = True) -> list[dict]:
                 "name": title,
                 "icon": "sticky_note_2",
                 "description": description,
+                "verb": "View",
                 "actions": [
                     {"id": "view", "name": "View", "icon": "visibility"},
                     {"id": "edit", "name": "Edit", "icon": "edit"},

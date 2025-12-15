@@ -49,17 +49,19 @@ RippleButton {
     visible: root.entryShown
     property int horizontalMargin: 4
     property int buttonHorizontalPadding: 10
-    property int buttonVerticalPadding: 6
+    property int buttonVerticalPadding: 10
     property bool keyboardDown: false
     
     // Action focus: -1 = main item focused, 0+ = action button index
     property int focusedActionIndex: -1
     
     // Notify parent ListView when action index changes (for poll update restoration)
+    // Also update the floating action hint popup
     onFocusedActionIndexChanged: {
         if (ListView.view && typeof ListView.view.updateActionIndex === "function") {
             ListView.view.updateActionIndex(focusedActionIndex);
         }
+        updateActionHint();
     }
     
     function cycleActionNext() {
@@ -104,20 +106,35 @@ RippleButton {
     // Reset action focus when losing list selection
     // Note: We don't reset on entryChanged because during poll updates,
     // the entry data changes but we want to preserve action focus
+    // Also update the floating action hint popup
     ListView.onIsCurrentItemChanged: {
         if (!ListView.isCurrentItem) {
             root.focusedActionIndex = -1;
         }
+        updateActionHint();
     }
 
     implicitHeight: rowLayout.implicitHeight + root.buttonVerticalPadding * 2
     implicitWidth: rowLayout.implicitWidth + root.buttonHorizontalPadding * 2
     buttonRadius: Appearance.rounding.verysmall
+    
+    property bool isSelected: root.ListView.isCurrentItem
     colBackground: (root.down || root.keyboardDown) ? Appearance.colors.colPrimaryContainerActive : 
+        (root.isSelected ? Appearance.colors.colSurfaceContainerLow :
         ((root.hovered || root.focus) ? Appearance.colors.colPrimaryContainer : 
-        ColorUtils.transparentize(Appearance.colors.colPrimaryContainer, 1))
-    colBackgroundHover: Appearance.colors.colPrimaryContainer
+        ColorUtils.transparentize(Appearance.colors.colPrimaryContainer, 1)))
+    colBackgroundHover: root.isSelected ? Appearance.colors.colSurfaceContainerLow : Appearance.colors.colPrimaryContainer
     colRipple: Appearance.colors.colPrimaryContainerActive
+    
+    // Border for selected item
+    Rectangle {
+        anchors.fill: root.background
+        radius: root.buttonRadius
+        color: "transparent"
+        border.width: root.isSelected ? 1 : 0
+        border.color: Appearance.colors.colOutline
+        visible: root.isSelected
+    }
 
     property string highlightPrefix: `<u><font color="${Appearance.colors.colPrimary}">`
     property string highlightSuffix: `</font></u>`
@@ -351,6 +368,30 @@ RippleButton {
             Layout.alignment: Qt.AlignVCenter
             Layout.fillHeight: false
             spacing: 4
+            
+            // Primary action hint - shows on selection, aligned left of action buttons
+            RowLayout {
+                id: primaryActionHint
+                Layout.rightMargin: 10
+                spacing: 4
+                opacity: root.isSelected ? 1 : 0
+                visible: opacity > 0
+                
+                Behavior on opacity {
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                }
+                
+                Kbd {
+                    keys: "Enter"
+                }
+                
+                Text {
+                    text: root.itemClickActionName
+                    font.pixelSize: Appearance.font.pixelSize.smallest
+                    color: Appearance.m3colors.m3outline
+                }
+            }
+            
             Repeater {
                 model: (root.entry.actions ?? []).slice(0, 4)
                 delegate: Item {
@@ -359,7 +400,7 @@ RippleButton {
                     required property int index
                     property var iconType: modelData.iconType
                     property string iconName: modelData.iconName ?? ""
-                    property string keyHint: (index + 1).toString()
+                    property string keyHint: (Config.options.search.actionKeys[index] ?? (index + 1).toString()).toUpperCase()
                     property bool isFocused: root.focusedActionIndex === index && root.ListView.isCurrentItem
                     implicitHeight: 28
                     implicitWidth: 28
@@ -380,7 +421,7 @@ RippleButton {
                         active: actionButton.iconType === LauncherSearchResult.IconType.Material || actionButton.iconName === ""
                         sourceComponent: MaterialSymbol {
                             text: actionButton.iconName || "video_settings"
-                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.pixelSize: 20
                             color: actionButton.isFocused ? Appearance.m3colors.m3onPrimary : Appearance.colors.colSubtext
                             opacity: actionButton.isFocused ? 1.0 : 0.8
                         }
@@ -390,7 +431,7 @@ RippleButton {
                         active: actionButton.iconType === LauncherSearchResult.IconType.System && actionButton.iconName !== ""
                         sourceComponent: IconImage {
                             source: Quickshell.iconPath(actionButton.iconName)
-                            implicitSize: 16
+                            implicitSize: 20
                         }
                     }
 
@@ -402,22 +443,40 @@ RippleButton {
                         onClicked: (event) => {
                             event.accepted = true
                             LauncherSearch.skipNextAutoFocus = true
-                            // Clear selection immediately
-                            const listView = root.ListView.view
-                            if (listView) listView.currentIndex = -1
+                            // Keep selection - don't clear currentIndex
                             actionButton.modelData.execute()
                         }
                         onPressed: (event) => { event.accepted = true }
                         onReleased: (event) => { event.accepted = true }
                     }
 
-                    StyledToolTip {
-                        text: `${actionButton.modelData.name} (${actionButton.keyHint})`
-                        extraVisibleCondition: actionMouse.containsMouse
-                    }
                 }
             }
         }
 
+    }
+
+    // Calculate and report focused action position to GlobalStates for floating hint popup
+    function updateActionHint() {
+        const actions = root.entry.actions ?? [];
+        const isCurrent = root.ListView.isCurrentItem;
+        
+        // Only show floating hint for action buttons, not primary action
+        if (root.focusedActionIndex >= 0 && root.focusedActionIndex < actions.length && isCurrent) {
+            const action = actions[root.focusedActionIndex];
+            const buttonWidth = 28;
+            const buttonSpacing = 4;
+            const actionsCount = actions.length;
+            const actionsRowWidth = actionsCount * buttonWidth + (actionsCount - 1) * buttonSpacing;
+            const buttonOffset = root.focusedActionIndex * (buttonWidth + buttonSpacing) + buttonWidth / 2;
+            const localX = root.width - root.horizontalMargin - root.buttonHorizontalPadding - actionsRowWidth + buttonOffset;
+            const localY = (root.height + buttonWidth) / 2 + 2;
+            
+            const globalPos = root.mapToGlobal(localX, localY);
+            const keyHint = "^" + (Config.options.search.actionKeys[root.focusedActionIndex] ?? (root.focusedActionIndex + 1).toString()).toUpperCase();
+            GlobalStates.showActionHint(keyHint, action.name, globalPos.x, globalPos.y);
+        } else {
+            GlobalStates.hideActionHint();
+        }
     }
 }

@@ -103,6 +103,7 @@ def main():
             {
                 "id": cmd,
                 "name": cmd,
+                "verb": "Run",
                 "actions": [
                     {
                         "id": "run-float",
@@ -130,6 +131,7 @@ def main():
             {
                 "id": cmd,
                 "name": cmd,
+                "verb": "Run",
                 "actions": [
                     {
                         "id": "run-float",

@@ -369,6 +369,7 @@ def format_item_results(items: list[dict]) -> list[dict]:
                 "description": username
                 or (item.get("notes", "")[:50] if item.get("notes") else ""),
                 "icon": get_item_icon(item),
+                "verb": "Copy Password" if login.get("password") else "View",
                 "actions": actions,
             }
         )

@@ -123,21 +123,38 @@ RowLayout {
         // Signals for action navigation
         signal cycleActionNext()
         signal cycleActionPrev()
+        signal executeActionByIndex(int index)
 
         // Vim-style navigation (Ctrl+J/K/L) and Tab for action cycling
         Keys.onPressed: event => {
             // Tab cycles through actions on current item
+            // Shift+Tab generates Key_Backtab on some systems
+            if (event.key === Qt.Key_Backtab || (event.key === Qt.Key_Tab && (event.modifiers & Qt.ShiftModifier))) {
+                searchInput.cycleActionPrev();
+                event.accepted = true;
+                return;
+            }
             if (event.key === Qt.Key_Tab && !(event.modifiers & Qt.ControlModifier)) {
-                if (event.modifiers & Qt.ShiftModifier) {
-                    searchInput.cycleActionPrev();
-                } else {
-                    searchInput.cycleActionNext();
-                }
+                searchInput.cycleActionNext();
                 event.accepted = true;
                 return;
             }
             
             if (event.modifiers & Qt.ControlModifier) {
+                // Ctrl+actionKeys execute action buttons directly (default: u,i,o,p)
+                // Check this first so users can override navigation keys if desired
+                const actionKeys = Config.options.search.actionKeys;
+                // event.text is empty when Ctrl is held, so convert key code to char
+                const keyChar = event.key >= Qt.Key_A && event.key <= Qt.Key_Z 
+                    ? String.fromCharCode(event.key - Qt.Key_A + 97)  // 97 = 'a'
+                    : "";
+                const actionIndex = actionKeys.indexOf(keyChar);
+                if (actionIndex >= 0 && actionIndex < 4) {
+                    searchInput.executeActionByIndex(actionIndex);
+                    event.accepted = true;
+                    return;
+                }
+                
                 if (event.key === Qt.Key_J) {
                     root.navigateDown();
                     event.accepted = true;

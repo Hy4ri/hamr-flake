@@ -105,6 +105,10 @@ Singleton {
                     property string customHistoryPath: "" // Override auto-detection
                     property int maxEntries: 500
                 }
+                // Action button shortcuts (Ctrl + key)
+                // Default: u, i, o, p for actions 1-4
+                // Note: j/k are used for navigation, l for select
+                property list<string> actionKeys: ["u", "i", "o", "p"]
             }
 
             // ==================== IMAGE BROWSER ====================
