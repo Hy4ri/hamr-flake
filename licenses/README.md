@@ -8,3 +8,10 @@ This repository contains code from other projects. Files containing such code in
 - **Source**: https://github.com/farzher/fuzzysort
 - **License**: [MIT](MIT.txt)
 - **Copyright**: (c) 2018 Stephen Kamenar
+
+## thumbnail-generator-ubuntu (MIT)
+
+- **File**: `scripts/thumbnails/thumbgen.py`
+- **Source**: https://github.com/difference-engine/thumbnail-generator-ubuntu
+- **License**: [MIT](MIT.txt)
+- **Copyright**: (c) difference-engine contributors
