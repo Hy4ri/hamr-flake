@@ -236,6 +236,7 @@ def main():
                         refresh_ui=True,
                         clear_input=True,
                         plugin_actions=get_plugin_actions(todos),
+                        navigate_forward=False,
                     )
                 else:
                     # Show current value in placeholder
@@ -390,6 +391,7 @@ def main():
                             refresh_ui=True,
                             clear_input=True,
                             plugin_actions=get_plugin_actions(todos),
+                            navigate_forward=False,
                         )
                         return
                     except Exception:

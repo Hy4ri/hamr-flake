@@ -350,6 +350,7 @@ def main():
                             "context": "",
                             "placeholder": "Search quicklinks...",
                             "pluginActions": get_plugin_actions(),
+                            "navigateBack": True,
                         }
                     )
                 )
@@ -390,6 +391,7 @@ def main():
                             "context": "",
                             "placeholder": "Search quicklinks...",
                             "pluginActions": get_plugin_actions(),
+                            "navigateBack": True,
                         }
                     )
                 )
