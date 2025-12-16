@@ -96,3 +96,31 @@ jobs:
           git add PKGBUILD .SRCINFO hamr.install
           git commit -m "Update to ${{ steps.version.outputs.version }}"
           git push
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Get commits since last tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s" $PREV_TAG..HEAD --no-merges)
+          else
+            NOTES=$(git log --pretty=format:"- %s" --no-merges -20)
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ steps.version.outputs.version }}
+          body: |
+            ## Changes
+            ${{ steps.release_notes.outputs.notes }}
+
+            ## Installation
+            ```bash
+            paru -S hamr
+            ```
+          generate_release_notes: false
