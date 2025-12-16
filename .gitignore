@@ -9,5 +9,8 @@ CODE_COMPLEXITY.md
 # AUR package repo (separate git repo)
 aur/
 
-# Build artifacts
+# makepkg build artifacts
 *.pkg.tar.zst
+src/
+pkg/
+hamr/
