@@ -59,11 +59,50 @@ def main():
         )
         return
 
+    # Handle initial and search - show URL result
+    if step in ("initial", "search"):
+        if not query:
+            print(json.dumps({"type": "results", "results": []}))
+            return
+
+        url = normalize_url(query)
+        print(
+            json.dumps(
+                {
+                    "type": "results",
+                    "results": [
+                        {
+                            # Store URL in id so it's available in action step
+                            "id": url,
+                            "name": url,
+                            "description": "Open in browser",
+                            "icon": "open_in_browser",
+                            "verb": "Open",
+                            "actions": [
+                                {
+                                    "id": "copy",
+                                    "name": "Copy URL",
+                                    "icon": "content_copy",
+                                }
+                            ],
+                        }
+                    ],
+                    "inputMode": "realtime",
+                }
+            )
+        )
+        return
+
     if step == "action":
         action = input_data.get("action", "")
+        # URL is stored in selected.id from the search results
+        url = selected.get("id", "")
+
+        if not url:
+            print(json.dumps({"type": "error", "message": "No URL provided"}))
+            return
 
         if action == "copy":
-            url = normalize_url(query)
             print(
                 json.dumps(
                     {
@@ -79,13 +118,14 @@ def main():
             return
 
         # Default action: open URL
-        url = normalize_url(query)
         print(
             json.dumps(
                 {
                     "type": "execute",
                     "execute": {
                         "command": ["xdg-open", url],
+                        "name": f"Open {url}",
+                        "icon": "open_in_browser",
                         "close": True,
                     },
                 }
