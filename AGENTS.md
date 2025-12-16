@@ -41,6 +41,33 @@ Symlinked to `~/.config/quickshell/` for testing.
 2. **Test**: Reload with `pkill -f 'qs -c hamr' && qs -c hamr`
 3. **Commit**: Commit directly to this repo
 
+## Releasing
+
+When user says "push and bump version" or "release":
+
+1. **Update version in PKGBUILD**:
+   - `pkgver` - bump for code changes (e.g., `0.1.1` -> `0.2.0`)
+   - `pkgrel` - bump for PKGBUILD-only changes, reset to `1` on pkgver bump
+
+2. **Commit and push**:
+   ```bash
+   git add -A && git commit -m "chore: bump version to X.Y.Z" && git push
+   ```
+
+3. **Create and push tag**:
+   ```bash
+   git tag vX.Y.Z && git push origin vX.Y.Z
+   ```
+
+4. **GitHub Actions will automatically**:
+   - Update AUR package
+   - Create GitHub Release with sorted release notes (by conventional commit type)
+
+**Manual AUR publish** (if needed):
+```bash
+./aur-publish.sh
+```
+
 ## Commit History (Our Progress)
 
 ### Committed to repo:
