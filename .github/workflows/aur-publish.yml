@@ -27,15 +27,6 @@ jobs:
           EOF
           chmod 600 ~/.ssh/config
           
-      - name: Debug SSH key
-        run: |
-          echo "Key file exists:"
-          ls -la ~/.ssh/aur
-          echo "Key fingerprint:"
-          ssh-keygen -lf ~/.ssh/aur
-          echo "Testing connection:"
-          ssh -vT aur@aur.archlinux.org || true
-
       - name: Extract version from tag
         id: version
         run: |
