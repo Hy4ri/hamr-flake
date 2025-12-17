@@ -335,6 +335,7 @@ RowLayout {
         
         StyledToolTip {
             text: "Minimize"
+            keys: "Ctrl+M"
         }
     }
 

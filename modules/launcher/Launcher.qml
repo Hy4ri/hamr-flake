@@ -316,6 +316,9 @@ Scope {
                             GlobalStates.softClose = false;
                             GlobalStates.launcherOpen = false;
                         }
+                    } else if (event.key === Qt.Key_M && (event.modifiers & Qt.ControlModifier)) {
+                        GlobalStates.launcherMinimized = true;
+                        event.accepted = true;
                     }
                 }
 
