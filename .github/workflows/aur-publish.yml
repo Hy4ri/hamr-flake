@@ -126,7 +126,7 @@ jobs:
           PERF=$(echo "$COMMITS" | grep -E "^perf(\(.+\))?:" | sed 's/^/- /' || true)
           REFACTOR=$(echo "$COMMITS" | grep -E "^refactor(\(.+\))?:" | sed 's/^/- /' || true)
           DOCS=$(echo "$COMMITS" | grep -E "^docs(\(.+\))?:" | sed 's/^/- /' || true)
-          CHORE=$(echo "$COMMITS" | grep -E "^chore(\(.+\))?:" | sed 's/^/- /' || true)
+          CHORE=$(echo "$COMMITS" | grep -E "^chore(\(.+\))?:" | grep -v "bump version" | sed 's/^/- /' || true)
           CI=$(echo "$COMMITS" | grep -E "^ci(\(.+\))?:" | sed 's/^/- /' || true)
           TEST=$(echo "$COMMITS" | grep -E "^test(\(.+\))?:" | sed 's/^/- /' || true)
           OTHER=$(echo "$COMMITS" | grep -vE "^(feat|fix|perf|refactor|docs|chore|ci|test)(\(.+\))?:" | sed 's/^/- /' || true)
