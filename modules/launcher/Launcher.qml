@@ -253,6 +253,12 @@ Scope {
                             
                             if (shouldMinimize) {
                                 GlobalStates.launcherMinimized = true;
+                                // Start deferred cleanup timer so state resets after timeout
+                                const restoreWindowMs = Config.options.behavior.stateRestoreWindowMs;
+                                if (restoreWindowMs > 0) {
+                                    launcherScope.statePendingCleanup = true;
+                                    deferredCleanupTimer.restart();
+                                }
                             } else {
                                 GlobalStates.softClose = true;
                                 GlobalStates.launcherOpen = false;
@@ -499,6 +505,11 @@ Scope {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
+                            // Cancel pending cleanup if expanding within restore window
+                            if (launcherScope.statePendingCleanup) {
+                                deferredCleanupTimer.stop();
+                                launcherScope.statePendingCleanup = false;
+                            }
                             GlobalStates.launcherMinimized = false;
                             GlobalStates.launcherOpen = true;
                         }
