@@ -113,35 +113,40 @@ def fuzzy_filter(query: str, commands: list[str]) -> list[str]:
     return results
 
 
+def make_terminal_cmd_for_index(cmd: str, execute: bool = True) -> list[str]:
+    """Build command for index items (can't use function, needs inline script)."""
+    terminal = os.environ.get("TERMINAL", "ghostty")
+    cmd_repr = repr(cmd)
+    enter_key = "&& ydotool key 28:1 28:0" if execute else ""
+
+    # Inline version for index items
+    script = f"""
+hyprctl dispatch exec '[float] {terminal}'
+for i in $(seq 1 50); do
+    active=$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // empty' 2>/dev/null)
+    case "$active" in *ghostty*|*kitty*|*alacritty*|*foot*|*{terminal}*) ydotool type --key-delay=0 -- {cmd_repr} {enter_key}; exit 0 ;; esac
+    sleep 0.02
+done
+ydotool type --key-delay=0 -- {cmd_repr} {enter_key}
+"""
+    return ["bash", "-c", script.strip()]
+
+
 def binary_to_index_item(binary: str) -> dict:
     """Convert a binary name to indexable item format for main search."""
-    terminal = os.environ.get("TERMINAL", "ghostty")
-    binary_repr = repr(binary)
-
     return {
         "id": f"bin:{binary}",
         "name": binary,
         "description": "Command",
         "icon": "terminal",
         "verb": "Run",
-        # Opens terminal and types the binary name, ready for args
-        "execute": {
-            "command": [
-                "bash",
-                "-c",
-                f"hyprctl dispatch exec '[float] {terminal}' && sleep 0.3 && ydotool type --key-delay=0 -- {binary_repr}",
-            ],
-        },
+        "execute": {"command": make_terminal_cmd_for_index(binary, execute=False)},
         "actions": [
             {
                 "id": "run",
                 "name": "Run Now",
                 "icon": "play_arrow",
-                "command": [
-                    "bash",
-                    "-c",
-                    f"hyprctl dispatch exec '[float] {terminal}' && sleep 0.3 && ydotool type --key-delay=0 -- {binary_repr} && ydotool key 28:1 28:0",
-                ],
+                "command": make_terminal_cmd_for_index(binary, execute=True),
             },
             {
                 "id": "copy",
@@ -158,29 +163,42 @@ def get_cmd_hash(cmd: str) -> str:
     return hashlib.md5(cmd.encode()).hexdigest()[:12]
 
 
+def make_terminal_cmd(cmd: str, floating: bool = True) -> list[str]:
+    """Build command to run in terminal, waiting for terminal to be ready."""
+    terminal = os.environ.get("TERMINAL", "ghostty")
+    cmd_repr = repr(cmd)
+
+    # Wait for terminal window to become active instead of fixed sleep
+    # Uses hyprctl to poll for active window class matching terminal
+    wait_script = f"""
+terminal_class="{terminal}"
+hyprctl dispatch exec '{f"[float] " if floating else ""}{terminal}'
+for i in $(seq 1 50); do
+    active=$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // empty' 2>/dev/null)
+    if [[ "$active" == *"$terminal_class"* ]] || [[ "$active" == *"ghostty"* ]] || [[ "$active" == *"kitty"* ]] || [[ "$active" == *"alacritty"* ]] || [[ "$active" == *"foot"* ]]; then
+        ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0
+        exit 0
+    fi
+    sleep 0.02
+done
+# Fallback after 1 second
+ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0
+"""
+    return ["bash", "-c", wait_script.strip()]
+
+
 def history_to_index_item(cmd: str) -> dict:
     """Convert a shell history command to indexable item format for main search."""
-    # Use Python repr for proper escaping in bash
-    cmd_repr = repr(cmd)
-    terminal = os.environ.get("TERMINAL", "ghostty")
-
-    # Truncate for display
     display_cmd = cmd if len(cmd) <= 60 else cmd[:60] + "..."
 
     return {
         "id": f"history:{get_cmd_hash(cmd)}",
         "name": display_cmd,
         "description": "History",
-        "keywords": cmd.lower().split()[:10],  # First 10 words as keywords
+        "keywords": cmd.lower().split()[:10],
         "icon": "history",
         "verb": "Run",
-        "execute": {
-            "command": [
-                "bash",
-                "-c",
-                f"hyprctl dispatch exec '[float] {terminal}' && sleep 0.3 && ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0",
-            ],
-        },
+        "execute": {"command": make_terminal_cmd_for_index(cmd, execute=True)},
         "actions": [
             {
                 "id": "copy",
@@ -279,23 +297,49 @@ def main():
         commands = get_shell_history()
         filtered = fuzzy_filter(query, commands)
 
-        results = [
-            {
-                "id": cmd,
-                "name": cmd,
-                "verb": "Run",
-                "actions": [
-                    {
-                        "id": "run-float",
-                        "name": "Run (floating)",
-                        "icon": "open_in_new",
-                    },
-                    {"id": "run-tiled", "name": "Run (tiled)", "icon": "terminal"},
-                    {"id": "copy", "name": "Copy", "icon": "content_copy"},
-                ],
-            }
-            for cmd in filtered
-        ]
+        results = []
+
+        # Always offer to run the raw query as a command (first result)
+        if query:
+            results.append(
+                {
+                    "id": query,
+                    "name": query,
+                    "description": "Run command",
+                    "verb": "Run",
+                    "actions": [
+                        {
+                            "id": "run-float",
+                            "name": "Run (floating)",
+                            "icon": "open_in_new",
+                        },
+                        {"id": "run-tiled", "name": "Run (tiled)", "icon": "terminal"},
+                        {"id": "copy", "name": "Copy", "icon": "content_copy"},
+                    ],
+                }
+            )
+
+        # Add history matches (skip if exact match with query to avoid duplicate)
+        for cmd in filtered:
+            if cmd == query:
+                continue
+            results.append(
+                {
+                    "id": cmd,
+                    "name": cmd,
+                    "description": "History",
+                    "verb": "Run",
+                    "actions": [
+                        {
+                            "id": "run-float",
+                            "name": "Run (floating)",
+                            "icon": "open_in_new",
+                        },
+                        {"id": "run-tiled", "name": "Run (tiled)", "icon": "terminal"},
+                        {"id": "copy", "name": "Copy", "icon": "content_copy"},
+                    ],
+                }
+            )
 
         print(
             json.dumps({"type": "results", "results": results, "inputMode": "realtime"})
@@ -308,27 +352,15 @@ def main():
             print(json.dumps({"type": "error", "message": "No command selected"}))
             return
 
-        # Truncate command for history display
         display_cmd = cmd if len(cmd) <= 50 else cmd[:50] + "..."
 
-        # Use Python repr for proper escaping in bash
-        cmd_repr = repr(cmd)
-
-        # Use $TERMINAL env var, fall back to common terminals
-        terminal = os.environ.get("TERMINAL", "ghostty")
-
         if action == "run-float":
-            # Launch floating terminal, type command with ydotool, press Enter
             print(
                 json.dumps(
                     {
                         "type": "execute",
                         "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f"hyprctl dispatch exec '[float] {terminal}' && sleep 0.3 && ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0",
-                            ],
+                            "command": make_terminal_cmd(cmd, floating=True),
                             "name": f"Run: {display_cmd}",
                             "icon": "terminal",
                             "close": True,
@@ -337,17 +369,12 @@ def main():
                 )
             )
         elif action == "run-tiled":
-            # Launch tiled terminal, type command with ydotool, press Enter
             print(
                 json.dumps(
                     {
                         "type": "execute",
                         "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f"{terminal} & sleep 0.3 && ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0",
-                            ],
+                            "command": make_terminal_cmd(cmd, floating=False),
                             "name": f"Run: {display_cmd}",
                             "icon": "terminal",
                             "close": True,
@@ -356,7 +383,6 @@ def main():
                 )
             )
         elif action == "copy":
-            # Copy to clipboard using wl-copy
             subprocess.run(["wl-copy", cmd], check=False)
             print(
                 json.dumps(
@@ -372,17 +398,13 @@ def main():
                 )
             )
         else:
-            # Default action: run in floating terminal with ydotool, press Enter
+            # Default: run floating
             print(
                 json.dumps(
                     {
                         "type": "execute",
                         "execute": {
-                            "command": [
-                                "bash",
-                                "-c",
-                                f"hyprctl dispatch exec '[float] {terminal}' && sleep 0.3 && ydotool type --key-delay=0 -- {cmd_repr} && ydotool key 28:1 28:0",
-                            ],
+                            "command": make_terminal_cmd(cmd, floating=True),
                             "name": f"Run: {display_cmd}",
                             "icon": "terminal",
                             "close": True,
