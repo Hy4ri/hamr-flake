@@ -77,8 +77,8 @@ RowLayout {
             case SearchBar.SearchPrefixType.Math: return "calculate";
             case SearchBar.SearchPrefixType.ShellCommand: return "terminal";
             case SearchBar.SearchPrefixType.WebSearch: return "travel_explore";
-            case SearchBar.SearchPrefixType.DefaultSearch: return "search";
-            default: return "search";
+            case SearchBar.SearchPrefixType.DefaultSearch: return "gavel";
+            default: return "gavel";
         }
     }
 
