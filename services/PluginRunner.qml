@@ -1258,7 +1258,6 @@ Singleton {
                  break;
                  
              case "imageBrowser":
-                 // Open image browser with plugin configuration
                  if (response.imageBrowser) {
                      const config = {
                          directory: response.imageBrowser.directory ?? "",
@@ -1266,8 +1265,10 @@ Singleton {
                          extensions: response.imageBrowser.extensions ?? null,
                          actions: response.imageBrowser.actions ?? [],
                          workflowId: root.activePlugin?.id ?? "",
-                         enableOcr: response.imageBrowser.enableOcr ?? false
+                         enableOcr: response.imageBrowser.enableOcr ?? false,
+                         isInitialView: root.navigationDepth === 0
                      };
+                     root.navigationDepth++;
                      GlobalStates.openImageBrowserForPlugin(config);
                  }
                  break;
@@ -1298,6 +1299,11 @@ Singleton {
                  },
                  session: root.activePlugin.session
              });
+         }
+         
+         function onImageBrowserCancelled() {
+             if (root.navigationDepth > 0) root.navigationDepth--;
+             if (root.activePlugin) root.goBack();
          }
      }
      

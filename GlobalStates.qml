@@ -17,31 +17,35 @@ Singleton {
     // Hard close: Escape, execute-with-close, IPC close (immediate cleanup)
     property bool softClose: false
     
-    // Unified image browser that can be opened in standalone or plugin mode
     property bool imageBrowserOpen: false
-     property var imageBrowserConfig: null  // { directory, title, extensions, actions, workflowId }
-     property bool imageBrowserClosedBySelection: false  // Track if close was due to selection
-     
-     // Signal emitted when user selects an image in plugin mode
-     signal imageBrowserSelected(string filePath, string actionId)
-     
-     // Open image browser for a plugin
-     function openImageBrowserForPlugin(config) {
-         imageBrowserConfig = config;
-         imageBrowserClosedBySelection = false;
-         imageBrowserOpen = true;
-     }
+    property var imageBrowserConfig: null
+    property bool imageBrowserClosedBySelection: false
+    property bool imageBrowserClosedByCancel: false
     
-    // Close image browser (manual close via Escape or click-outside)
+    signal imageBrowserSelected(string filePath, string actionId)
+    signal imageBrowserCancelled()
+    
+    function openImageBrowserForPlugin(config) {
+        imageBrowserConfig = config;
+        imageBrowserClosedBySelection = false;
+        imageBrowserClosedByCancel = false;
+        imageBrowserOpen = true;
+    }
+    
     function closeImageBrowser() {
         imageBrowserOpen = false;
         imageBrowserConfig = null;
     }
     
-    // Called by ImageBrowserContent when user selects an image
+    function cancelImageBrowser() {
+        imageBrowserClosedByCancel = true;
+        imageBrowserCancelled();
+        imageBrowserOpen = false;
+        imageBrowserConfig = null;
+    }
+    
     function imageBrowserSelection(filePath, actionId) {
         imageBrowserSelected(filePath, actionId);
-        // Close after selection - mark that it was a selection close
         if (imageBrowserConfig?.workflowId) {
             imageBrowserClosedBySelection = true;
             closeImageBrowser();

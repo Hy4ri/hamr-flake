@@ -61,13 +61,13 @@ Scope {
         }
     }
 
-    // Close overview when image browser closes via manual close (Escape/click-outside)
-    // If closed by selection, workflow handler decides via executeCommand with close: true
     Connections {
         target: GlobalStates
         function onImageBrowserOpenChanged() {
-            if (!GlobalStates.imageBrowserOpen && !GlobalStates.imageBrowserClosedBySelection) {
-                // Manual close - close the launcher too
+            // Close launcher on click-outside (not on selection or cancel)
+            if (!GlobalStates.imageBrowserOpen && 
+                !GlobalStates.imageBrowserClosedBySelection &&
+                !GlobalStates.imageBrowserClosedByCancel) {
                 GlobalStates.launcherOpen = false;
             }
         }

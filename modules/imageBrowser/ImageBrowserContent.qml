@@ -90,7 +90,7 @@ MouseArea {
 
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Escape) {
-            GlobalStates.closeImageBrowser();
+            config?.workflowId ? GlobalStates.cancelImageBrowser() : GlobalStates.closeImageBrowser();
             event.accepted = true;
         } else if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_V) {
             root.handleFilePasting(event);
@@ -279,7 +279,7 @@ MouseArea {
                                 { keys: "Enter", desc: "Open" },
                                 { keys: "- or H", desc: "Parent dir" },
                                 { keys: "/", desc: "Search" },
-                                { keys: "Esc", desc: "Close" },
+                                { keys: "Esc", desc: root.config?.workflowId ? "Back" : "Close" },
                             ]
                             delegate: RowLayout {
                                 required property var modelData
@@ -494,13 +494,9 @@ MouseArea {
 
                         IconToolbarButton {
                             implicitWidth: height
-                            onClicked: {
-                                GlobalStates.closeImageBrowser();
-                            }
-                            text: "close"
-                            StyledToolTip {
-                                text: "Close"
-                            }
+                            onClicked: root.config?.workflowId ? GlobalStates.cancelImageBrowser() : GlobalStates.closeImageBrowser()
+                            text: root.config?.workflowId ? "arrow_back" : "close"
+                            StyledToolTip { text: root.config?.workflowId ? "Back (Esc)" : "Close (Esc)" }
                         }
                     }
                 }
