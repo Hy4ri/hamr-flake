@@ -1,0 +1,9 @@
+{
+  "name": "Web Apps",
+  "description": "Install and manage web apps",
+  "icon": "web",
+  "index": {
+    "enabled": true,
+    "reindex": "5m"
+  }
+}
