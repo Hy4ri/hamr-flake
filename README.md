@@ -748,47 +748,15 @@ Hamr is configured via `~/.config/hamr/config.json`. The install script creates 
 | **Paths** | `wallpaperDir` | `""` | Custom wallpaper directory (empty = ~/Pictures/Wallpapers) |
 | | `colorsJson` | `""` | Custom colors.json path (empty = illogical-impulse default) |
 
-### Quick Examples
+### Changing Settings
 
-**Use a different terminal:**
-```json
-{
-  "apps": {
-    "terminal": "kitty",
-    "terminalArgs": "--class floating",
-    "shell": "fish"
-  }
-}
-```
+Use the built-in settings plugin to browse and modify configuration options:
 
-**More opaque launcher:**
-```json
-{
-  "appearance": {
-    "backgroundTransparency": 0.05,
-    "contentTransparency": 0.1
-  }
-}
-```
+1. Open Hamr and type `/settings`
+2. Browse categories or search for a specific option from the table above
+3. Select an option to edit its value
 
-**Larger launcher:**
-```json
-{
-  "sizes": {
-    "searchWidth": 700,
-    "maxResultsHeight": 800
-  }
-}
-```
-
-**Custom theme colors (without illogical-impulse):**
-```json
-{
-  "paths": {
-    "colorsJson": "~/.config/hamr/colors.json"
-  }
-}
-```
+Settings are saved to `~/.config/hamr/config.json` automatically.
 
 <details>
 <summary><strong>File Structure</strong></summary>
