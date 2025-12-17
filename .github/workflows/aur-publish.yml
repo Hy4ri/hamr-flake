@@ -120,16 +120,21 @@ jobs:
           # Detect new plugins added (commits like "feat(plugins): add X plugin")
           NEW_PLUGINS=$(echo "$COMMITS" | grep -E "^feat\(plugins\): add [a-z-]+ plugin" | sed 's/.*add \([a-z-]*\) plugin.*/\1/' | sed 's/^/- /' || true)
           
+          # Format: "feat(scope): msg" -> "**scope**: msg" or "feat: msg" -> "msg"
+          format_commits() {
+            sed -E 's/^[a-z]+\(([^)]+)\): (.*)/**\1**: \2/' | sed -E 's/^[a-z]+: (.*)/\1/' | sed 's/^/- /'
+          }
+          
           # Sort by conventional commit type (exclude plugin additions from features)
-          FEAT=$(echo "$COMMITS" | grep -E "^feat(\(.+\))?:" | grep -viE "add.+plugin" | sed 's/^/- /' || true)
-          FIX=$(echo "$COMMITS" | grep -E "^fix(\(.+\))?:" | sed 's/^/- /' || true)
-          PERF=$(echo "$COMMITS" | grep -E "^perf(\(.+\))?:" | sed 's/^/- /' || true)
-          REFACTOR=$(echo "$COMMITS" | grep -E "^refactor(\(.+\))?:" | sed 's/^/- /' || true)
-          DOCS=$(echo "$COMMITS" | grep -E "^docs(\(.+\))?:" | sed 's/^/- /' || true)
-          CHORE=$(echo "$COMMITS" | grep -E "^chore(\(.+\))?:" | grep -v "bump version" | sed 's/^/- /' || true)
-          CI=$(echo "$COMMITS" | grep -E "^ci(\(.+\))?:" | sed 's/^/- /' || true)
-          TEST=$(echo "$COMMITS" | grep -E "^test(\(.+\))?:" | sed 's/^/- /' || true)
-          OTHER=$(echo "$COMMITS" | grep -vE "^(feat|fix|perf|refactor|docs|chore|ci|test)(\(.+\))?:" | sed 's/^/- /' || true)
+          FEAT=$(echo "$COMMITS" | grep -E "^feat(\(.+\))?:" | grep -viE "add.+plugin" | format_commits || true)
+          FIX=$(echo "$COMMITS" | grep -E "^fix(\(.+\))?:" | format_commits || true)
+          PERF=$(echo "$COMMITS" | grep -E "^perf(\(.+\))?:" | format_commits || true)
+          REFACTOR=$(echo "$COMMITS" | grep -E "^refactor(\(.+\))?:" | format_commits || true)
+          DOCS=$(echo "$COMMITS" | grep -E "^docs(\(.+\))?:" | format_commits || true)
+          CHORE=$(echo "$COMMITS" | grep -E "^chore(\(.+\))?:" | grep -v "bump version" | format_commits || true)
+          CI=$(echo "$COMMITS" | grep -E "^ci(\(.+\))?:" | format_commits || true)
+          TEST=$(echo "$COMMITS" | grep -E "^test(\(.+\))?:" | format_commits || true)
+          OTHER=$(echo "$COMMITS" | grep -vE "^(feat|fix|perf|refactor|docs|chore|ci|test)(\(.+\))?:" | format_commits || true)
           
           # Build release notes
           NOTES=""
