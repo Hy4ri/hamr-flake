@@ -648,7 +648,8 @@ Hamr is configured via `~/.config/hamr/config.json`. The install script creates 
     "shell": "zsh"
   },
   "behavior": {
-    "stateRestoreWindowMs": 30000
+    "stateRestoreWindowMs": 30000,
+    "clickOutsideAction": "intuitive"
   },
   "search": {
     "nonAppResultDelay": 30,
@@ -724,6 +725,7 @@ Hamr is configured via `~/.config/hamr/config.json`. The install script creates 
 | | `terminalArgs` | `--class=floating.terminal` | Arguments passed to terminal |
 | | `shell` | `zsh` | Shell for command execution (zsh, bash, fish) |
 | **Behavior** | `stateRestoreWindowMs` | `30000` | Time (ms) to preserve state after soft close (0 to disable) |
+| | `clickOutsideAction` | `intuitive` | Click outside behavior: `intuitive` (minimize if used before, else close), `close`, or `minimize` |
 | **Search** | `maxDisplayedResults` | `16` | Maximum results shown in launcher |
 | | `maxRecentItems` | `20` | Recent history items on empty search |
 | | `shellHistoryLimit` | `50` | Shell history results limit |
