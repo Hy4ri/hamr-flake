@@ -487,6 +487,12 @@ Item {
                 }
                 
                 onBackClicked: {
+                    // If a form is showing, cancel the form instead of navigating back
+                    if (root.showForm) {
+                        PluginRunner.cancelForm();
+                        root.focusSearchInput();
+                        return;
+                    }
                     // Use goBack() to navigate back one step in the plugin
                     // If at initial view, this will close the plugin
                     LauncherSearch.exitPlugin();

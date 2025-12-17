@@ -39,7 +39,34 @@ Rectangle {
     property string cancelLabel: form?.cancelLabel ?? "Cancel"
     property var fields: form?.fields ?? []
     
+    // Store field values separately to persist across visibility changes
+    // Key: field id, Value: current value
+    property var fieldValues: ({})
+    
+    // Track which form we're showing to reset values when form changes
+    property string currentFormId: ""
+    
     visible: form !== null
+    
+    // Reset field values when a new form is shown
+    onFormChanged: {
+        if (form) {
+            // Generate a simple form ID from title + field count
+            let newFormId = (form.title ?? "") + "_" + (form.fields?.length ?? 0);
+            if (newFormId !== currentFormId) {
+                // New form - reset stored values and initialize from defaults
+                fieldValues = {};
+                if (form.fields) {
+                    for (let field of form.fields) {
+                        if (field.id) {
+                            fieldValues[field.id] = field.default ?? "";
+                        }
+                    }
+                }
+                currentFormId = newFormId;
+            }
+        }
+    }
     
     Layout.fillWidth: true
     implicitHeight: Math.min(500, formColumn.implicitHeight + 32)
@@ -48,14 +75,32 @@ Rectangle {
     
     // Collect form data from all fields
     function collectFormData() {
-        let data = {};
+        // Sync current field values to storage before collecting
+        syncFieldValues();
+        return Object.assign({}, fieldValues);
+    }
+    
+    // Sync current input values to the fieldValues storage
+    function syncFieldValues() {
         for (let i = 0; i < fieldsRepeater.count; i++) {
             let item = fieldsRepeater.itemAt(i);
             if (item && item.fieldId) {
-                data[item.fieldId] = item.fieldValue;
+                fieldValues[item.fieldId] = item.fieldValue;
             }
         }
-        return data;
+    }
+    
+    // Update a specific field value (called by field components on change)
+    function updateFieldValue(fieldId, value) {
+        fieldValues[fieldId] = value;
+    }
+    
+    // Get stored value for a field
+    function getFieldValue(fieldId, defaultValue) {
+        if (fieldId in fieldValues) {
+            return fieldValues[fieldId];
+        }
+        return defaultValue ?? "";
     }
     
     // Validate required fields
@@ -290,7 +335,8 @@ Rectangle {
                         margins: 2
                     }
                     
-                    text: fieldData.default ?? ""
+                    // Initialize from stored value or default
+                    text: root.getFieldValue(fieldData.id, fieldData.default ?? "")
                     placeholderText: fieldData.placeholder ?? ""
                     
                     font.family: Appearance.font.family.main
@@ -301,6 +347,9 @@ Rectangle {
                     selectionColor: Appearance.colors.colSecondaryContainer
                     
                     background: null
+                    
+                    // Persist value on change
+                    onTextChanged: root.updateFieldValue(fieldData.id, text)
                     
                     Keys.onPressed: event => {
                         // Escape to cancel form
@@ -368,7 +417,8 @@ Rectangle {
                         margins: 2
                     }
                     
-                    text: fieldData.default ?? ""
+                    // Initialize from stored value or default
+                    text: root.getFieldValue(fieldData.id, fieldData.default ?? "")
                     placeholderText: fieldData.placeholder ?? ""
                     echoMode: TextInput.Password
                     
@@ -380,6 +430,9 @@ Rectangle {
                     selectionColor: Appearance.colors.colSecondaryContainer
                     
                     background: null
+                    
+                    // Persist value on change
+                    onTextChanged: root.updateFieldValue(fieldData.id, text)
                     
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Escape) {
@@ -450,7 +503,8 @@ Rectangle {
                         id: textAreaInput
                         width: parent.availableWidth
                         
-                        text: fieldData.default ?? ""
+                        // Initialize from stored value or default
+                        text: root.getFieldValue(fieldData.id, fieldData.default ?? "")
                         placeholderText: fieldData.placeholder ?? ""
                         wrapMode: TextEdit.Wrap
                         
@@ -462,6 +516,9 @@ Rectangle {
                         selectionColor: Appearance.colors.colSecondaryContainer
                         
                         background: null
+                        
+                        // Persist value on change
+                        onTextChanged: root.updateFieldValue(fieldData.id, text)
                         
                         Keys.onPressed: event => {
                             // Escape to cancel form
@@ -511,6 +568,14 @@ Rectangle {
                 selectCombo.forceActiveFocus();
             }
             
+            // Get initial index from stored value or default
+            function getInitialIndex() {
+                let storedVal = root.getFieldValue(fieldData.id, fieldData.default ?? "");
+                if (!storedVal) return 0;
+                let idx = options.findIndex(o => (o.id ?? o.name) === storedVal);
+                return idx >= 0 ? idx : 0;
+            }
+            
             spacing: 4
             
             StyledText {
@@ -527,11 +592,14 @@ Rectangle {
                 
                 model: selectFieldRoot.options.map(o => o.name ?? o.id ?? "")
                 
-                currentIndex: {
-                    let defaultVal = fieldData.default ?? "";
-                    if (!defaultVal) return 0;
-                    let idx = selectFieldRoot.options.findIndex(o => (o.id ?? o.name) === defaultVal);
-                    return idx >= 0 ? idx : 0;
+                currentIndex: selectFieldRoot.getInitialIndex()
+                
+                // Persist value on change
+                onCurrentIndexChanged: {
+                    if (currentIndex >= 0 && currentIndex < selectFieldRoot.options.length) {
+                        let val = selectFieldRoot.options[currentIndex].id ?? selectFieldRoot.options[currentIndex].name ?? "";
+                        root.updateFieldValue(fieldData.id, val);
+                    }
                 }
                 
                 font.family: Appearance.font.family.main
@@ -592,11 +660,23 @@ Rectangle {
                 checkboxInput.forceActiveFocus();
             }
             
+            // Get initial checked state from stored value or default
+            function getInitialChecked() {
+                let stored = root.getFieldValue(fieldData.id, null);
+                if (stored !== null && stored !== "") {
+                    return stored === true || stored === "true";
+                }
+                return fieldData.default ?? false;
+            }
+            
             spacing: 8
             
             CheckBox {
                 id: checkboxInput
-                checked: fieldData.default ?? false
+                checked: checkboxFieldRoot.getInitialChecked()
+                
+                // Persist value on change
+                onCheckedChanged: root.updateFieldValue(fieldData.id, checked)
                 
                 indicator: Rectangle {
                     implicitWidth: 20
