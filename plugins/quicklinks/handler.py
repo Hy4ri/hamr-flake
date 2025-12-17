@@ -290,8 +290,38 @@ def main():
     context = input_data.get("context", "")
 
     if step == "index":
-        items = [quicklink_to_index_item(link) for link in quicklinks]
-        print(json.dumps({"type": "index", "items": items}))
+        mode = input_data.get("mode", "full")
+        indexed_ids = set(input_data.get("indexedIds", []))
+
+        # Build current ID set
+        current_ids = {f"quicklink:{link['name']}" for link in quicklinks}
+
+        if mode == "incremental" and indexed_ids:
+            # Find new items
+            new_ids = current_ids - indexed_ids
+            new_items = [
+                quicklink_to_index_item(link)
+                for link in quicklinks
+                if f"quicklink:{link['name']}" in new_ids
+            ]
+
+            # Find removed items
+            removed_ids = list(indexed_ids - current_ids)
+
+            print(
+                json.dumps(
+                    {
+                        "type": "index",
+                        "mode": "incremental",
+                        "items": new_items,
+                        "remove": removed_ids,
+                    }
+                )
+            )
+        else:
+            # Full reindex
+            items = [quicklink_to_index_item(link) for link in quicklinks]
+            print(json.dumps({"type": "index", "items": items}))
         return
 
     if step == "initial":

@@ -6,6 +6,7 @@ Indexes:
 - Binaries from $PATH (for command auto-detection)
 """
 
+import hashlib
 import json
 import os
 import subprocess
@@ -152,7 +153,12 @@ def binary_to_index_item(binary: str) -> dict:
     }
 
 
-def history_to_index_item(cmd: str, idx: int) -> dict:
+def get_cmd_hash(cmd: str) -> str:
+    """Get a stable hash for a command."""
+    return hashlib.md5(cmd.encode()).hexdigest()[:12]
+
+
+def history_to_index_item(cmd: str) -> dict:
     """Convert a shell history command to indexable item format for main search."""
     # Use Python repr for proper escaping in bash
     cmd_repr = repr(cmd)
@@ -162,7 +168,7 @@ def history_to_index_item(cmd: str, idx: int) -> dict:
     display_cmd = cmd if len(cmd) <= 60 else cmd[:60] + "..."
 
     return {
-        "id": f"history:{idx}:{hash(cmd) & 0xFFFFFFFF:08x}",
+        "id": f"history:{get_cmd_hash(cmd)}",
         "name": display_cmd,
         "description": "History",
         "keywords": cmd.lower().split()[:10],  # First 10 words as keywords
@@ -195,19 +201,51 @@ def main():
 
     # Indexes both binaries from $PATH and shell history
     if step == "index":
-        items = []
+        mode = input_data.get("mode", "full")
+        indexed_ids = set(input_data.get("indexedIds", []))
 
-        # Index binaries from $PATH (for command auto-detection)
+        # Get current binaries and history
         binaries = get_path_binaries()
-        for binary in binaries:
-            items.append(binary_to_index_item(binary))
-
-        # Index recent shell history
         commands = get_shell_history()[:30]  # Limit to 30 for main search
-        for i, cmd in enumerate(commands):
-            items.append(history_to_index_item(cmd, i))
 
-        print(json.dumps({"type": "index", "items": items}))
+        # Build current ID sets
+        current_bin_ids = {f"bin:{b}" for b in binaries}
+        current_hist_ids = {f"history:{get_cmd_hash(c)}" for c in commands}
+        current_ids = current_bin_ids | current_hist_ids
+
+        if mode == "incremental" and indexed_ids:
+            # Find new items
+            new_ids = current_ids - indexed_ids
+
+            items = []
+            for binary in binaries:
+                if f"bin:{binary}" in new_ids:
+                    items.append(binary_to_index_item(binary))
+            for cmd in commands:
+                if f"history:{get_cmd_hash(cmd)}" in new_ids:
+                    items.append(history_to_index_item(cmd))
+
+            # Find removed items
+            removed_ids = list(indexed_ids - current_ids)
+
+            print(
+                json.dumps(
+                    {
+                        "type": "index",
+                        "mode": "incremental",
+                        "items": items,
+                        "remove": removed_ids,
+                    }
+                )
+            )
+        else:
+            # Full reindex
+            items = []
+            for binary in binaries:
+                items.append(binary_to_index_item(binary))
+            for cmd in commands:
+                items.append(history_to_index_item(cmd))
+            print(json.dumps({"type": "index", "items": items}))
         return
 
     if step == "initial":

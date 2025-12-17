@@ -4,6 +4,11 @@
   "icon": "apps",
   "index": {
     "enabled": true,
-    "reindex": "5m"
+    "watchDirs": [
+      "~/.local/share/applications",
+      "~/.local/share/flatpak/exports/share/applications",
+      "/usr/share/applications",
+      "/var/lib/flatpak/exports/share/applications"
+    ]
   }
 }

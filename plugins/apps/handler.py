@@ -379,8 +379,40 @@ def main():
     all_apps.sort(key=sort_key)
 
     if step == "index":
-        items = [app_to_index_item(app) for app in all_apps]
-        print(json.dumps({"type": "index", "items": items}))
+        mode = input_data.get("mode", "full")
+        indexed_ids = set(input_data.get("indexedIds", []))
+
+        # Build current ID set (desktop filename without .desktop)
+        current_ids = {
+            f"app:{Path(app['id']).name.removesuffix('.desktop')}" for app in all_apps
+        }
+
+        if mode == "incremental" and indexed_ids:
+            # Find new items
+            new_ids = current_ids - indexed_ids
+            new_items = [
+                app_to_index_item(app)
+                for app in all_apps
+                if f"app:{Path(app['id']).name.removesuffix('.desktop')}" in new_ids
+            ]
+
+            # Find removed items
+            removed_ids = list(indexed_ids - current_ids)
+
+            print(
+                json.dumps(
+                    {
+                        "type": "index",
+                        "mode": "incremental",
+                        "items": new_items,
+                        "remove": removed_ids,
+                    }
+                )
+            )
+        else:
+            # Full reindex
+            items = [app_to_index_item(app) for app in all_apps]
+            print(json.dumps({"type": "index", "items": items}))
         return
 
     if step == "initial":

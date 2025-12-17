@@ -4,6 +4,6 @@
   "icon": "web",
   "index": {
     "enabled": true,
-    "reindex": "5m"
+    "watchFiles": ["~/.config/hamr/webapps.json"]
   }
 }

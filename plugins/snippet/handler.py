@@ -271,8 +271,38 @@ def main():
     selected_id = selected.get("id", "")
 
     if step == "index":
-        items = [snippet_to_index_item(s) for s in snippets]
-        print(json.dumps({"type": "index", "items": items}))
+        mode = input_data.get("mode", "full")
+        indexed_ids = set(input_data.get("indexedIds", []))
+
+        # Build current ID set
+        current_ids = {f"snippet:{s['key']}" for s in snippets}
+
+        if mode == "incremental" and indexed_ids:
+            # Find new items
+            new_ids = current_ids - indexed_ids
+            new_items = [
+                snippet_to_index_item(s)
+                for s in snippets
+                if f"snippet:{s['key']}" in new_ids
+            ]
+
+            # Find removed items
+            removed_ids = list(indexed_ids - current_ids)
+
+            print(
+                json.dumps(
+                    {
+                        "type": "index",
+                        "mode": "incremental",
+                        "items": new_items,
+                        "remove": removed_ids,
+                    }
+                )
+            )
+        else:
+            # Full reindex
+            items = [snippet_to_index_item(s) for s in snippets]
+            print(json.dumps({"type": "index", "items": items}))
         return
 
     if step == "initial":

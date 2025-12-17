@@ -196,8 +196,6 @@ def run_bw(args: list[str], session: str | None = None) -> tuple[bool, str]:
         return False, str(e)
 
 
-
-
 def get_cache_age() -> float | None:
     """Get age of cache in seconds"""
     if not ITEMS_CACHE_FILE.exists():
@@ -329,8 +327,6 @@ def get_totp(item_id: str, session: str) -> str | None:
     return output if success else None
 
 
-
-
 def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
     """Get plugin-level actions for the action bar"""
     # Cache status for sync button
@@ -353,8 +349,6 @@ def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
             "shortcut": "Ctrl+1",
         }
     ]
-
-
 
 
 def get_item_icon(item: dict) -> str:
@@ -399,8 +393,6 @@ def format_item_results(items: list[dict]) -> list[dict]:
         )
 
     return results
-
-
 
 
 def respond_results(
@@ -464,8 +456,6 @@ def respond_execute(
     if entry_point:
         execute["entryPoint"] = entry_point
     print(json.dumps({"type": "execute", "execute": execute}))
-
-
 
 
 def item_to_index_item(item: dict) -> dict:
@@ -540,8 +530,6 @@ def item_to_index_item(item: dict) -> dict:
     }
 
 
-
-
 def main():
     input_data = json.load(sys.stdin)
     step = input_data.get("step", "initial")
@@ -552,13 +540,43 @@ def main():
     # Uses cached items only - does not require active session
     # Never includes passwords - uses entryPoint for secure execution
     if step == "index":
+        mode = input_data.get("mode", "full")
+        indexed_ids = set(input_data.get("indexedIds", []))
+
         cached_items = load_cached_items()
-        if cached_items:
+        if not cached_items:
+            print(json.dumps({"type": "index", "items": []}))
+            return
+
+        # Build current ID set
+        current_ids = {f"bitwarden:{item.get('id', '')}" for item in cached_items}
+
+        if mode == "incremental" and indexed_ids:
+            # Find new items
+            new_ids = current_ids - indexed_ids
+            new_items = [
+                item_to_index_item(item)
+                for item in cached_items
+                if f"bitwarden:{item.get('id', '')}" in new_ids
+            ]
+
+            # Find removed items
+            removed_ids = list(indexed_ids - current_ids)
+
+            print(
+                json.dumps(
+                    {
+                        "type": "index",
+                        "mode": "incremental",
+                        "items": new_items,
+                        "remove": removed_ids,
+                    }
+                )
+            )
+        else:
+            # Full reindex
             items = [item_to_index_item(item) for item in cached_items]
             print(json.dumps({"type": "index", "items": items}))
-        else:
-            # No cache - return empty index
-            print(json.dumps({"type": "index", "items": []}))
         return
 
     # Check bw is installed

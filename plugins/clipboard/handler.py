@@ -391,9 +391,39 @@ def main():
     ocr_texts = get_ocr_text_for_entries(entries, ocr_cache)
 
     if step == "index":
-        # Limit to recent 50 entries for main search (full list available in plugin)
-        items = [entry_to_index_item(e, ocr_texts) for e in entries[:300]]
-        print(json.dumps({"type": "index", "items": items}))
+        mode = input_data.get("mode", "full")
+        indexed_ids = set(input_data.get("indexedIds", []))
+
+        # Build current ID set from entries
+        current_entries = entries[:300]
+        current_ids = {f"clip:{get_entry_hash(e)}" for e in current_entries}
+
+        if mode == "incremental" and indexed_ids:
+            # Find new items (in current but not indexed)
+            new_ids = current_ids - indexed_ids
+            new_items = [
+                entry_to_index_item(e, ocr_texts)
+                for e in current_entries
+                if f"clip:{get_entry_hash(e)}" in new_ids
+            ]
+
+            # Find removed items (in indexed but not current)
+            removed_ids = list(indexed_ids - current_ids)
+
+            print(
+                json.dumps(
+                    {
+                        "type": "index",
+                        "mode": "incremental",
+                        "items": new_items,
+                        "remove": removed_ids,
+                    }
+                )
+            )
+        else:
+            # Full reindex
+            items = [entry_to_index_item(e, ocr_texts) for e in current_entries]
+            print(json.dumps({"type": "index", "items": items}))
         return
 
     if step == "initial":

@@ -4,6 +4,6 @@
   "icon": "content_paste",
   "index": {
     "enabled": true,
-    "reindex": "30s"
+    "watchFiles": ["~/.cache/cliphist/db"]
   }
 }
