@@ -23,10 +23,13 @@ Item {
     implicitHeight: searchWidgetContent.implicitHeight + searchWidgetContent.anchors.topMargin + Appearance.sizes.elevationMargin * 2
 
     property alias contentItem: searchWidgetContent
+    readonly property bool searchInputHasFocus: searchBar.searchInput.activeFocus
+    readonly property Item searchInput: searchBar.searchInput
 
     signal dragStarted(real mouseX, real mouseY)
     signal dragMoved(real mouseX, real mouseY)
     signal dragEnded
+    signal userInteracted  // Emitted when user clicks/interacts - used to re-grab focus
 
     function focusFirstItem() {
         if (appResults.count > 0) {
@@ -122,6 +125,17 @@ Item {
             id: searchHeightBehavior
             enabled: GlobalStates.launcherOpen && (root.showResults || root.showCard)
             animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
+        }
+        
+        // Invisible overlay to detect clicks and re-grab focus if lost
+        MouseArea {
+            anchors.fill: parent
+            z: 1000
+            propagateComposedEvents: true
+            onPressed: mouse => {
+                root.userInteracted();
+                mouse.accepted = false;
+            }
         }
 
         ColumnLayout {

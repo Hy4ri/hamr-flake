@@ -29,6 +29,7 @@ Scope {
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:imageBrowser"
             WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
             color: "transparent"
 
             anchors.top: true
@@ -44,13 +45,12 @@ Scope {
             implicitHeight: Appearance.sizes.imageBrowserHeight
             implicitWidth: Appearance.sizes.imageBrowserWidth
 
-            HyprlandFocusGrab {
+            FocusGrab {
                 id: grab
-                windows: [ panelWindow ]
+                window: panelWindow
                 active: imageBrowserLoader.active
-                onCleared: () => {
-                    if (!active) GlobalStates.closeImageBrowser();
-                }
+                closeOnCleared: true
+                onCloseRequested: GlobalStates.closeImageBrowser()
             }
 
             ImageBrowserContent {

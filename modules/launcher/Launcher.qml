@@ -121,6 +121,7 @@ Scope {
 
             WlrLayershell.namespace: "quickshell:hamr"
             WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
             color: "transparent"
 
             mask: Region {
@@ -135,14 +136,22 @@ Scope {
                 right: true
             }
 
-             HyprlandFocusGrab {
+             FocusGrab {
                  id: grab
-                 windows: [root]
-                 property bool canBeActive: root.monitorIsFocused
+                 window: root
                  active: false
-                // Don't use onCleared to re-grab - it fires when other tools (screenshot
-                // region selectors, color pickers, etc.) take a pointer grab, and re-grabbing
-                // immediately steals focus back from them.
+                 focusTarget: searchWidget.searchInput
+                 
+                 property bool canBeActive: root.monitorIsFocused
+             }
+             
+             // Re-grab focus when user clicks anywhere on the launcher content
+             function regrabFocus() {
+                 if (!GlobalStates.launcherOpen) return;
+                 if (GlobalStates.imageBrowserOpen) return;
+                 if (!grab.canBeActive) return;
+                 
+                 grab.regrabFocus();
              }
 
 
@@ -152,7 +161,7 @@ Scope {
                     if (!GlobalStates.launcherOpen) {
                         // Per-screen UI cleanup on close
                         searchWidget.disableExpandAnimation();
-                        grab.active = false;
+                        grab.deactivate();
                     } else {
                         // Per-screen UI setup on open
                         if (!GlobalStates.imageBrowserOpen) {
@@ -180,7 +189,7 @@ Scope {
                 target: GlobalStates
                 function onImageBrowserOpenChanged() {
                     if (GlobalStates.imageBrowserOpen) {
-                        grab.active = false;
+                        grab.deactivate();
                     } else if (GlobalStates.launcherOpen) {
                         delayedGrabTimer.start();
                     }
@@ -196,10 +205,12 @@ Scope {
                         return;
                     if (GlobalStates.imageBrowserOpen)
                         return;
-                    grab.active = GlobalStates.launcherOpen;
+                    if (GlobalStates.launcherOpen) {
+                        grab.activate();
+                        searchWidget.focusSearchInput();
+                    }
                 }
             }
-
 
             implicitWidth: columnLayout.implicitWidth
             implicitHeight: columnLayout.implicitHeight
@@ -316,6 +327,9 @@ Scope {
                     Synchronizer on searchingText {
                         property alias source: root.searchingText
                     }
+                    
+                    // Re-grab focus when user clicks on the launcher widget
+                    onUserInteracted: root.regrabFocus()
                     
                     // Drag offset from mouse to widget origin
                     property real dragOffsetX: 0

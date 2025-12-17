@@ -26,6 +26,7 @@ Scope {
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.namespace: "quickshell:windowPicker"
             WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
             color: "transparent"
 
             anchors.top: true
@@ -41,13 +42,12 @@ Scope {
             implicitHeight: content.implicitHeight + Appearance.sizes.elevationMargin * 2
             implicitWidth: content.implicitWidth + Appearance.sizes.elevationMargin * 2
 
-            HyprlandFocusGrab {
+            FocusGrab {
                 id: grab
-                windows: [panelWindow]
+                window: panelWindow
                 active: windowPickerLoader.active
-                onCleared: () => {
-                    if (!active) GlobalStates.closeWindowPicker();
-                }
+                closeOnCleared: true
+                onCloseRequested: GlobalStates.closeWindowPicker()
             }
 
             // Shadow
