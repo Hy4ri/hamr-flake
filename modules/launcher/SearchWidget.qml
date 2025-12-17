@@ -277,6 +277,8 @@ Item {
                 Layout.bottomMargin: 8
                 Layout.preferredHeight: 34
                 
+                showSeparator: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy
+                
                 readonly property bool inSearchMode: {
                     const q = root.searchingText;
                     return q.startsWith(Config.options.search.prefix.file) ||
@@ -352,13 +354,6 @@ Item {
                 onHomeClicked: {
                     LauncherSearch.exitPlugin();
                 }
-            }
-
-            Rectangle {
-                 visible: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy
-                 Layout.fillWidth: true
-                 height: 1
-                color: Appearance.colors.colOutlineVariant
             }
 
              RowLayout {

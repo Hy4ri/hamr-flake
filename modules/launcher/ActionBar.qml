@@ -384,6 +384,20 @@ Item {
         }
     }
     
+    // Whether to show separator (set by parent based on content below)
+    property bool showSeparator: false
+    
+    // Separator line at the bottom
+    Rectangle {
+        visible: root.showSeparator
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: -8
+        height: 1
+        color: Appearance.colors.colOutlineVariant
+    }
+    
     // Handle keyboard shortcuts
     Keys.onPressed: event => {
         if (event.key === Qt.Key_Escape && root.pendingConfirmAction !== null) {
