@@ -166,6 +166,7 @@ Singleton {
                 property real minXRatio: 0.5
                 property real minYRatio: 0.9
                 property bool minimized: false
+                property bool hasUsedMinimize: false
             }
         }
     }
