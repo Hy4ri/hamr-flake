@@ -1,0 +1,46 @@
+name: Plugin Request
+description: Request a new plugin
+labels: ["plugin request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Want a new plugin? Describe what it should do!
+
+  - type: input
+    id: name
+    attributes:
+      label: Plugin name
+      description: What should it be called?
+      placeholder: "e.g., spotify, github-issues, bookmarks"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What should it do?
+      description: Describe the plugin functionality
+      placeholder: |
+        - Search for...
+        - Show results with...
+        - Actions like copy, open, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Similar tools or references
+      description: Links to similar plugins, tools, or APIs
+      placeholder: |
+        - Raycast extension: https://...
+        - CLI tool: ...
+        - API docs: ...
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I'm willing to write this plugin

@@ -1,0 +1,64 @@
+name: Bug Report
+description: Report something that isn't working
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug
+      placeholder: Describe the issue...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this?
+      placeholder: |
+        1. Open Hamr
+        2. Type '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Run `qs -c hamr` in terminal and paste relevant output
+      render: shell
+
+  - type: input
+    id: hamr-version
+    attributes:
+      label: Hamr version
+      description: Run `pacman -Q hamr` or check your git commit
+      placeholder: "0.2.0 or git commit hash"
+
+  - type: input
+    id: hyprland-version
+    attributes:
+      label: Hyprland version
+      description: Run `hyprctl version`
+      placeholder: "0.45.0"
+
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution
+      placeholder: "Arch Linux, Fedora, etc."
