@@ -341,13 +341,14 @@ Scope {
 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
-                        // Priority: plugin > exclusive mode > close launcher
+                        // Priority: plugin > exclusive mode > minimize/close launcher
                         if (PluginRunner.isActive()) {
                             LauncherSearch.handlePluginEscape();
                         } else if (LauncherSearch.isInExclusiveMode()) {
                             LauncherSearch.exitExclusiveMode();
+                        } else if (Persistent.states.launcher.hasUsedMinimize) {
+                            GlobalStates.launcherMinimized = true;
                         } else {
-                            // Hard close - user explicitly pressed Escape
                             GlobalStates.softClose = false;
                             GlobalStates.launcherOpen = false;
                         }
