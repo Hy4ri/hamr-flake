@@ -36,6 +36,7 @@ Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quic
 - **Fuzzy matching** - Fast, typo-tolerant search powered by [fuzzysort](https://github.com/farzher/fuzzysort), includes desktop entry keywords (e.g., "whatsapp" finds ZapZap)
 - **Extensible plugins** - Language-agnostic handlers with simple JSON protocol (Python, Bash, Go, Rust, etc.)
 - **History tracking** - Search, plugin actions, and shell command history
+- **Smart suggestions** - Context-aware app suggestions based on time, workspace, and usage patterns
 - **Draggable & persistent position** - Drag the launcher anywhere on screen; position remembered across sessions
 - **State restoration** - Click outside to dismiss, reopen within 30s to resume where you left off (configurable)
 
@@ -644,6 +645,33 @@ Type "wl" → wallpaper action appears first
 ```
 
 Terms naturally age out based on frecency, so your shortcuts stay relevant as habits change.
+
+## Smart Suggestions
+
+When you open Hamr with an empty search, you may see suggested apps at the top marked with a sparkle icon. These are context-aware predictions based on your usage patterns.
+
+**What triggers suggestions:**
+
+| Signal | Example |
+|--------|---------|
+| **Time of day** | Slack suggested at 9am if you always open it then |
+| **Day of week** | Personal apps suggested on weekends |
+| **Workspace** | Browser suggested on workspace 1 where you browse |
+| **Monitor** | Terminal suggested on your vertical monitor |
+| **App sequences** | VS Code suggested after opening Terminal |
+| **Session start** | Email client suggested right after login |
+| **Usage streaks** | Apps you use daily get a confidence boost |
+
+**How it works:**
+
+1. Every app launch records context (time, workspace, monitor, previous app)
+2. Patterns are detected using Wilson score intervals (statistically sound for small samples)
+3. Multiple signals combine into a confidence score
+4. Apps above 30% confidence appear as suggestions (max 2)
+
+**Privacy:** All data stays local in `~/.config/hamr/search-history.json`. Nothing is sent anywhere.
+
+**No configuration needed.** Suggestions appear automatically as patterns emerge. Use Hamr normally and it learns your habits within a few days.
 
 ## Configuration
 
