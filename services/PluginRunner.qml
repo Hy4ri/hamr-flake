@@ -173,9 +173,10 @@ Singleton {
         const escapedInput = inputJson.replace(/'/g, "'\\''");
         
         // Start indexing process
+        // Execute handler directly (language-agnostic) - relies on shebang or executable
         indexProcess.pluginId = next.pluginId;
         indexProcess.workingDirectory = plugin.path;
-        indexProcess.command = ["bash", "-c", `echo '${escapedInput}' | python3 "${handlerPath}"`];
+        indexProcess.command = ["bash", "-c", `echo '${escapedInput}' | "${handlerPath}"`];
         indexProcess.running = true;
     }
     
@@ -539,7 +540,15 @@ Singleton {
             if (exitCode === 0 && manifestLoader.outputBuffer.trim()) {
                 try {
                     const manifest = JSON.parse(manifestLoader.outputBuffer.trim());
-                    manifest._handlerPath = manifestLoader.pluginPath + "/handler.py";
+                    
+                    // Determine handler path (language-agnostic)
+                    // Priority: manifest.handler > executable "handler" > "handler.py"
+                    if (manifest.handler) {
+                        manifest._handlerPath = manifestLoader.pluginPath + "/" + manifest.handler;
+                    } else {
+                        // Default to handler.py for backward compatibility
+                        manifest._handlerPath = manifestLoader.pluginPath + "/handler.py";
+                    }
                     
                     // Skip if plugin already exists (prevents duplicates from race conditions)
                     if (!root.plugins.some(p => p.id === manifestLoader.pluginId)) {
@@ -959,12 +968,12 @@ Singleton {
          
          const inputJson = JSON.stringify(input);
          
-         // Use bash to pipe input to python - avoids stdinEnabled issues
-         pluginProcess.running = false;
-         pluginProcess.workingDirectory = root.activePlugin.path;
-         const escapedInput = inputJson.replace(/'/g, "'\\''");
-         pluginProcess.command = ["bash", "-c", `echo '${escapedInput}' | python3 "${handlerPath}"`];
-         pluginProcess.running = true;
+        // Use bash to pipe input to handler - language-agnostic (relies on shebang)
+        pluginProcess.running = false;
+        pluginProcess.workingDirectory = root.activePlugin.path;
+        const escapedInput = inputJson.replace(/'/g, "'\\''");
+        pluginProcess.command = ["bash", "-c", `echo '${escapedInput}' | "${handlerPath}"`];
+        pluginProcess.running = true;
      }
     
      function handlePluginResponse(response, wasReplayMode = false) {

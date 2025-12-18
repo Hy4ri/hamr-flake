@@ -23,8 +23,13 @@ The handler just needs to be executable and read JSON from stdin, write JSON to 
 ├── simple-script       # Simple action (executable script)
 ├── workflow-name/      # Multi-step workflow (folder)
 │   ├── manifest.json   # Workflow metadata
-│   └── handler.py      # Workflow handler (any language)
+│   └── handler.py      # Workflow handler (executable, any language)
 ```
+
+**Handler requirements:**
+- Must be executable (`chmod +x handler.py`)
+- Must have a shebang (e.g., `#!/usr/bin/env python3`, `#!/bin/bash`, `#!/usr/bin/env node`)
+- Default name is `handler.py`, but you can specify any name via `"handler"` in manifest.json
 
 ---
 
@@ -58,6 +63,26 @@ EOF
 touch ~/.config/hamr/plugins/hello/handler.py
 chmod +x ~/.config/hamr/plugins/hello/handler.py
 ```
+
+### Custom Handler Name
+
+By default, Hamr looks for `handler.py`. To use a different filename or language:
+
+```json
+{
+  "name": "My Plugin",
+  "handler": "handler.js"
+}
+```
+
+```json
+{
+  "name": "Fast Plugin",
+  "handler": "handler"
+}
+```
+
+The handler must be executable with a proper shebang.
 
 ---
 
@@ -896,6 +921,58 @@ def main():
 
 if __name__ == "__main__":
     main()
+```
+
+### Bash Handler Template
+
+```bash
+#!/bin/bash
+# handler (no extension, executable)
+
+INPUT=$(cat)
+STEP=$(echo "$INPUT" | jq -r '.step // "initial"')
+QUERY=$(echo "$INPUT" | jq -r '.query // ""')
+SELECTED_ID=$(echo "$INPUT" | jq -r '.selected.id // ""')
+
+case "$STEP" in
+    initial)
+        cat << 'EOF'
+{"type": "results", "results": [
+    {"id": "item1", "name": "First Item", "icon": "star"},
+    {"id": "item2", "name": "Second Item", "icon": "favorite"}
+]}
+EOF
+        ;;
+    action)
+        echo '{"type": "execute", "execute": {"command": ["notify-send", "Selected: '"$SELECTED_ID"'"], "close": true}}'
+        ;;
+esac
+```
+
+### Node.js Handler Template
+
+```javascript
+#!/usr/bin/env node
+// handler.js (executable)
+
+const fs = require('fs');
+const input = JSON.parse(fs.readFileSync(0, 'utf-8'));
+const { step = 'initial', query = '', selected = {}, action = '' } = input;
+
+if (step === 'initial') {
+    console.log(JSON.stringify({
+        type: 'results',
+        results: [
+            { id: 'item1', name: 'First Item', icon: 'star' },
+            { id: 'item2', name: 'Second Item', icon: 'favorite' }
+        ]
+    }));
+} else if (step === 'action') {
+    console.log(JSON.stringify({
+        type: 'execute',
+        execute: { command: ['notify-send', `Selected: ${selected.id}`], close: true }
+    }));
+}
 ```
 
 ---
