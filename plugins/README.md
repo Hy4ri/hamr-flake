@@ -452,6 +452,149 @@ print(json.dumps({
 
 ---
 
+## Plugin Indexing
+
+Plugins can provide searchable items that appear in the main launcher search without needing to open the plugin first.
+
+### Enable Indexing in manifest.json
+
+```json
+{
+  "name": "Apps",
+  "description": "Browse and launch applications",
+  "icon": "apps",
+  "index": {
+    "enabled": true
+  }
+}
+```
+
+### Handle the `index` Step
+
+```python
+if step == "index":
+    items = get_all_items()
+    print(json.dumps({
+        "type": "index",
+        "items": [
+            {
+                "id": "app:firefox",
+                "name": "Firefox",
+                "description": "Web Browser",
+                "icon": "firefox",
+                "iconType": "system",
+                "keywords": ["browser", "web", "internet"],
+                "appId": "firefox",
+                "verb": "Open",
+                "execute": {
+                    "command": ["gio", "launch", "/usr/share/applications/firefox.desktop"]
+                }
+            }
+        ]
+    }))
+    return
+```
+
+### Index Item Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier |
+| `name` | string | Display name |
+| `description` | string | Subtitle |
+| `icon` | string | Icon name |
+| `iconType` | string | `"material"` or `"system"` |
+| `keywords` | string[] | Additional search terms |
+| `appId` | string | App identifier (for grouping) |
+| `verb` | string | Action text (e.g., "Open", "Focus") |
+| `execute.command` | string[] | Command to run when selected |
+| `actions` | array | Secondary action buttons |
+
+### Automatic Reindexing
+
+Plugins can configure automatic reindexing when data changes:
+
+#### File Watching
+
+Reindex when specific files change:
+
+```json
+{
+  "index": {
+    "enabled": true,
+    "watchFiles": ["~/.config/hamr/quicklinks.json"]
+  }
+}
+```
+
+#### Directory Watching
+
+Reindex when directory contents change:
+
+```json
+{
+  "index": {
+    "enabled": true,
+    "watchDirs": [
+      "~/.local/share/applications",
+      "/usr/share/applications"
+    ]
+  }
+}
+```
+
+#### Hyprland Event Watching
+
+Reindex on Hyprland IPC events (e.g., window open/close):
+
+```json
+{
+  "index": {
+    "enabled": true,
+    "watchHyprlandEvents": ["openwindow", "closewindow"],
+    "debounce": 200
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `watchHyprlandEvents` | string[] | Hyprland event names to listen for |
+| `debounce` | number | Milliseconds to wait after last event (default: 200) |
+
+Common Hyprland events: `openwindow`, `closewindow`, `windowtitle`, `activewindow`, `workspace`
+
+See [Hyprland Wiki: IPC](https://wiki.hyprland.org/IPC/) for all events.
+
+#### Periodic Reindexing
+
+Reindex on a schedule (fallback when watchers aren't applicable):
+
+```json
+{
+  "index": {
+    "enabled": true,
+    "reindex": "5m"
+  }
+}
+```
+
+Values: `"30s"`, `"5m"`, `"1h"`, `"never"` (disable periodic reindex)
+
+### Manual Reindexing via IPC
+
+```bash
+# Reindex a specific plugin
+qs -c hamr ipc call pluginRunner reindex apps
+
+# Reindex all plugins
+qs -c hamr ipc call pluginRunner reindexAll
+```
+
+**Example plugins:** [`apps/`](apps/handler.py), [`windows/`](windows/handler.py)
+
+---
+
 ## Input Modes
 
 The `inputMode` field controls when search queries are sent to your handler:
@@ -800,7 +943,8 @@ For desktop application icons from `.desktop` files, set `"iconType": "system"`:
 
 | Plugin                             | Trigger          | Features                            | Key Patterns                                   |
 | ---------------------------------- | ---------------- | ----------------------------------- | ---------------------------------------------- |
-| [`apps/`](apps/)                   | `/apps`          | App drawer with categories          | System icons, category navigation              |
+| [`apps/`](apps/)                   | `/apps`          | App drawer with categories          | System icons, category navigation, indexing    |
+| [`windows/`](windows/)             | `/windows`       | Switch between open windows         | Hyprland events, indexing, window focus        |
 | [`files/`](files/)                 | `~`              | File search with fd+fzf, thumbnails | Results with thumbnails, action buttons        |
 | [`clipboard/`](clipboard/)         | `;`              | Clipboard history with images       | Image thumbnails, pluginActions with confirm   |
 | [`shell/`](shell/)                 | `!`              | Shell command history               | Simple results, execute commands               |
