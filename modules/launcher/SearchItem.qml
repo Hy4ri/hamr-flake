@@ -287,7 +287,7 @@ RippleButton {
             IconImage {
                 visible: !thumbnailRect.visible && root.iconType === LauncherSearchResult.IconType.System
                 anchors.centerIn: parent
-                source: root.iconName ? Quickshell.iconPath(root.iconName, "image-missing") : ""
+                source: root.iconName ? Quickshell.iconPath(IconResolver.guessIcon(root.iconName), "image-missing") : ""
                 width: 32
                 height: 32
             }

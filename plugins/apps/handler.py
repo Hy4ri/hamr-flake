@@ -258,6 +258,15 @@ def app_to_index_item(app: dict) -> dict:
             }
         )
 
+    # Add "New Window" action to all apps
+    new_window_action = {
+        "id": "new-window",
+        "name": "New Window",
+        "icon": "open_in_new",
+        "command": ["gio", "launch", app["id"]],
+    }
+    actions.insert(0, new_window_action)
+
     item = {
         "id": f"app:{desktop_name}",
         "name": app["name"],
