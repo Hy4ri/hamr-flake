@@ -1,0 +1,10 @@
+{
+  "name": "Windows",
+  "description": "Switch between open windows",
+  "icon": "tab",
+  "index": {
+    "enabled": true,
+    "watchHyprlandEvents": ["openwindow", "closewindow"],
+    "debounce": 200
+  }
+}
