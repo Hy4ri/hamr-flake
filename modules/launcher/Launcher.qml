@@ -6,6 +6,8 @@ import Qt.labs.synchronizer
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Shapes
+import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -460,6 +462,137 @@ Scope {
                     target: fabContent
                 }
 
+                // Glowing animated border that wraps around FAB
+                Item {
+                    id: glowBorderContainer
+                    anchors.centerIn: parent
+                    width: fabContent.width
+                    height: fabContent.height
+                    opacity: glowOpacity
+                    visible: opacity > 0
+
+                    property real dashOffset: 0
+                    property real glowOpacity: 0
+
+                    SequentialAnimation {
+                        id: glowAnimation
+                        running: false
+
+                        PropertyAction {
+                            target: glowBorderContainer
+                            property: "dashOffset"
+                            value: 0
+                        }
+                        PropertyAction {
+                            target: glowBorderContainer
+                            property: "glowOpacity"
+                            value: 1
+                        }
+
+                        NumberAnimation {
+                            target: glowBorderContainer
+                            property: "dashOffset"
+                            from: 0
+                            to: 1
+                            duration: 900
+                            easing.type: Easing.Linear
+                        }
+
+                        NumberAnimation {
+                            target: glowBorderContainer
+                            property: "glowOpacity"
+                            from: 1
+                            to: 0
+                            duration: 300
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+
+                    Connections {
+                        target: fabWindow
+                        function onVisibleChanged() {
+                            if (fabWindow.visible) {
+                                glowAnimation.restart();
+                            }
+                        }
+                    }
+
+                    Shape {
+                        id: glowBorderShape
+                        anchors.fill: parent
+                        layer.enabled: true
+                        layer.effect: Glow {
+                            radius: 4
+                            samples: 9
+                            spread: 0.3
+                            color: Appearance.colors.colPrimary
+                            transparentBorder: true
+                        }
+
+                        ShapePath {
+                            id: glowPath
+                            strokeWidth: 2
+                            strokeColor: Appearance.colors.colPrimary
+                            fillColor: "transparent"
+                            capStyle: ShapePath.RoundCap
+                            joinStyle: ShapePath.RoundJoin
+                            strokeStyle: ShapePath.DashLine
+
+                            readonly property real w: glowBorderShape.width
+                            readonly property real h: glowBorderShape.height
+                            readonly property real r: Math.min(w, h) / 2
+                            readonly property real perimeter: 2 * (w - 2 * r) + 2 * (h - 2 * r) + 2 * Math.PI * r
+
+                            dashOffset: -glowBorderContainer.dashOffset * perimeter
+                            dashPattern: [perimeter * 0.15 / strokeWidth, perimeter * 0.85 / strokeWidth]
+
+                            startX: r
+                            startY: 0
+
+                            PathLine {
+                                x: glowPath.w - glowPath.r
+                                y: 0
+                            }
+                            PathArc {
+                                x: glowPath.w
+                                y: glowPath.r
+                                radiusX: glowPath.r
+                                radiusY: glowPath.r
+                            }
+                            PathLine {
+                                x: glowPath.w
+                                y: glowPath.h - glowPath.r
+                            }
+                            PathArc {
+                                x: glowPath.w - glowPath.r
+                                y: glowPath.h
+                                radiusX: glowPath.r
+                                radiusY: glowPath.r
+                            }
+                            PathLine {
+                                x: glowPath.r
+                                y: glowPath.h
+                            }
+                            PathArc {
+                                x: 0
+                                y: glowPath.h - glowPath.r
+                                radiusX: glowPath.r
+                                radiusY: glowPath.r
+                            }
+                            PathLine {
+                                x: 0
+                                y: glowPath.r
+                            }
+                            PathArc {
+                                x: glowPath.r
+                                y: 0
+                                radiusX: glowPath.r
+                                radiusY: glowPath.r
+                            }
+                        }
+                    }
+                }
+
                 Rectangle {
                     id: fabContent
                     anchors.centerIn: parent
@@ -547,9 +680,12 @@ Scope {
                             implicitWidth: fabContent.showCloseButton ? fabHamrText.implicitWidth : 0
                             implicitHeight: 24
                             clip: true
-                            
+
                             Behavior on implicitWidth {
-                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                                NumberAnimation {
+                                    duration: 150
+                                    easing.type: Easing.OutCubic
+                                }
                             }
 
                             Rectangle {
@@ -599,9 +735,12 @@ Scope {
                             iconSize: Appearance.font.pixelSize.normal
                             color: fabDragArea.containsMouse || fabDragArea.pressed ? Appearance.colors.colOnSurface : Appearance.m3colors.m3outline
                             Layout.leftMargin: fabContent.showCloseButton ? 0 : -fabRow.spacing
-                            
+
                             Behavior on Layout.leftMargin {
-                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                                NumberAnimation {
+                                    duration: 150
+                                    easing.type: Easing.OutCubic
+                                }
                             }
                         }
                     }
