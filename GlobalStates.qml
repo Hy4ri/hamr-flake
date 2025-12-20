@@ -54,21 +54,21 @@ Singleton {
         }
     }
 
-    // Floating action hint that appears above all launcher content
-    property bool actionHintVisible: false
-    property string actionHintKey: ""
-    property string actionHintName: ""
-    property point actionHintPosition: Qt.point(0, 0)  // Global screen position
+    // Floating action tooltip that appears above all launcher content
+    property bool actionToolTipVisible: false
+    property string actionToolTipKey: ""
+    property string actionToolTipName: ""
+    property point actionToolTipPosition: Qt.point(0, 0)  // Global screen position
 
-    function showActionHint(key, name, globalX, globalY) {
-        actionHintKey = key;
-        actionHintName = name;
-        actionHintPosition = Qt.point(globalX, globalY);
-        actionHintVisible = true;
+    function showActionToolTip(key, name, globalX, globalY) {
+        actionToolTipKey = key;
+        actionToolTipName = name;
+        actionToolTipPosition = Qt.point(globalX, globalY);
+        actionToolTipVisible = true;
     }
 
-    function hideActionHint() {
-        actionHintVisible = false;
+    function hideActionToolTip() {
+        actionToolTipVisible = false;
     }
 
     // Window picker for switching between multiple windows of an app

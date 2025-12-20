@@ -141,7 +141,7 @@ def parse_desktop_file(path: Path) -> dict | None:
 
 def load_all_apps() -> list[dict]:
     """Load all applications from .desktop files"""
-    apps = {}  # Use dict to dedupe by name
+    apps = {}  # Use dict to dedupe by file path
 
     for app_dir in APP_DIRS:
         if not app_dir.exists():
@@ -149,9 +149,9 @@ def load_all_apps() -> list[dict]:
         for desktop_file in app_dir.glob("*.desktop"):
             app = parse_desktop_file(desktop_file)
             if app:
-                # Dedupe by name (prefer user's local apps)
-                if app["name"] not in apps:
-                    apps[app["name"]] = app
+                # Dedupe by file path (id) - each .desktop file is unique
+                if app["id"] not in apps:
+                    apps[app["id"]] = app
 
     return list(apps.values())
 

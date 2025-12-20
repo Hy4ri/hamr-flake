@@ -60,7 +60,7 @@ RippleButton {
         if (ListView.view && typeof ListView.view.updateActionIndex === "function") {
             ListView.view.updateActionIndex(focusedActionIndex);
         }
-        updateActionHint();
+        updateActionToolTip();
     }
     
     function cycleActionNext() {
@@ -109,7 +109,7 @@ RippleButton {
         if (!ListView.isCurrentItem) {
             root.focusedActionIndex = -1;
         }
-        updateActionHint();
+        updateActionToolTip();
     }
 
     implicitHeight: rowLayout.implicitHeight + root.buttonVerticalPadding * 2
@@ -465,6 +465,14 @@ RippleButton {
                         }
                         onPressed: (event) => { event.accepted = true }
                         onReleased: (event) => { event.accepted = true }
+                        onContainsMouseChanged: {
+                            if (containsMouse) {
+                                const globalPos = actionButton.mapToGlobal(actionButton.width / 2, actionButton.height + 2)
+                                GlobalStates.showActionToolTip(actionButton.keyHint, actionButton.modelData.name, globalPos.x, globalPos.y)
+                            } else {
+                                GlobalStates.hideActionToolTip()
+                            }
+                        }
                     }
 
                 }
@@ -473,7 +481,7 @@ RippleButton {
 
     }
 
-    function updateActionHint() {
+    function updateActionToolTip() {
         const actions = root.entry.actions ?? [];
         const isCurrent = root.ListView.isCurrentItem;
         
@@ -489,9 +497,9 @@ RippleButton {
             
             const globalPos = root.mapToGlobal(localX, localY);
             const keyHint = "^" + (Config.options.search.actionKeys[root.focusedActionIndex] ?? (root.focusedActionIndex + 1).toString()).toUpperCase();
-            GlobalStates.showActionHint(keyHint, action.name, globalPos.x, globalPos.y);
+            GlobalStates.showActionToolTip(keyHint, action.name, globalPos.x, globalPos.y);
         } else {
-            GlobalStates.hideActionHint();
+            GlobalStates.hideActionToolTip();
         }
     }
 }

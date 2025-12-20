@@ -273,26 +273,26 @@ Scope {
                 }
             }
 
-            // Floating action hint popup - above all launcher content
+            // Floating action tooltip popup - above all launcher content
             Rectangle {
-                id: actionHintPopup
+                id: actionToolTipPopup
                 visible: opacity > 0
-                opacity: GlobalStates.actionHintVisible ? 1 : 0
-                scale: GlobalStates.actionHintVisible ? 1 : 0.9
+                opacity: GlobalStates.actionToolTipVisible ? 1 : 0
+                scale: GlobalStates.actionToolTipVisible ? 1 : 0.9
                 z: 1000
 
                 // Convert global position to local
                 x: {
-                    const localPos = fullScreenBackground.mapFromGlobal(GlobalStates.actionHintPosition.x, GlobalStates.actionHintPosition.y);
+                    const localPos = fullScreenBackground.mapFromGlobal(GlobalStates.actionToolTipPosition.x, GlobalStates.actionToolTipPosition.y);
                     return localPos.x - width / 2;
                 }
                 y: {
-                    const localPos = fullScreenBackground.mapFromGlobal(GlobalStates.actionHintPosition.x, GlobalStates.actionHintPosition.y);
+                    const localPos = fullScreenBackground.mapFromGlobal(GlobalStates.actionToolTipPosition.x, GlobalStates.actionToolTipPosition.y);
                     return localPos.y;
                 }
 
-                implicitWidth: hintContent.implicitWidth + 12
-                implicitHeight: hintContent.implicitHeight + 6
+                implicitWidth: toolTipContent.implicitWidth + 12
+                implicitHeight: toolTipContent.implicitHeight + 6
                 radius: 4
                 color: Appearance.colors.colSurfaceContainerHigh
                 border.width: 1
@@ -312,16 +312,16 @@ Scope {
                 }
 
                 RowLayout {
-                    id: hintContent
+                    id: toolTipContent
                     anchors.centerIn: parent
                     spacing: 6
 
                     Kbd {
-                        keys: GlobalStates.actionHintKey
+                        keys: GlobalStates.actionToolTipKey
                     }
 
                     Text {
-                        text: GlobalStates.actionHintName
+                        text: GlobalStates.actionToolTipName
                         font.pixelSize: Appearance.font.pixelSize.smallest
                         color: Appearance.m3colors.m3onSurfaceVariant
                     }
