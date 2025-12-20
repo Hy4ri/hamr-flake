@@ -72,6 +72,21 @@ Singleton {
     function isInIndexIsolation() {
         return root.indexIsolationPlugin !== "";
     }
+    
+    function findMatchingHint(query) {
+        const hints = Config.options.search.actionBarHints ?? [];
+        for (const hint of hints) {
+            if (query === hint.prefix) {
+                return hint;
+            }
+        }
+        return null;
+    }
+    
+    function getConfiguredPrefixes() {
+        const hints = Config.options.search.actionBarHints ?? [];
+        return hints.map(h => h.prefix);
+    }
 
     function launchNewInstance(appId) {
         const entry = DesktopEntries.byId(appId);
@@ -539,18 +554,13 @@ Singleton {
              }
          } else if (root.isInExclusiveMode()) {
          } else if (!root.exclusiveModeStarting) {
-             if (root.query === Config.options.search.prefix.file) {
-                 root.startPlugin("files");
-             } else if (root.query === Config.options.search.prefix.clipboard) {
-                 root.startPlugin("clipboard");
-             } else if (root.query === Config.options.search.prefix.shellHistory) {
-                 root.startPlugin("shell");
-             } else if (root.query === Config.options.search.prefix.action) {
-                 root.enterExclusiveMode("action");
-             } else if (root.query === Config.options.search.prefix.emojis) {
-                 root.startPlugin("emoji");
-             } else if (root.query === Config.options.search.prefix.math) {
-                 root.startPlugin("calculate");
+             const matchedHint = root.findMatchingHint(root.query);
+             if (matchedHint) {
+                 if (matchedHint.plugin === "action") {
+                     root.enterExclusiveMode("action");
+                 } else {
+                     root.startPlugin(matchedHint.plugin);
+                 }
              } else if (root.query.length >= 2) {
                  matchPatternCheckTimer.restart();
              }

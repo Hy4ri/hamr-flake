@@ -48,6 +48,8 @@ Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quic
 | `/` | Actions & plugins | `!` | Shell history |
 | `=` | Calculator | `:` | Emoji picker |
 
+These shortcuts are fully customizable. See [Customizing Prefix Shortcuts](#customizing-prefix-shortcuts) for details.
+
 ### Smart Calculator
 
 Type math expressions directly - no prefix needed. Examples: `2+2`, `sqrt(16)`, `10c` (celsius), `$50 to EUR`, `20% of 32`, `10ft to m`
@@ -69,6 +71,7 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies,
 | `flathub` | `/flathub` | Search and install apps from Flathub |
 | `notes` | `/notes` | Quick notes with multi-line content support |
 | `pictures` | `/pictures` | Browse images with thumbnails |
+| `power` | `/power` | System power and session controls (shutdown, reboot, suspend, logout) |
 | `quicklinks` | `/quicklinks` | Web search with customizable quicklinks |
 | `screenrecord` | `/screenrecord` | Screen recording with auto-trim (wf-recorder) |
 | `screenshot` | `/screenshot` | Browse screenshots with OCR text search |
@@ -82,6 +85,7 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies,
 | `wallpaper` | `/wallpaper` | Wallpaper selector (illogical-impulse) |
 | `webapp` | `/webapp` | Install and manage web apps |
 | `whats-that-word` | `/whats-that-word` | Find words from descriptions or fix misspellings |
+| `windows` | `/windows` | Switch between open windows (auto-updates on window changes) |
 
 ### Simple Actions (Scripts)
 
@@ -674,6 +678,37 @@ When you open Hamr with an empty search, you may see suggested apps at the top m
 ## Configuration
 
 Hamr is configured via `~/.config/hamr/config.json`. Use the built-in settings plugin (`/settings`) to browse and modify options - no manual editing needed.
+
+### Customizing Prefix Shortcuts
+
+The action bar shortcuts are fully customizable. Edit `~/.config/hamr/config.json` to change which prefixes appear and which plugins they trigger:
+
+```json
+{
+  "search": {
+    "actionBarHints": [
+      { "prefix": "~", "icon": "folder", "label": "Files", "plugin": "files" },
+      { "prefix": ";", "icon": "content_paste", "label": "Clipboard", "plugin": "clipboard" },
+      { "prefix": "/", "icon": "extension", "label": "Plugins", "plugin": "action" },
+      { "prefix": "!", "icon": "terminal", "label": "Shell", "plugin": "shell" },
+      { "prefix": "=", "icon": "calculate", "label": "Math", "plugin": "calculate" },
+      { "prefix": ":", "icon": "emoji_emotions", "label": "Emoji", "plugin": "emoji" }
+    ]
+  }
+}
+```
+
+Each hint has:
+- **prefix**: The trigger character (e.g., `~`, `;`, `:`)
+- **icon**: [Material Symbol](https://fonts.google.com/icons) name
+- **label**: Display name shown in the action bar
+- **plugin**: Plugin ID to launch (e.g., `files`, `clipboard`, `emoji`) or `action` for plugin search mode
+
+You can reorder, remove, or add hints. For example, to replace emoji with notes:
+
+```json
+{ "prefix": ":", "icon": "note", "label": "Notes", "plugin": "notes" }
+```
 
 <details>
 <summary><strong>Configuration Reference</strong></summary>

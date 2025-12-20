@@ -289,16 +289,9 @@ Item {
                 
                 readonly property bool inSearchMode: {
                     const q = root.searchingText;
-                    return q.startsWith(Config.options.search.prefix.file) ||
-                           q.startsWith(Config.options.search.prefix.clipboard) ||
-                           q.startsWith(Config.options.search.prefix.action) ||
-                           q.startsWith(Config.options.search.prefix.shellHistory) ||
-                           q.startsWith(Config.options.search.prefix.math) ||
-                           q.startsWith(Config.options.search.prefix.emojis) ||
-                           LauncherSearch.isInExclusiveMode();
+                    const prefixes = LauncherSearch.getConfiguredPrefixes();
+                    return prefixes.some(p => q.startsWith(p)) || LauncherSearch.isInExclusiveMode();
                 }
-                
-                readonly property bool inClipboardMode: root.searchingText.startsWith(Config.options.search.prefix.clipboard)
                 
                 mode: PluginRunner.isActive() ? "plugin" : (inSearchMode ? "search" : "hints")
                 
@@ -306,20 +299,14 @@ Item {
                     if (PluginRunner.isActive()) {
                         return PluginRunner.pluginActions;
                     } else if (inSearchMode) {
-                        const prefixActions = [];
-                        if (inClipboardMode) {
-                            prefixActions.push({ id: "wipe", icon: "delete_sweep", name: "Wipe All" });
-                        }
-                        return prefixActions;
+                        return [];
                     } else {
-                        return [
-                            { key: Config.options.search.prefix.file, icon: "folder", label: "Files" },
-                            { key: Config.options.search.prefix.clipboard, icon: "content_paste", label: "Clipboard" },
-                            { key: Config.options.search.prefix.action, icon: "extension", label: "Plugins" },
-                            { key: Config.options.search.prefix.shellHistory, icon: "terminal", label: "Shell" },
-                            { key: Config.options.search.prefix.math, icon: "calculate", label: "Math" },
-                            { key: Config.options.search.prefix.emojis, icon: "emoji_emotions", label: "Emoji" },
-                        ];
+                        const hints = Config.options.search.actionBarHints ?? [];
+                        return hints.map(hint => ({
+                            key: hint.prefix,
+                            icon: hint.icon,
+                            label: hint.label
+                        }));
                     }
                 }
                 
@@ -334,12 +321,7 @@ Item {
                 onActionClicked: (actionId, wasConfirmed) => {
                     if (PluginRunner.isActive()) {
                         PluginRunner.executePluginAction(actionId, wasConfirmed);
-                    } else if (actionBar.inSearchMode) {
-                        if (actionId === "wipe") {
-                            Quickshell.exec(["cliphist", "wipe"]);
-                            LauncherSearch.query = Config.options.search.prefix.clipboard;
-                        }
-                    } else {
+                    } else if (!actionBar.inSearchMode) {
                         searchBar.searchInput.text = actionId;
                         LauncherSearch.query = actionId;
                         root.focusSearchInput();

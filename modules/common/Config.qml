@@ -117,6 +117,23 @@ Singleton {
                 // Default: u, i, o, p for actions 1-4
                 // Note: j/k are used for navigation, l for select
                 property list<string> actionKeys: ["u", "i", "o", "p"]
+                // Action bar hints - customizable prefix shortcuts shown in the action bar
+                // Each hint has:
+                //   - prefix: trigger character (e.g., "~", ";", ":")
+                //   - icon: Material Symbol name
+                //   - label: display name
+                //   - plugin: plugin ID to launch (e.g., "files", "clipboard", "emoji")
+                //             use "action" for plugin search mode
+                // Users can reorder, remove, or add hints to customize their workflow
+                // Note: The old "prefix" object above is kept for backwards compatibility
+                property var actionBarHints: [
+                    { "prefix": "~", "icon": "folder", "label": "Files", "plugin": "files" },
+                    { "prefix": ";", "icon": "content_paste", "label": "Clipboard", "plugin": "clipboard" },
+                    { "prefix": "/", "icon": "extension", "label": "Plugins", "plugin": "action" },
+                    { "prefix": "!", "icon": "terminal", "label": "Shell", "plugin": "shell" },
+                    { "prefix": "=", "icon": "calculate", "label": "Math", "plugin": "calculate" },
+                    { "prefix": ":", "icon": "emoji_emotions", "label": "Emoji", "plugin": "emoji" }
+                ]
             }
 
             // ==================== IMAGE BROWSER ====================

@@ -832,11 +832,15 @@ Scope {
             GlobalStates.launcherOpen = false;
             return;
         }
+        const hints = Config.options.search.actionBarHints ?? [];
+        const clipboardHint = hints.find(h => h.plugin === "clipboard");
+        if (!clipboardHint) return;
+        
         for (let i = 0; i < launcherVariants.instances.length; i++) {
             let panelWindow = launcherVariants.instances[i];
             if (panelWindow.modelData.name == Hyprland.focusedMonitor.name) {
                 launcherScope.dontAutoCancelSearch = true;
-                panelWindow.setSearchingText(Config.options.search.prefix.clipboard);
+                panelWindow.setSearchingText(clipboardHint.prefix);
                 GlobalStates.launcherOpen = true;
                 return;
             }
@@ -850,11 +854,16 @@ Scope {
             GlobalStates.launcherOpen = false;
             return;
         }
+        
+        const hints = Config.options.search.actionBarHints ?? [];
+        const emojiHint = hints.find(h => h.plugin === "emoji");
+        if (!emojiHint) return;
+        
         for (let i = 0; i < launcherVariants.instances.length; i++) {
             let panelWindow = launcherVariants.instances[i];
             if (panelWindow.modelData.name == Hyprland.focusedMonitor.name) {
                 launcherScope.dontAutoCancelSearch = true;
-                panelWindow.setSearchingText(Config.options.search.prefix.emojis);
+                panelWindow.setSearchingText(emojiHint.prefix);
                 GlobalStates.launcherOpen = true;
                 return;
             }

@@ -88,6 +88,11 @@ SETTINGS_SCHEMA: dict[str, dict[str, dict]] = {
             "type": "list",
             "description": "Action button shortcuts (Ctrl + key)",
         },
+        "actionBarHints": {
+            "default": "6 built-in hints",
+            "type": "readonly",
+            "description": "Action bar shortcuts (prefix, icon, label, plugin). Edit config.json directly.",
+        },
     },
     "search.prefix": {
         "action": {
@@ -432,19 +437,25 @@ def get_settings_for_category(config: dict, category: str) -> list[dict]:
     results = []
     schema = SETTINGS_SCHEMA.get(category, {})
     for key, info in schema.items():
+        setting_type = info.get("type", "string")
         current = get_current_value(config, category, key)
-        results.append(
-            {
-                "id": f"setting:{category}.{key}",
-                "name": key,
-                "description": format_value(current),
-                "icon": get_type_icon(info.get("type", "string")),
-                "verb": "Edit",
-                "actions": [
-                    {"id": "reset", "name": "Reset to Default", "icon": "restart_alt"},
-                ],
-            }
-        )
+
+        result = {
+            "id": f"setting:{category}.{key}",
+            "name": key,
+            "description": format_value(current),
+            "icon": get_type_icon(setting_type),
+        }
+
+        if setting_type == "readonly":
+            result["description"] = info.get("description", "")
+        else:
+            result["verb"] = "Edit"
+            result["actions"] = [
+                {"id": "reset", "name": "Reset to Default", "icon": "restart_alt"},
+            ]
+
+        results.append(result)
     return results
 
 
@@ -453,24 +464,34 @@ def get_all_settings(config: dict) -> list[dict]:
     results = []
     for category, settings in SETTINGS_SCHEMA.items():
         for key, info in settings.items():
+            setting_type = info.get("type", "string")
             current = get_current_value(config, category, key)
-            results.append(
-                {
-                    "id": f"setting:{category}.{key}",
-                    "name": key,
-                    "description": f"{CATEGORY_NAMES.get(category, category)} | {format_value(current)}",
-                    "icon": get_type_icon(info.get("type", "string")),
-                    "verb": "Edit",
-                    "category": category,
-                    "actions": [
-                        {
-                            "id": "reset",
-                            "name": "Reset to Default",
-                            "icon": "restart_alt",
-                        },
-                    ],
-                }
-            )
+
+            result: dict = {
+                "id": f"setting:{category}.{key}",
+                "name": key,
+                "icon": get_type_icon(setting_type),
+                "category": category,
+            }
+
+            if setting_type == "readonly":
+                result["description"] = (
+                    f"{CATEGORY_NAMES.get(category, category)} | {info.get('description', '')}"
+                )
+            else:
+                result["description"] = (
+                    f"{CATEGORY_NAMES.get(category, category)} | {format_value(current)}"
+                )
+                result["verb"] = "Edit"
+                result["actions"] = [
+                    {
+                        "id": "reset",
+                        "name": "Reset to Default",
+                        "icon": "restart_alt",
+                    },
+                ]
+
+            results.append(result)
     return results
 
 
@@ -494,6 +515,8 @@ def get_type_icon(setting_type: str) -> str:
         "number": "123",
         "boolean": "toggle_on",
         "list": "list",
+        "readonly": "info",
+        "select": "arrow_drop_down",
     }
     return icons.get(setting_type, "settings")
 
@@ -869,6 +892,28 @@ def main():
             if not schema:
                 print(
                     json.dumps({"type": "error", "message": f"Unknown setting: {path}"})
+                )
+                return
+
+            # Readonly settings cannot be edited
+            if schema.get("type") == "readonly":
+                current_category = (
+                    context.split(":", 1)[1]
+                    if context.startswith("category:")
+                    else category
+                )
+                settings = get_settings_for_category(config, current_category)
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": settings,
+                            "inputMode": "realtime",
+                            "context": f"category:{current_category}",
+                            "placeholder": f"Filter {CATEGORY_NAMES.get(current_category, current_category)} settings...",
+                            "pluginActions": get_plugin_actions(),
+                        }
+                    )
                 )
                 return
 
