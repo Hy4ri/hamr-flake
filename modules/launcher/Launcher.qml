@@ -36,15 +36,16 @@ Scope {
         command: ["bash", "-c", "mkdir -p ~/.cache/hamr && date +%s%3N > ~/.cache/hamr/launch_timestamp"]
     }
 
-    // Deferred cleanup timer for soft close (click-outside)
+    // Deferred cleanup timer for soft close (click-outside) and minimize
     // When timer fires, actually clean up state
     Timer {
         id: deferredCleanupTimer
         interval: Config.options.behavior.stateRestoreWindowMs
         repeat: false
         onTriggered: {
-            // Guard against race condition: user opened launcher just as timer fired
-            if (GlobalStates.launcherOpen || GlobalStates.launcherMinimized) {
+            // Guard: only bail if launcher is fully open (not minimized)
+            // If minimized, we still want to clean up state after timeout
+            if (GlobalStates.launcherOpen && !GlobalStates.launcherMinimized) {
                 launcherScope.statePendingCleanup = false;
                 return;
             }
