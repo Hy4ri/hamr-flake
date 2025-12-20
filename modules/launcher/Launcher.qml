@@ -57,6 +57,7 @@ Scope {
             if (LauncherSearch.isInExclusiveMode()) {
                 LauncherSearch.exclusiveMode = "";
             }
+            LauncherSearch.query = "";
             launcherScope.statePendingCleanup = false;
         }
     }
@@ -70,6 +71,7 @@ Scope {
         if (LauncherSearch.isInExclusiveMode()) {
             LauncherSearch.exclusiveMode = "";
         }
+        LauncherSearch.query = "";
         launcherScope.statePendingCleanup = false;
     }
 
