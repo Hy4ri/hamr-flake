@@ -14,7 +14,7 @@ paru -S hamr
 
 Hamr is an extensible launcher for Hyprland built with [Quickshell](https://quickshell.outfoxxed.me/). Extend it with plugins in any language using a simple JSON protocol.
 
-![Hamr Demo](assets/recording/hamr-demo.gif)
+![Hamr Main View](assets/screenshots/hamr-main-view.png)
 
 ## Philosophy
 
@@ -96,10 +96,6 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies,
 | `dark` | Switch to dark mode (illogical-impulse) |
 | `light` | Switch to light mode (illogical-impulse) |
 | `accentcolor` | Set accent color (illogical-impulse) |
-
-## Screenshots
-
-![Hamr Main View](assets/screenshots/hamr-main-view.png)
 
 ## Installation
 
