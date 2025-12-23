@@ -24,11 +24,13 @@ Hamr does not sandbox plugins. A malicious plugin can do anything your user acco
 
 ## Reporting Security Issues
 
-If you discover a security vulnerability in Hamr or any built-in plugin, please open an issue on GitHub:
+If you discover a security vulnerability in Hamr or any built-in plugin, please report it through GitHub's security advisory feature:
 
-https://github.com/stewart86/hamr/issues
+1. Go to https://github.com/stewart86/hamr/issues/new/choose
+2. Select "Report a security vulnerability"
+3. Provide details about the vulnerability
 
-For sensitive disclosures, indicate in the issue title that it's security-related and avoid posting exploit details publicly. We will coordinate with you on responsible disclosure.
+This ensures your report remains private until we can address it. We will coordinate with you on responsible disclosure.
 
 ## Disclaimer
 
