@@ -61,34 +61,36 @@ Powered by [qalculate](https://qalculate.github.io/) - supports 150+ currencies,
 
 ### Built-in Plugins
 
-| Plugin | Trigger | Description |
-|--------|---------|-------------|
-| `apps` | `/apps` | App drawer with categories (like rofi/dmenu) |
-| `bitwarden` | `/bitwarden` | Password manager with keyring integration |
-| `calculate` | `=` or pattern | Calculator with currency, units, and temperature |
-| `clipboard` | `;` | Clipboard history with OCR search, filter by type |
-| `create-plugin` | `/create-plugin` | AI helper to create new plugins (requires [OpenCode](https://opencode.ai)) |
-| `dict` | `/dict` | Dictionary lookup with definitions |
-| `emoji` | `:` | Emoji picker with search |
-| `files` | `~` | File search with fd + fzf, thumbnails for images |
-| `flathub` | `/flathub` | Search and install apps from Flathub |
-| `notes` | `/notes` | Quick notes with multi-line content support |
-| `pictures` | `/pictures` | Browse images with thumbnails |
-| `power` | `/power` | System power and session controls (shutdown, reboot, suspend, logout) |
-| `quicklinks` | `/quicklinks` | Web search with customizable quicklinks |
-| `screenrecord` | `/screenrecord` | Screen recording with auto-trim (wf-recorder) |
-| `screenshot` | `/screenshot` | Browse screenshots with OCR text search |
-| `settings` | `/settings` | Configure Hamr launcher options |
-| `shell` | `!` | Shell command history (zsh/bash/fish) |
-| `snippet` | `/snippet` | Text snippets for quick insertion |
-| `todo` | `/todo` | Simple todo list manager |
-| `topcpu` | `/topcpu` | Process monitor sorted by CPU usage (auto-refresh) |
-| `topmem` | `/topmem` | Process monitor sorted by memory usage (auto-refresh) |
-| `url` | pattern | Open URLs in browser (auto-detects domain patterns) |
-| `wallpaper` | `/wallpaper` | Wallpaper selector (illogical-impulse) |
-| `webapp` | `/webapp` | Install and manage web apps |
-| `whats-that-word` | `/whats-that-word` | Find words from descriptions or fix misspellings |
-| `hyprland` | `/hyprland` | Window management, dispatchers, and global shortcuts |
+All plugins are indexed and searchable directly from the main bar - no prefix required. Just type what you want (e.g., "clipboard", "emoji", "power") and Hamr finds it. Prefix shortcuts like `/`, `~`, `;` are optional conveniences, not requirements.
+
+| Plugin | Description |
+|--------|-------------|
+| `apps` | App drawer with categories (like rofi/dmenu) |
+| `bitwarden` | Password manager with keyring integration |
+| `calculate` | Calculator with currency, units, and temperature |
+| `clipboard` | Clipboard history with OCR search, filter by type |
+| `create-plugin` | AI helper to create new plugins (requires [OpenCode](https://opencode.ai)) |
+| `dict` | Dictionary lookup with definitions |
+| `emoji` | Emoji picker with search |
+| `files` | File search with fd + fzf, thumbnails for images |
+| `flathub` | Search and install apps from Flathub |
+| `notes` | Quick notes with multi-line content support |
+| `pictures` | Browse images with thumbnails |
+| `power` | System power and session controls (shutdown, reboot, suspend, logout) |
+| `quicklinks` | Web search with customizable quicklinks |
+| `screenrecord` | Screen recording with auto-trim (wf-recorder) |
+| `screenshot` | Browse screenshots with OCR text search |
+| `settings` | Configure Hamr launcher options |
+| `shell` | Shell command history (zsh/bash/fish) |
+| `snippet` | Text snippets for quick insertion |
+| `todo` | Simple todo list manager |
+| `topcpu` | Process monitor sorted by CPU usage (auto-refresh) |
+| `topmem` | Process monitor sorted by memory usage (auto-refresh) |
+| `url` | Open URLs in browser (auto-detects domain patterns) |
+| `wallpaper` | Wallpaper selector (illogical-impulse) |
+| `webapp` | Install and manage web apps |
+| `whats-that-word` | Find words from descriptions or fix misspellings |
+| `hyprland` | Window management, dispatchers, and global shortcuts |
 
 ### Hyprland Integration
 
