@@ -1,0 +1,8 @@
+{
+  "name": "Zoxide",
+  "description": "Jump to frequently used directories",
+  "icon": "folder_special",
+  "index": {
+    "enabled": true
+  }
+}
