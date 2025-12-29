@@ -144,12 +144,52 @@ Scope {
             required property var modelData
             property string searchingText: ""
             readonly property var hyprlandMonitor: Hyprland.monitorFor(root.screen)
-            readonly property bool monitorIsFocused: CompositorService.isHyprland 
-                ? (Hyprland.focusedMonitor?.id == hyprlandMonitor?.id)
-                : (modelData.name === CompositorService.focusedScreenName)
+            property bool monitorIsFocused: false
             property alias searchWidget: searchWidget
             screen: modelData
             visible: GlobalStates.launcherOpen && monitorIsFocused && !GlobalStates.launcherMinimized
+            
+            function updateMonitorFocus() {
+                if (CompositorService.isHyprland) {
+                    monitorIsFocused = Hyprland.focusedMonitor?.id == hyprlandMonitor?.id;
+                } else if (CompositorService.isNiri) {
+                    monitorIsFocused = modelData.name === NiriService.currentOutput;
+                } else {
+                    monitorIsFocused = true;
+                }
+            }
+            
+            Connections {
+                target: GlobalStates
+                function onLauncherOpenChanged() {
+                    if (GlobalStates.launcherOpen || GlobalStates.launcherMinimized) {
+                        root.updateMonitorFocus();
+                    }
+                }
+                function onLauncherMinimizedChanged() {
+                    if (GlobalStates.launcherOpen || GlobalStates.launcherMinimized) {
+                        root.updateMonitorFocus();
+                    }
+                }
+            }
+            
+            Connections {
+                target: NiriService
+                enabled: CompositorService.isNiri && (GlobalStates.launcherOpen || GlobalStates.launcherMinimized)
+                function onCurrentOutputChanged() {
+                    root.updateMonitorFocus();
+                }
+            }
+            
+            Connections {
+                target: CompositorService.isHyprland ? Hyprland : null
+                enabled: CompositorService.isHyprland && (GlobalStates.launcherOpen || GlobalStates.launcherMinimized)
+                function onFocusedMonitorChanged() {
+                    root.updateMonitorFocus();
+                }
+            }
+            
+            Component.onCompleted: updateMonitorFocus()
 
             WlrLayershell.namespace: "quickshell:hamr"
             WlrLayershell.layer: WlrLayer.Overlay
@@ -553,11 +593,47 @@ Scope {
             id: fabWindow
             required property var modelData
             readonly property var hyprlandMonitor: Hyprland.monitorFor(fabWindow.screen)
-            readonly property bool monitorIsFocused: CompositorService.isHyprland 
-                ? (Hyprland.focusedMonitor?.id == hyprlandMonitor?.id)
-                : (modelData.name === CompositorService.focusedScreenName)
+            property bool monitorIsFocused: false
             screen: modelData
             visible: GlobalStates.launcherMinimized && monitorIsFocused
+            
+            function updateMonitorFocus() {
+                if (CompositorService.isHyprland) {
+                    monitorIsFocused = Hyprland.focusedMonitor?.id == hyprlandMonitor?.id;
+                } else if (CompositorService.isNiri) {
+                    monitorIsFocused = modelData.name === NiriService.currentOutput;
+                } else {
+                    monitorIsFocused = true;
+                }
+            }
+            
+            Connections {
+                target: GlobalStates
+                enabled: !CompositorService.isHyprland
+                function onLauncherMinimizedChanged() {
+                    if (GlobalStates.launcherMinimized) {
+                        fabWindow.updateMonitorFocus();
+                    }
+                }
+            }
+            
+            Connections {
+                target: NiriService
+                enabled: CompositorService.isNiri && GlobalStates.launcherMinimized
+                function onCurrentOutputChanged() {
+                    fabWindow.updateMonitorFocus();
+                }
+            }
+            
+            Connections {
+                target: CompositorService.isHyprland ? Hyprland : null
+                enabled: CompositorService.isHyprland && GlobalStates.launcherMinimized
+                function onFocusedMonitorChanged() {
+                    fabWindow.updateMonitorFocus();
+                }
+            }
+            
+            Component.onCompleted: updateMonitorFocus()
 
             WlrLayershell.namespace: "quickshell:hamr-fab"
             WlrLayershell.layer: WlrLayer.Overlay

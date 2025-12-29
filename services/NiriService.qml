@@ -13,9 +13,9 @@ Singleton {
     readonly property string socketPath: Quickshell.env("NIRI_SOCKET")
 
     property var workspaces: ({})
-    property var allWorkspaces: []
     property string focusedWorkspaceId: ""
     property string currentOutput: ""
+    property string currentWorkspaceName: ""
     property var outputs: ({})
     property var windows: []
     property var displayScales: ({})
@@ -24,7 +24,6 @@ Singleton {
 
     function setWorkspaces(newMap) {
         root.workspaces = newMap;
-        allWorkspaces = Object.values(newMap).sort((a, b) => a.idx - b.idx);
     }
 
     Component.onCompleted: {
@@ -146,11 +145,11 @@ Singleton {
         }
         setWorkspaces(newWorkspaces);
 
-        const focusedIdx = allWorkspaces.findIndex(w => w.is_focused);
-        if (focusedIdx >= 0) {
-            const focusedWs = allWorkspaces[focusedIdx];
+        const focusedWs = data.workspaces.find(w => w.is_focused);
+        if (focusedWs) {
             focusedWorkspaceId = focusedWs.id;
             currentOutput = focusedWs.output ?? "";
+            currentWorkspaceName = focusedWs.name ?? String(focusedWs.idx + 1);
         }
     }
 
@@ -158,29 +157,18 @@ Singleton {
         const ws = root.workspaces[data.id];
         if (!ws) return;
 
-        const output = ws.output;
-        const updatedWorkspaces = {};
-
-        for (const id in root.workspaces) {
-            const workspace = root.workspaces[id];
-            const gotActivated = workspace.id === data.id;
-
-            const updatedWs = Object.assign({}, workspace);
-            if (workspace.output === output) {
-                updatedWs.is_active = gotActivated;
+        if (data.focused) {
+            const newOutput = ws.output ?? "";
+            if (newOutput !== currentOutput) {
+                currentOutput = newOutput;
             }
-            if (data.focused) {
-                updatedWs.is_focused = gotActivated;
+            if (data.id !== focusedWorkspaceId) {
+                focusedWorkspaceId = data.id;
             }
-            updatedWorkspaces[id] = updatedWs;
-        }
-
-        setWorkspaces(updatedWorkspaces);
-        focusedWorkspaceId = data.id;
-
-        const focusedIdx = allWorkspaces.findIndex(w => w.id === data.id);
-        if (focusedIdx >= 0) {
-            currentOutput = allWorkspaces[focusedIdx].output ?? "";
+            const newName = ws.name ?? String(ws.idx + 1);
+            if (newName !== currentWorkspaceName) {
+                currentWorkspaceName = newName;
+            }
         }
     }
 

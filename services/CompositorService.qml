@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import qs.modules.common
+import qs
 
 Singleton {
     id: root
@@ -16,7 +17,10 @@ Singleton {
     readonly property string hyprlandSignature: Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE")
     readonly property string niriSocket: Quickshell.env("NIRI_SOCKET")
 
-    Component.onCompleted: detectCompositor()
+    Component.onCompleted: {
+        detectCompositor();
+        updateFocusedScreenName();
+    }
 
     Timer {
         id: compositorInitTimer
@@ -71,18 +75,47 @@ Singleton {
         return Quickshell.screens.length > 0 ? Quickshell.screens[0] : null;
     }
 
-    readonly property string hyprlandFocusedMonitorName: Hyprland.focusedMonitor?.name ?? ""
-    readonly property string niriFocusedMonitorName: NiriService.currentOutput ?? ""
-    readonly property string defaultScreenName: Quickshell.screens.length > 0 ? Quickshell.screens[0].name : ""
+    property string focusedScreenName: ""
     
-    readonly property string focusedScreenName: {
+    function updateFocusedScreenName() {
         if (compositor === "hyprland") {
-            return hyprlandFocusedMonitorName;
+            focusedScreenName = Hyprland.focusedMonitor?.name ?? "";
+        } else if (compositor === "niri") {
+            focusedScreenName = NiriService.currentOutput ?? "";
+        } else {
+            focusedScreenName = Quickshell.screens.length > 0 ? Quickshell.screens[0].name : "";
         }
-        if (compositor === "niri") {
-            return niriFocusedMonitorName;
+    }
+    
+    Connections {
+        target: NiriService
+        enabled: isNiri && (GlobalStates.launcherOpen || GlobalStates.launcherMinimized)
+        function onCurrentOutputChanged() {
+            root.updateFocusedScreenName();
         }
-        return defaultScreenName;
+    }
+    
+    Connections {
+        target: isHyprland ? Hyprland : null
+        enabled: isHyprland && (GlobalStates.launcherOpen || GlobalStates.launcherMinimized)
+        function onFocusedMonitorChanged() {
+            root.updateFocusedScreenName();
+        }
+    }
+    
+    Connections {
+        target: GlobalStates
+        function onLauncherOpenChanged() {
+            if (GlobalStates.launcherOpen) {
+                root.updateFocusedScreenName();
+                root.updateCurrentContext();
+            }
+        }
+        function onLauncherMinimizedChanged() {
+            if (GlobalStates.launcherMinimized) {
+                root.updateFocusedScreenName();
+            }
+        }
     }
 
     function isScreenFocused(screen) {
@@ -111,38 +144,30 @@ Singleton {
         return screen?.devicePixelRatio ?? 1;
     }
 
-    readonly property string currentWorkspace: {
+    property string currentWorkspace: ""
+    property int currentWorkspaceId: -1
+    property string currentMonitor: ""
+    
+    function updateCurrentContext() {
         if (isHyprland) {
-            return Hyprland.focusedMonitor?.activeWorkspace?.name ?? "";
-        }
-        if (isNiri) {
-            const ws = NiriService.workspaces[NiriService.focusedWorkspaceId];
-            return ws?.name ?? String(ws?.idx + 1) ?? "";
-        }
-        return "";
-    }
-
-    readonly property int currentWorkspaceId: {
-        if (isHyprland) {
-            return Hyprland.focusedMonitor?.activeWorkspace?.id ?? -1;
-        }
-        if (isNiri) {
+            currentWorkspace = Hyprland.focusedMonitor?.activeWorkspace?.name ?? "";
+            currentWorkspaceId = Hyprland.focusedMonitor?.activeWorkspace?.id ?? -1;
+            currentMonitor = Hyprland.focusedMonitor?.name ?? "";
+        } else if (isNiri) {
+            currentWorkspace = NiriService.currentWorkspaceName;
             const wsId = NiriService.focusedWorkspaceId;
-            if (wsId === "" || wsId === undefined || wsId === null) return -1;
-            const parsed = parseInt(wsId, 10);
-            return isNaN(parsed) ? -1 : parsed;
+            if (wsId === "" || wsId === undefined || wsId === null) {
+                currentWorkspaceId = -1;
+            } else {
+                const parsed = parseInt(wsId, 10);
+                currentWorkspaceId = isNaN(parsed) ? -1 : parsed;
+            }
+            currentMonitor = NiriService.currentOutput ?? "";
+        } else {
+            currentWorkspace = "";
+            currentWorkspaceId = -1;
+            currentMonitor = "";
         }
-        return -1;
-    }
-
-    readonly property string currentMonitor: {
-        if (isHyprland) {
-            return Hyprland.focusedMonitor?.name ?? "";
-        }
-        if (isNiri) {
-            return NiriService.currentOutput ?? "";
-        }
-        return "";
     }
 
     readonly property var runningAppIds: {

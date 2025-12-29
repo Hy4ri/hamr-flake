@@ -7,10 +7,6 @@ import Quickshell
 Singleton {
     id: root
 
-    readonly property string currentWorkspace: CompositorService.currentWorkspace
-    readonly property int currentWorkspaceId: CompositorService.currentWorkspaceId
-    readonly property string currentMonitor: CompositorService.currentMonitor
-
     property bool isNewSession: false
     property real sessionStartTime: 0
 
@@ -21,8 +17,6 @@ Singleton {
     property string lastLaunchedApp: ""
     property real lastLaunchTime: 0
     readonly property int sequenceWindowMs: 10 * 60 * 1000
-
-    readonly property var runningAppIds: CompositorService.runningAppIds
     
     // Check if we're within the sequence window of the last launch
     function isWithinSequenceWindow() {
@@ -50,19 +44,19 @@ Singleton {
         return timeSinceResume < dpmsResumeWindowMs;
     }
     
-    // Get context object for suggestion calculation
+    // Get context object for suggestion calculation - fetches current values on demand
     function getContext() {
         const now = new Date();
         return {
             currentHour: now.getHours(),
             currentDay: now.getDay() === 0 ? 6 : now.getDay() - 1,  // Monday=0, Sunday=6
-            workspace: currentWorkspace,
-            workspaceId: currentWorkspaceId,
-            monitor: currentMonitor,
+            workspace: CompositorService.currentWorkspace,
+            workspaceId: CompositorService.currentWorkspaceId,
+            monitor: CompositorService.currentMonitor,
             lastApp: isWithinSequenceWindow() ? lastLaunchedApp : "",
             isSessionStart: isSessionStart(),
             isResumeFromIdle: isResumeFromIdle(),
-            runningApps: runningAppIds
+            runningApps: CompositorService.runningAppIds
         };
     }
     
