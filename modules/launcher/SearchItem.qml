@@ -34,7 +34,7 @@ RippleButton {
     property bool isSuggestion: entry?.isSuggestion ?? false
     property string suggestionReason: entry?.suggestionReason ?? ""
     property string bigText: entry?.iconType === LauncherSearchResult.IconType.Text ? entry?.iconName ?? "" : ""
-    property string materialSymbol: entry.iconType === LauncherSearchResult.IconType.Material ? entry?.iconName ?? "" : ""
+    property string materialSymbol: entry?.iconType === LauncherSearchResult.IconType.Material ? entry?.iconName ?? "" : ""
     property string thumbnail: entry?.thumbnail ?? ""
     // Check running state dynamically from WindowManager for apps
     // This ensures correct state even for history items (type "Recent")
@@ -412,7 +412,7 @@ RippleButton {
             }
             
             Repeater {
-                model: (root.entry.actions ?? []).slice(0, 4)
+                model: (root.entry?.actions ?? []).slice(0, 4)
                 delegate: Item {
                     id: actionButton
                     required property var modelData

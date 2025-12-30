@@ -537,26 +537,27 @@ Item {
                 }
             }
 
-             PluginForm {
-                id: pluginFormView
-                visible: root.showForm
+            Loader {
+                id: pluginFormLoader
+                active: root.showForm
+                visible: active
                 Layout.fillWidth: true
                 Layout.leftMargin: 6
                 Layout.rightMargin: 6
                 Layout.bottomMargin: 6
+                
+                sourceComponent: PluginForm {
+                    form: PluginRunner.pluginForm
 
-                form: PluginRunner.pluginForm
+                    onSubmitted: formData => {
+                        PluginRunner.submitForm(formData);
+                        root.focusSearchInput();
+                    }
 
-                onSubmitted: formData => {
-                    PluginRunner.submitForm(formData);
-                    // Return focus to search bar after form submission
-                    root.focusSearchInput();
-                }
-
-                onCancelled: {
-                    PluginRunner.cancelForm();
-                    // Return focus to search bar after form cancel
-                    root.focusSearchInput();
+                    onCancelled: {
+                        PluginRunner.cancelForm();
+                        root.focusSearchInput();
+                    }
                 }
             }
 

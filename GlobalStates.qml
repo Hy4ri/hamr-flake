@@ -10,6 +10,19 @@ Singleton {
     id: root
 
     property bool launcherOpen: false
+    onLauncherOpenChanged: {
+        if (!launcherOpen) {
+            // Trigger GC when launcher closes to free temporary objects
+            gcTimer.restart();
+        }
+    }
+    
+    Timer {
+        id: gcTimer
+        interval: 500
+        onTriggered: gc()
+    }
+    
     property bool launcherMinimized: Persistent.states.launcher.minimized
     onLauncherMinimizedChanged: Persistent.states.launcher.minimized = launcherMinimized
     property bool superReleaseMightTrigger: true

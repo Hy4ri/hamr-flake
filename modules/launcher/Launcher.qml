@@ -425,8 +425,8 @@ Scope {
                 
                 opacity: drawerOpen ? 1 : 0
                 
-                implicitWidth: previewPanel.implicitWidth + Appearance.sizes.elevationMargin * 2
-                implicitHeight: previewPanel.implicitHeight + Appearance.sizes.elevationMargin * 2
+                implicitWidth: previewPanelLoader.item?.implicitWidth ?? 0 + Appearance.sizes.elevationMargin * 2
+                implicitHeight: previewPanelLoader.item?.implicitHeight ?? 0 + Appearance.sizes.elevationMargin * 2
                 
                 // Drawer slide animation
                 Behavior on x {
@@ -453,17 +453,27 @@ Scope {
                     }
                 }
                 
-                StyledRectangularShadow {
-                    target: previewPanel
-                }
-                
-                PreviewPanel {
-                    id: previewPanel
+                Loader {
+                    id: previewPanelLoader
+                    active: previewPanelContainer.drawerOpen
                     anchors.centerIn: parent
-                    item: previewPanelContainer.previewItem
                     
-                    onDetachRequested: (globalX, globalY) => {
-                        GlobalStates.detachCurrentPreview(globalX, globalY);
+                    sourceComponent: Item {
+                        implicitWidth: previewPanelInner.implicitWidth
+                        implicitHeight: previewPanelInner.implicitHeight
+                        
+                        StyledRectangularShadow {
+                            target: previewPanelInner
+                        }
+                        
+                        PreviewPanel {
+                            id: previewPanelInner
+                            item: previewPanelContainer.previewItem
+                            
+                            onDetachRequested: (globalX, globalY) => {
+                                GlobalStates.detachCurrentPreview(globalX, globalY);
+                            }
+                        }
                     }
                 }
             }
@@ -504,8 +514,8 @@ Scope {
                         event.accepted = true;
                     } else if (event.key === Qt.Key_P && (event.modifiers & Qt.ControlModifier)) {
                         // Pin current preview to screen
-                        if (GlobalStates.previewPanelVisible) {
-                            const globalPos = previewPanel.mapToGlobal(previewPanel.width / 2, 0);
+                        if (GlobalStates.previewPanelVisible && previewPanelLoader.item) {
+                            const globalPos = previewPanelLoader.item.mapToGlobal(previewPanelLoader.item.width / 2, 0);
                             GlobalStates.detachCurrentPreview(globalPos.x, globalPos.y);
                         }
                         event.accepted = true;
