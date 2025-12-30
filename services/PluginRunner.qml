@@ -1006,6 +1006,8 @@ Singleton {
      function handlePluginResponse(response, wasReplayMode = false) {
          root.pluginBusy = false;
          
+         console.log("[PluginRunner] handlePluginResponse type:", response?.type);
+         
          if (!response || !response.type) {
              root.pluginError = "Invalid response from plugin";
              root.pendingNavigation = false;
@@ -1180,6 +1182,25 @@ Singleton {
                  }
                  break;
                  
+             case "gridBrowser":
+                 if (response.gridBrowser) {
+                     const isInitial = root.navigationDepth === 0;
+                     const config = {
+                         title: response.gridBrowser.title ?? root.activePlugin?.manifest?.name ?? "Select Item",
+                         items: response.gridBrowser.items ?? [],
+                         columns: response.gridBrowser.columns ?? 8,
+                         cellAspectRatio: response.gridBrowser.cellAspectRatio ?? 1.0,
+                         actions: response.gridBrowser.actions ?? [],
+                         workflowId: root.activePlugin?.id ?? "",
+                         isInitialView: isInitial
+                     };
+                     if (!isInitial) {
+                         root.navigationDepth++;
+                     }
+                     GlobalStates.openGridBrowserForPlugin(config);
+                 }
+                 break;
+                 
              case "error":
                  root.pluginError = response.message ?? "Unknown error";
                  console.warn(`[PluginRunner] Error: ${root.pluginError}`);
@@ -1214,6 +1235,30 @@ Singleton {
                  if (root.activePlugin) root.goBack();
              } else {
                  // At initial view, close the plugin entirely
+                 root.closePlugin();
+             }
+         }
+         
+         function onGridBrowserSelected(itemId, actionId) {
+             if (!root.activePlugin) return;
+             
+             // Send selection back to plugin handler
+             sendToPlugin({
+                 step: "action",
+                 selected: {
+                     id: "gridBrowser",
+                     itemId: itemId,
+                     action: actionId
+                 },
+                 session: root.activePlugin.session
+             });
+         }
+         
+         function onGridBrowserCancelled() {
+             if (root.navigationDepth > 0) {
+                 root.navigationDepth--;
+                 if (root.activePlugin) root.goBack();
+             } else {
                  root.closePlugin();
              }
          }

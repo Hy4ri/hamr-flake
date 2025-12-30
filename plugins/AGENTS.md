@@ -351,7 +351,75 @@ When user selects an image, handler receives:
 
 ---
 
-### 6. `prompt` - Show Input Prompt
+### 6. `gridBrowser` - Generic Grid Selection UI
+
+Open a grid-based selection UI for items like emojis, icons, or any collection where grid display is more efficient than a list.
+
+```python
+{
+    "type": "gridBrowser",
+    "gridBrowser": {
+        "title": "Select Emoji",               # Title shown in header
+        "items": [                              # Required: grid items
+            {
+                "id": "😀",                    # Required: unique identifier
+                "name": "grinning face",       # Required: searchable name
+                "icon": "😀",                  # Display icon (text, material, or image path)
+                "iconType": "text",            # "text" (emoji), "material", or "image"
+                "keywords": ["happy", "smile"] # Optional: additional search terms
+            }
+        ],
+        "columns": 10,                         # Grid columns (default: 8)
+        "cellAspectRatio": 1.0,                # Cell aspect ratio (default: 1.0)
+        "actions": [                           # Optional: action buttons
+            {"id": "copy", "name": "Copy", "icon": "content_copy"}
+        ]
+    }
+}
+```
+
+| Field             | Type   | Default  | Description                                  |
+| ----------------- | ------ | -------- | -------------------------------------------- |
+| `title`           | string | `""`     | Title shown in header                        |
+| `items`           | array  | required | Array of grid items                          |
+| `columns`         | int    | `8`      | Number of columns in grid                    |
+| `cellAspectRatio` | float  | `1.0`    | Width/height ratio of cells                  |
+| `actions`         | array  | `[]`     | Custom action buttons (Ctrl+1-6 shortcuts)   |
+
+**Item fields:**
+
+| Field      | Type     | Required | Description                                      |
+| ---------- | -------- | -------- | ------------------------------------------------ |
+| `id`       | string   | Yes      | Unique identifier (sent on selection)            |
+| `name`     | string   | Yes      | Display name (used for filtering)                |
+| `icon`     | string   | No       | Icon to display (text/emoji, material icon, or image path) |
+| `iconType` | string   | No       | `"text"` (default), `"material"`, or `"image"`   |
+| `keywords` | string[] | No       | Additional search/filter terms                   |
+
+When user selects an item, handler receives:
+
+```python
+{
+    "step": "action",
+    "selected": {
+        "id": "gridBrowser",     # Always "gridBrowser"
+        "itemId": "😀",          # Selected item's id
+        "action": "copy"         # Action ID clicked (or default action)
+    }
+}
+```
+
+**Keyboard navigation:**
+- Arrow keys / hjkl - Navigate grid
+- Enter - Select with default action
+- Ctrl+1-6 - Execute action buttons
+- Escape - Cancel / go back
+
+**Example plugin:** [`emoji/`](emoji/handler.py) - Emoji picker with 10-column grid
+
+---
+
+### 7. `prompt` - Show Input Prompt
 
 Display a simple text prompt.
 
@@ -366,7 +434,7 @@ Display a simple text prompt.
 
 ---
 
-### 7. `error` - Show Error
+### 8. `error` - Show Error
 
 Display an error message.
 
@@ -1252,6 +1320,7 @@ The test-harness validates all response types against the Hamr protocol:
 | `card`          | `type`, `card.content`                   |
 | `execute`       | `type`, `execute` object                 |
 | `imageBrowser`  | `type`, `imageBrowser.directory`         |
+| `gridBrowser`   | `type`, `gridBrowser.items[]` with `id` and `name` |
 | `form`          | `type`, `form.fields[]` with `id`, `type`|
 | `prompt`        | `type`, `prompt` object                  |
 | `error`         | `type`, `message`                        |

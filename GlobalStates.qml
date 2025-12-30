@@ -53,6 +53,41 @@ Singleton {
         }
     }
 
+    property bool gridBrowserOpen: false
+    property var gridBrowserConfig: null
+    property bool gridBrowserClosedBySelection: false
+    property bool gridBrowserClosedByCancel: false
+    
+    signal gridBrowserSelected(string itemId, string actionId)
+    signal gridBrowserCancelled()
+    
+    function openGridBrowserForPlugin(config) {
+        gridBrowserConfig = config;
+        gridBrowserClosedBySelection = false;
+        gridBrowserClosedByCancel = false;
+        gridBrowserOpen = true;
+    }
+    
+    function closeGridBrowser() {
+        gridBrowserOpen = false;
+        gridBrowserConfig = null;
+    }
+    
+    function cancelGridBrowser() {
+        gridBrowserClosedByCancel = true;
+        gridBrowserCancelled();
+        gridBrowserOpen = false;
+        gridBrowserConfig = null;
+    }
+    
+    function gridBrowserSelection(itemId, actionId) {
+        gridBrowserSelected(itemId, actionId);
+        if (gridBrowserConfig?.workflowId) {
+            gridBrowserClosedBySelection = true;
+            closeGridBrowser();
+        }
+    }
+
     // Floating action tooltip that appears above all launcher content
     property bool actionToolTipVisible: false
     property string actionToolTipKey: ""

@@ -19,6 +19,7 @@ Item {
     property bool showCard: PluginRunner.pluginCard !== null
     property bool showForm: PluginRunner.pluginForm !== null
     readonly property bool showImageBrowser: GlobalStates.imageBrowserOpen
+    readonly property bool showGridBrowser: GlobalStates.gridBrowserOpen
     
     implicitWidth: searchWidgetContent.implicitWidth + Appearance.sizes.elevationMargin * 2
     implicitHeight: searchWidgetContent.implicitHeight + searchWidgetContent.anchors.topMargin + Appearance.sizes.elevationMargin * 2
@@ -31,6 +32,15 @@ Item {
     signal dragMoved(real mouseX, real mouseY)
     signal dragEnded
     signal userInteracted  // Emitted when user clicks/interacts - used to re-grab focus
+
+    // Helper functions to access grid components (loaders defined later in tree)
+    function getGridBrowserGrid() {
+        return gridBrowserLoader.item?.gridComponent ?? null;
+    }
+    
+    function getImageBrowserGrid() {
+        return imageBrowserLoader.item?.gridComponent ?? null;
+    }
 
     function focusFirstItem() {
         if (appResults.count > 0) {
@@ -117,7 +127,7 @@ Item {
             topMargin: Appearance.sizes.elevationMargin * 20
         }
         clip: true
-        implicitWidth: root.showImageBrowser 
+        implicitWidth: (root.showImageBrowser || root.showGridBrowser)
             ? Appearance.sizes.imageBrowserGridWidth + 12  // grid width + margins
             : columnLayout.implicitWidth
         implicitHeight: columnLayout.implicitHeight
@@ -126,7 +136,7 @@ Item {
 
         Behavior on implicitHeight {
             id: searchHeightBehavior
-            enabled: GlobalStates.launcherOpen && (root.showResults || root.showCard || root.showImageBrowser)
+            enabled: GlobalStates.launcherOpen && (root.showResults || root.showCard || root.showImageBrowser || root.showGridBrowser)
             animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
         }
 
@@ -175,7 +185,7 @@ Item {
                     anchors.leftMargin: 6
                     anchors.rightMargin: 6
                     anchors.verticalCenter: parent.verticalCenter
-                    expandSearchInput: root.showImageBrowser
+                    expandSearchInput: root.showImageBrowser || root.showGridBrowser
                      Synchronizer on searchingText {
                          property alias source: root.searchingText
                      }
@@ -186,9 +196,13 @@ Item {
 
                     onNavigateDown: {
                         if (root.showImageBrowser) {
-                            if (imageBrowserLoader.item?.gridComponent) {
-                                imageBrowserLoader.item.gridComponent.moveSelection(imageBrowserLoader.item.gridComponent.columns);
-                            }
+                            const grid = root.getImageBrowserGrid();
+                            if (grid) grid.moveSelection(grid.columns);
+                            return;
+                        }
+                        if (root.showGridBrowser) {
+                            const grid = root.getGridBrowserGrid();
+                            if (grid) grid.moveSelection(grid.columns);
                             return;
                         }
                         if (appResults.count === 0) return;
@@ -200,9 +214,13 @@ Item {
                     }
                     onNavigateUp: {
                         if (root.showImageBrowser) {
-                            if (imageBrowserLoader.item?.gridComponent) {
-                                imageBrowserLoader.item.gridComponent.moveSelection(-imageBrowserLoader.item.gridComponent.columns);
-                            }
+                            const grid = root.getImageBrowserGrid();
+                            if (grid) grid.moveSelection(-grid.columns);
+                            return;
+                        }
+                        if (root.showGridBrowser) {
+                            const grid = root.getGridBrowserGrid();
+                            if (grid) grid.moveSelection(-grid.columns);
                             return;
                         }
                         if (appResults.count === 0) return;
@@ -214,16 +232,21 @@ Item {
                     }
                     onNavigateLeft: {
                         if (root.showImageBrowser) {
-                            if (imageBrowserLoader.item?.gridComponent) {
-                                imageBrowserLoader.item.gridComponent.moveSelection(-1);
-                            }
+                            const grid = root.getImageBrowserGrid();
+                            if (grid) grid.moveSelection(-1);
+                        }
+                        if (root.showGridBrowser) {
+                            const grid = root.getGridBrowserGrid();
+                            if (grid) grid.moveSelection(-1);
                         }
                     }
                     onNavigateRight: {
                         if (root.showImageBrowser) {
-                            if (imageBrowserLoader.item?.gridComponent) {
-                                imageBrowserLoader.item.gridComponent.moveSelection(1);
-                            }
+                            const grid = root.getImageBrowserGrid();
+                            if (grid) grid.moveSelection(1);
+                        } else if (root.showGridBrowser) {
+                            const grid = root.getGridBrowserGrid();
+                            if (grid) grid.moveSelection(1);
                         } else {
                             // Original Ctrl+L behavior: select current item
                             if (appResults.count > 0 && appResults.currentIndex >= 0) {
@@ -237,9 +260,14 @@ Item {
                     onSelectCurrent: {
                         // If imageBrowser is open, activate current image
                         if (root.showImageBrowser) {
-                            if (imageBrowserLoader.item?.gridComponent) {
-                                imageBrowserLoader.item.gridComponent.activateCurrent();
-                            }
+                            const grid = root.getImageBrowserGrid();
+                            if (grid) grid.activateCurrent();
+                            return;
+                        }
+                        // If gridBrowser is open, activate current item
+                        if (root.showGridBrowser) {
+                            const grid = root.getGridBrowserGrid();
+                            if (grid) grid.activateCurrent();
                             return;
                         }
 
@@ -340,7 +368,7 @@ Item {
                 Layout.bottomMargin: 8
                 Layout.preferredHeight: 34
                 
-                showSeparator: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy || root.showImageBrowser
+                showSeparator: root.showResults || root.showCard || root.showForm || PluginRunner.pluginBusy || root.showImageBrowser || root.showGridBrowser
                 
                 readonly property bool inSearchMode: {
                     const q = root.searchingText;
@@ -348,11 +376,20 @@ Item {
                     return prefixes.some(p => q.startsWith(p)) || LauncherSearch.isInExclusiveMode();
                 }
                 
-                mode: root.showImageBrowser ? "plugin" : (PluginRunner.isActive() ? "plugin" : (inSearchMode ? "search" : "hints"))
+                mode: (root.showImageBrowser || root.showGridBrowser) ? "plugin" : (PluginRunner.isActive() ? "plugin" : (inSearchMode ? "search" : "hints"))
                 
                 actions: {
                     if (root.showImageBrowser) {
                         const config = GlobalStates.imageBrowserConfig;
+                        const customActions = config?.actions ?? [];
+                        return customActions.map((action, idx) => ({
+                            id: action.id,
+                            icon: action.icon ?? "play_arrow",
+                            name: action.name ?? action.id,
+                            shortcut: `Ctrl+${idx + 1}`
+                        }));
+                    } else if (root.showGridBrowser) {
+                        const config = GlobalStates.gridBrowserConfig;
                         const customActions = config?.actions ?? [];
                         return customActions.map((action, idx) => ({
                             id: action.id,
@@ -377,7 +414,7 @@ Item {
                 navigationDepth: PluginRunner.navigationDepth
                 
                 hintActions: {
-                    if (root.showImageBrowser) {
+                    if (root.showImageBrowser || root.showGridBrowser) {
                         return [
                             { key: "^hjkl", label: "navigate" },
                             { key: "Enter", label: "select" },
@@ -394,8 +431,9 @@ Item {
                 
                 onActionClicked: (actionId, wasConfirmed) => {
                     if (root.showImageBrowser) {
-                        // Execute imageBrowser action on currently selected image
                         imageBrowserLoader.executeActionOnCurrent(actionId);
+                    } else if (root.showGridBrowser) {
+                        gridBrowserLoader.executeActionOnCurrent(actionId);
                     } else if (PluginRunner.isActive()) {
                         PluginRunner.executePluginAction(actionId, wasConfirmed);
                     } else if (!actionBar.inSearchMode) {
@@ -414,6 +452,14 @@ Item {
                         }
                         return;
                     }
+                    if (root.showGridBrowser) {
+                        if (GlobalStates.gridBrowserConfig?.workflowId) {
+                            GlobalStates.cancelGridBrowser();
+                        } else {
+                            GlobalStates.closeGridBrowser();
+                        }
+                        return;
+                    }
                     if (PluginRunner.isActive()) {
                         if (root.showForm) {
                             PluginRunner.cancelForm();
@@ -429,6 +475,9 @@ Item {
                 onHomeClicked: {
                     if (root.showImageBrowser) {
                         GlobalStates.closeImageBrowser();
+                    }
+                    if (root.showGridBrowser) {
+                        GlobalStates.closeGridBrowser();
                     }
                     LauncherSearch.exitPlugin();
                 }
@@ -513,7 +562,7 @@ Item {
 
              Rectangle {
                 id: resultsContainer
-                visible: root.showResults && !root.showCard && !root.showForm && !(PluginRunner.pluginBusy && PluginRunner.inputMode === "submit") && !root.showImageBrowser
+                visible: root.showResults && !root.showCard && !root.showForm && !(PluginRunner.pluginBusy && PluginRunner.inputMode === "submit") && !root.showImageBrowser && !root.showGridBrowser
                 Layout.fillWidth: true
                 Layout.leftMargin: 6
                 Layout.rightMargin: 6
@@ -719,6 +768,54 @@ Item {
                                 GlobalStates.cancelImageBrowser();
                             } else {
                                 GlobalStates.closeImageBrowser();
+                            }
+                        }
+                    }
+                }
+            }
+
+            Loader {
+                id: gridBrowserLoader
+                active: root.showGridBrowser
+                visible: active
+                Layout.preferredWidth: Appearance.sizes.imageBrowserGridWidth
+                Layout.leftMargin: 6
+                Layout.rightMargin: 6
+                Layout.bottomMargin: 6
+                Layout.topMargin: 4
+
+                function executeActionOnCurrent(actionId) {
+                    if (item && item.gridComponent) {
+                        item.gridComponent.executeActionOnCurrent(actionId);
+                    }
+                }
+
+                sourceComponent: Rectangle {
+                    id: gridBrowserContainer
+                    property alias gridComponent: genericGrid
+                    
+                    radius: Appearance.rounding.small
+                    color: Appearance.colors.colSurfaceContainerLow
+                    border.width: 1
+                    border.color: Appearance.colors.colOutlineVariant
+                    implicitWidth: genericGrid.implicitWidth
+                    implicitHeight: genericGrid.implicitHeight
+
+                    GenericGrid {
+                        id: genericGrid
+                        anchors.fill: parent
+                        anchors.margins: 6
+                        focus: true
+
+                        onItemSelected: (itemId, actionId) => {
+                            GlobalStates.gridBrowserSelection(itemId, actionId);
+                        }
+
+                        onCancelled: {
+                            if (GlobalStates.gridBrowserConfig?.workflowId) {
+                                GlobalStates.cancelGridBrowser();
+                            } else {
+                                GlobalStates.closeGridBrowser();
                             }
                         }
                     }

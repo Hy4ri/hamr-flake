@@ -11,21 +11,33 @@ HANDLER="$(dirname "$0")/handler.py"
 # Tests
 # ============================================================================
 
-test_initial_returns_results() {
+test_initial_returns_grid_browser() {
     local result=$(hamr_test initial)
-    assert_type "$result" "results"
+    assert_type "$result" "gridBrowser"
 }
 
-test_initial_has_placeholder() {
+test_initial_has_title() {
     local result=$(hamr_test initial)
-    assert_json "$result" '.placeholder' "Search emojis..."
+    assert_json "$result" '.gridBrowser.title' "Select Emoji"
 }
 
-test_initial_returns_many_results() {
+test_initial_returns_many_items() {
     local result=$(hamr_test initial)
-    local count=$(get_result_count "$result")
-    # Should return up to 100 results when no query
-    [[ "$count" -gt 50 ]] || { echo "Expected >50 results, got $count"; return 1; }
+    local count=$(json_get "$result" '.gridBrowser.items | length')
+    # Should return many items
+    [[ "$count" -gt 50 ]] || { echo "Expected >50 items, got $count"; return 1; }
+}
+
+test_initial_has_columns() {
+    local result=$(hamr_test initial)
+    local columns=$(json_get "$result" '.gridBrowser.columns')
+    assert_eq "$columns" "10"
+}
+
+test_initial_has_actions() {
+    local result=$(hamr_test initial)
+    local actions=$(json_get "$result" '.gridBrowser.actions | length')
+    assert_eq "$actions" "2"  # copy and type
 }
 
 test_search_filters_results() {
@@ -93,6 +105,22 @@ test_action_default_is_copy() {
     assert_contains "$result" "Copied"
 }
 
+test_grid_browser_action_copy() {
+    # Simulate gridBrowser selection
+    local result=$(hamr_test action --id "gridBrowser" --path "" --selected-action "copy")
+    # Should fail because no itemId is provided - but let's test a proper one
+    # Actually let's test with raw input
+    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "😀", "action": "copy"}}')
+    assert_type "$raw_result" "execute"
+    assert_contains "$raw_result" "Copied"
+}
+
+test_grid_browser_action_type() {
+    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "😀", "action": "type"}}')
+    assert_type "$raw_result" "execute"
+    assert_contains "$raw_result" "Typed"
+}
+
 test_index_returns_items() {
     local result=$(hamr_test index)
     assert_type "$result" "index"
@@ -138,9 +166,11 @@ test_no_match_returns_empty() {
 # ============================================================================
 
 run_tests \
-    test_initial_returns_results \
-    test_initial_has_placeholder \
-    test_initial_returns_many_results \
+    test_initial_returns_grid_browser \
+    test_initial_has_title \
+    test_initial_returns_many_items \
+    test_initial_has_columns \
+    test_initial_has_actions \
     test_search_filters_results \
     test_search_heart \
     test_result_has_emoji_icon \
@@ -149,6 +179,8 @@ run_tests \
     test_action_copy \
     test_action_type \
     test_action_default_is_copy \
+    test_grid_browser_action_copy \
+    test_grid_browser_action_type \
     test_index_returns_items \
     test_index_items_have_execute \
     test_index_items_have_execute_name \

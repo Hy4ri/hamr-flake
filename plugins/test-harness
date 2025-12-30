@@ -235,6 +235,26 @@ class ImageBrowserConfig:
 
 
 @dataclass
+class GridBrowserConfig:
+    """Configuration for grid browser response."""
+    title: str = ""
+    items: list[dict] = field(default_factory=list)
+    columns: int = 8
+    cell_aspect_ratio: float = 1.0
+    actions: list[dict] = field(default_factory=list)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> GridBrowserConfig:
+        return cls(
+            title=data.get("title", ""),
+            items=data.get("items", []),
+            columns=data.get("columns", 8),
+            cell_aspect_ratio=data.get("cellAspectRatio", 1.0),
+            actions=data.get("actions", []),
+        )
+
+
+@dataclass
 class FormField:
     """A field in a form response."""
     id: str
@@ -297,7 +317,7 @@ class PromptConfig:
         return cls(text=data.get("text", ""))
 
 
-ResponseType = Literal["results", "card", "execute", "imageBrowser", "form", "prompt", "error", "match", "index"]
+ResponseType = Literal["results", "card", "execute", "imageBrowser", "gridBrowser", "form", "prompt", "error", "match", "index"]
 
 
 @dataclass
@@ -311,6 +331,7 @@ class HamrResponse:
     card: CardContent | None = None
     execute: ExecuteCommand | None = None
     image_browser: ImageBrowserConfig | None = None
+    grid_browser: GridBrowserConfig | None = None
     form: FormConfig | None = None
     prompt: PromptConfig | None = None
     message: str = ""
@@ -330,7 +351,7 @@ class HamrResponse:
             )
 
         resp_type = data["type"]
-        valid_types = {"results", "card", "execute", "imageBrowser", "form", "prompt", "error", "match", "index"}
+        valid_types = {"results", "card", "execute", "imageBrowser", "gridBrowser", "form", "prompt", "error", "match", "index"}
         if resp_type not in valid_types:
             raise SchemaValidationError(
                 f"Invalid response type: {resp_type}",
@@ -394,6 +415,15 @@ class HamrResponse:
                     field_name="imageBrowser",
                 )
             response.image_browser = ImageBrowserConfig.from_dict(data["imageBrowser"])
+
+        elif resp_type == "gridBrowser":
+            if "gridBrowser" not in data:
+                raise SchemaValidationError(
+                    "'gridBrowser' response missing 'gridBrowser' object",
+                    response_type="gridBrowser",
+                    field_name="gridBrowser",
+                )
+            response.grid_browser = GridBrowserConfig.from_dict(data["gridBrowser"])
 
         elif resp_type == "form":
             if "form" not in data:

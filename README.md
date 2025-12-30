@@ -644,6 +644,24 @@ Type `/hello` to try it!
 
 Set `enableOcr: true` to enable background OCR indexing for text search within images (requires tesseract).
 
+**Open Grid Browser (for emoji, icon selection, etc.):**
+```json
+{
+  "type": "gridBrowser",
+  "gridBrowser": {
+    "title": "Select Emoji",
+    "items": [
+      {"id": "😀", "name": "grinning face", "icon": "😀", "iconType": "text", "keywords": ["happy"]}
+    ],
+    "columns": 10,
+    "cellAspectRatio": 1.0,
+    "actions": [{"id": "copy", "name": "Copy", "icon": "content_copy"}]
+  }
+}
+```
+
+Handler receives `{"step": "action", "selected": {"id": "gridBrowser", "itemId": "😀", "action": "copy"}}` on selection.
+
 **Show Form (multi-field input):**
 ```json
 {

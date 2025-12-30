@@ -63,21 +63,32 @@ def fuzzy_match(query: str, emojis: list[dict]) -> list[dict]:
 
 
 def format_results(emojis: list[dict]) -> list[dict]:
-    """Format emojis as hamr results.
-
-    Uses emoji as the icon (Text icon type) and description as the title.
-    """
+    """Format emojis as hamr results (list view)."""
     return [
         {
             "id": e["emoji"],
             "name": e["description"][:50] if e["description"] else e["emoji"],
-            "icon": e["emoji"],  # Emoji character as icon
-            "iconType": "text",  # Use text icon type to display emoji
+            "icon": e["emoji"],
+            "iconType": "text",
             "verb": "Copy",
             "actions": [
                 {"id": "copy", "name": "Copy", "icon": "content_copy"},
                 {"id": "type", "name": "Type", "icon": "keyboard"},
             ],
+        }
+        for e in emojis
+    ]
+
+
+def format_grid_items(emojis: list[dict]) -> list[dict]:
+    """Format emojis as grid items for gridBrowser."""
+    return [
+        {
+            "id": e["emoji"],
+            "name": e["description"][:20] if e["description"] else "",
+            "keywords": e["description"].split() if e["description"] else [],
+            "icon": e["emoji"],
+            "iconType": "text",
         }
         for e in emojis
     ]
@@ -163,11 +174,32 @@ def main():
         print(json.dumps({"type": "index", "items": items}))
         return
 
-    if step in ("initial", "search"):
-        # Search emojis
+    if step == "initial":
+        # Show all emojis in grid view
+        grid_items = format_grid_items(emojis)
+        print(
+            json.dumps(
+                {
+                    "type": "gridBrowser",
+                    "gridBrowser": {
+                        "title": "Select Emoji",
+                        "items": grid_items,
+                        "columns": 10,
+                        "cellAspectRatio": 1.0,
+                        "actions": [
+                            {"id": "copy", "name": "Copy", "icon": "content_copy"},
+                            {"id": "type", "name": "Type", "icon": "keyboard"},
+                        ],
+                    },
+                }
+            )
+        )
+        return
+
+    if step == "search":
+        # Search returns list view for better readability
         matches = fuzzy_match(query, emojis)
         results = format_results(matches)
-
         print(
             json.dumps(
                 {
@@ -180,16 +212,21 @@ def main():
         return
 
     if step == "action":
-        emoji = selected.get("id", "")
+        selected_id = selected.get("id", "")
+
+        # Handle gridBrowser selection
+        if selected_id == "gridBrowser":
+            emoji = selected.get("itemId", "")
+            action_id = selected.get("action", "") or action or "copy"
+        else:
+            emoji = selected_id
+            action_id = action if action else "copy"
+
         if not emoji:
             print(json.dumps({"type": "error", "message": "No emoji selected"}))
             return
 
-        # Determine action
-        action_id = action if action else "copy"
-
         if action_id == "type":
-            # Type the emoji
             type_text(emoji)
             print(
                 json.dumps(
@@ -200,7 +237,6 @@ def main():
                 )
             )
         else:
-            # Copy to clipboard (default)
             copy_to_clipboard(emoji)
             print(
                 json.dumps(
