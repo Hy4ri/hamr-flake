@@ -47,6 +47,7 @@ optdepends=(
     'hyprland: Hyprland compositor support'
     'niri: Niri compositor support'
     'ttf-readex-pro: Reading font for cards (AUR)'
+    'matugen: Material You color generation from wallpapers'
     'tesseract: OCR text extraction for screenshot search'
     'tesseract-data-eng: English OCR language data'
     'imagemagick: Alternative thumbnail generation'

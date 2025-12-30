@@ -1,11 +1,14 @@
 #!/bin/bash
 # Switch to light mode
 
-# Check for theming scripts (popular dotfiles first, then hamr fallback)
-# Add more dotfile paths here as needed
+# Get the directory where this script is located (plugins/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HAMR_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Check for theming scripts in order of preference
 SWITCHWALL_PATHS=(
-    "${XDG_CONFIG_HOME:-$HOME/.config}/quickshell/ii/scripts/colors/switchwall.sh"  # end-4 illogical-impulse
-    "${XDG_CONFIG_HOME:-$HOME/.config}/hamr/scripts/switchwall.sh"                   # hamr standalone
+    "$HAMR_DIR/scripts/colors/switchwall.sh"                                         # bundled with hamr
+    "${XDG_CONFIG_HOME:-$HOME/.config}/hamr/scripts/switchwall.sh"                   # user override
 )
 
 for script in "${SWITCHWALL_PATHS[@]}"; do

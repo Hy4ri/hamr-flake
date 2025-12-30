@@ -91,7 +91,7 @@ All plugins are indexed and searchable directly from the main bar - no prefix re
 | `topcpu` | Process monitor sorted by CPU usage (auto-refresh) |
 | `topmem` | Process monitor sorted by memory usage (auto-refresh) |
 | `url` | Open URLs in browser (auto-detects domain patterns) |
-| `wallpaper` | Wallpaper selector (illogical-impulse) |
+| `wallpaper` | Wallpaper selector (swww, hyprpaper, swaybg, feh) |
 | `webapp` | Install and manage web apps |
 | `whats-that-word` | Find words from descriptions or fix misspellings |
 | `zoxide` | Jump to frequently used directories |
@@ -168,9 +168,9 @@ Type `/niri` to browse all available actions, or search directly from the main b
 | Action | Description |
 |--------|-------------|
 | `screenshot-snip` | Take screenshot with grim + satty |
-| `dark` | Switch to dark mode (illogical-impulse) |
-| `light` | Switch to light mode (illogical-impulse) |
-| `accentcolor` | Set accent color (illogical-impulse) |
+| `dark` | Switch to dark mode (matugen + gsettings) |
+| `light` | Switch to light mode (matugen + gsettings) |
+| `accentcolor` | Set accent color from hex (matugen) |
 
 ## Installation
 
@@ -218,6 +218,7 @@ The install script will:
 | Fonts | `ttf-material-symbols-variable`, `ttf-jetbrains-mono-nerd`, `ttf-readex-pro` |
 
 **Optional dependencies:**
+- `matugen` - Material You color generation from wallpapers
 - `tesseract` - OCR for screenshot text search
 - `imagemagick` - Alternative thumbnail generation
 - `bitwarden-cli` - Bitwarden password manager plugin
@@ -244,7 +245,7 @@ paru -S hyprland  # or
 paru -S niri
 
 # Optional
-paru -S tesseract imagemagick bitwarden-cli slurp wf-recorder
+paru -S matugen-bin tesseract imagemagick bitwarden-cli slurp wf-recorder
 ```
 
 </details>
@@ -420,7 +421,7 @@ journalctl --user -u quickshell -f
 WARN: Read of colors.json failed: File does not exist
 ```
 
-This is harmless. Hamr looks for Material theme colors from [illogical-impulse](https://github.com/end-4/dots-hyprland). Without it, Hamr uses built-in default colors.
+This is harmless. Hamr uses built-in default colors. For dynamic theming from your wallpaper, install [matugen](https://github.com/InioX/matugen) and use the wallpaper plugin.
 
 **Warning about missing `quicklinks.json`**
 
@@ -455,9 +456,19 @@ exec-once = wl-paste --type image --watch cliphist store
 
 Hamr uses Material Design colors for its UI. Colors can come from:
 
-1. **Custom colors.json** - Set path in config: `"paths": {"colorsJson": "~/.config/hamr/colors.json"}`
-2. **illogical-impulse** - Auto-detected from `~/.local/state/user/generated/colors.json`
+1. **matugen (recommended)** - Auto-generates colors from your wallpaper. Install [matugen](https://github.com/InioX/matugen) and set a wallpaper via the wallpaper plugin
+2. **Custom colors.json** - Set path in config: `"paths": {"colorsJson": "~/.config/hamr/colors.json"}`
 3. **Built-in defaults** - Dark theme fallback when no colors.json found
+
+**Setting up matugen:**
+
+```bash
+# Install matugen (Arch)
+paru -S matugen-bin
+
+# Set a wallpaper - colors are generated automatically
+# Type /wallpaper in Hamr
+```
 
 **Creating a custom colors.json:**
 
@@ -818,7 +829,7 @@ You can reorder, remove, or add hints. For example, to replace emoji with notes:
 | **Sizes** | `searchWidth` | `580` | Search bar width (px) |
 | | `maxResultsHeight` | `600` | Max results container height (px) |
 | **Paths** | `wallpaperDir` | `""` | Custom wallpaper directory (empty = ~/Pictures/Wallpapers) |
-| | `colorsJson` | `""` | Custom colors.json path (empty = illogical-impulse default) |
+| | `colorsJson` | `""` | Custom colors.json path (empty = ~/.config/hamr/colors.json) |
 
 </details>
 
@@ -916,9 +927,9 @@ To clear all history: `rm ~/.config/hamr/search-history.json`
 
 ## Credits
 
-Hamr is extracted and adapted from [end-4's illogical-impulse](https://github.com/end-4/dots-hyprland). Major thanks to end-4 for the Material Design theming, fuzzy search, widget components, and overall architecture.
+Hamr was originally extracted and adapted from [end-4's illogical-impulse](https://github.com/end-4/dots-hyprland). Major thanks to end-4 for the Material Design theming, fuzzy search, widget components, and overall architecture that inspired this project.
 
-Hamr is **fully standalone** and works out of the box on any Hyprland setup. It optionally integrates with [illogical-impulse](https://github.com/end-4/dots-hyprland) for enhanced theming features if detected.
+Hamr is now **fully standalone** and works out of the box on any supported Wayland compositor (Hyprland, Niri).
 
 ## License
 

@@ -29,15 +29,22 @@ TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 PICTURES_DIR = Path.home() / "Pictures"
 WALLPAPERS_DIR = PICTURES_DIR / "Wallpapers"
 
-# Switchwall script path
+# Switchwall script paths (in order of preference)
+SCRIPT_DIR = Path(__file__).parent
+HAMR_DIR = SCRIPT_DIR.parent.parent
 XDG_CONFIG = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
-SWITCHWALL_PATH = XDG_CONFIG / "hamr" / "scripts" / "switchwall.sh"
+
+SWITCHWALL_PATHS = [
+    HAMR_DIR / "scripts" / "colors" / "switchwall.sh",  # bundled with hamr
+    XDG_CONFIG / "hamr" / "scripts" / "switchwall.sh",  # user override
+]
 
 
 def find_switchwall_script() -> Path | None:
-    """Find switchwall script at ~/.config/hamr/scripts/switchwall.sh."""
-    if SWITCHWALL_PATH.exists() and os.access(SWITCHWALL_PATH, os.X_OK):
-        return SWITCHWALL_PATH
+    """Find switchwall script, preferring bundled then user override."""
+    for path in SWITCHWALL_PATHS:
+        if path.exists() and os.access(path, os.X_OK):
+            return path
     return None
 
 

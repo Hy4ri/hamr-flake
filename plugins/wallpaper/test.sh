@@ -29,8 +29,9 @@ WALLPAPERS_DIR="$PICTURES_DIR/Wallpapers"
 
 # Check if switchwall.sh exists (same paths as handler.py)
 XDG_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}"
+HAMR_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 SWITCHWALL_PATHS=(
-    "$XDG_CONFIG/quickshell/ii/scripts/colors/switchwall.sh"
+    "$HAMR_DIR/scripts/colors/switchwall.sh"
     "$XDG_CONFIG/hamr/scripts/switchwall.sh"
 )
 
