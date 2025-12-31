@@ -6,6 +6,12 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a bug!
+        
+        **How to get version info:**
+        - Hamr: `pacman -Q hamr` (AUR) or `git describe --tags` (git install)
+        - Quickshell: `qs --version`
+        - Hyprland: `hyprctl version`
+        - Niri: `niri --version`
 
   - type: textarea
     id: description
@@ -47,15 +53,34 @@ body:
     id: hamr-version
     attributes:
       label: Hamr version
-      description: Run `pacman -Q hamr` or check your git commit
-      placeholder: "0.2.0 or git commit hash"
+      description: Run `pacman -Q hamr` (AUR) or `git describe --tags` (git install)
+      placeholder: "hamr 0.11.0-1 or v0.11.0-5-gabcdef"
+
+  - type: dropdown
+    id: compositor
+    attributes:
+      label: Compositor
+      description: Which compositor are you using?
+      options:
+        - Hyprland
+        - Niri
+        - Other
+    validations:
+      required: true
 
   - type: input
-    id: hyprland-version
+    id: compositor-version
     attributes:
-      label: Hyprland version
-      description: Run `hyprctl version`
-      placeholder: "0.45.0"
+      label: Compositor version
+      description: Run `hyprctl version` (Hyprland) or `niri --version` (Niri)
+      placeholder: "Hyprland 0.45.0 or Niri 25.11"
+
+  - type: input
+    id: quickshell-version
+    attributes:
+      label: Quickshell version
+      description: Run `qs --version`
+      placeholder: "quickshell 0.2.1, revision 41828c4..."
 
   - type: input
     id: distro

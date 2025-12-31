@@ -415,6 +415,20 @@ This is expected. Hamr starts hidden and waits for a toggle signal. Make sure yo
 journalctl --user -u quickshell -f
 ```
 
+**Crash with Qt version mismatch**
+
+```
+WARN: Quickshell was built against Qt 6.10.0 but the system has updated to Qt 6.10.1...
+```
+
+This happens when Qt is updated but Quickshell wasn't rebuilt. Fix by rebuilding Quickshell:
+
+```bash
+paru -S quickshell --rebuild
+# or for quickshell-git:
+paru -S quickshell-git --rebuild
+```
+
 **Warning about missing `colors.json`**
 
 ```
