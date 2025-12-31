@@ -341,10 +341,10 @@ systemctl --user start hamr.service
 ```kdl
 binds {
     // Toggle Hamr with Ctrl+Space
-    Ctrl+Space { spawn "qs" "ipc" "call" "hamr" "toggle"; }
+    Ctrl+Space { spawn "qs" "ipc" "-c" "hamr" "call" "hamr" "toggle"; }
 
     // Or with Mod+Space (Super key)
-    Mod+Space { spawn "qs" "ipc" "call" "hamr" "toggle"; }
+    Mod+Space { spawn "qs" "ipc" "-c" "hamr" "call" "hamr" "toggle"; }
 }
 ```
 
@@ -365,6 +365,54 @@ hamr
 ```
 
 After starting, press your keybind (e.g., Ctrl+Space) to open Hamr.
+
+### Direct Plugin Keybindings
+
+You can bind keys to open specific plugins directly using the IPC interface:
+
+```bash
+qs ipc -c hamr call hamr plugin <plugin_name>
+```
+
+<details open>
+<summary><strong>Hyprland</strong></summary>
+
+Add to `~/.config/hypr/hyprland.conf`:
+
+```bash
+# Open clipboard directly with Mod+V
+bind = SUPER, V, exec, qs ipc -c hamr call hamr plugin clipboard
+
+# Open emoji picker with Mod+Period
+bind = SUPER, Period, exec, qs ipc -c hamr call hamr plugin emoji
+
+# Open file search with Mod+E
+bind = SUPER, E, exec, qs ipc -c hamr call hamr plugin files
+```
+
+</details>
+
+<details>
+<summary><strong>Niri</strong></summary>
+
+Add to `~/.config/niri/config.kdl`:
+
+```kdl
+binds {
+    // Open clipboard directly with Mod+V
+    Mod+V { spawn "qs" "ipc" "-c" "hamr" "call" "hamr" "plugin" "clipboard"; }
+
+    // Open emoji picker with Mod+Period
+    Mod+Period { spawn "qs" "ipc" "-c" "hamr" "call" "hamr" "plugin" "emoji"; }
+
+    // Open file search with Mod+E
+    Mod+E { spawn "qs" "ipc" "-c" "hamr" "call" "hamr" "plugin" "files"; }
+}
+```
+
+</details>
+
+Available plugins: `apps`, `bitwarden`, `calculate`, `clipboard`, `emoji`, `files`, `notes`, `pictures`, `power`, `quicklinks`, `screenshot`, `settings`, `shell`, `snippet`, `todo`, `wallpaper`, `hyprland`, `niri`, etc.
 
 ### Updating
 
