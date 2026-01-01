@@ -63,9 +63,18 @@ ShellRoot {
         }
 
         function plugin(name: string) {
-            GlobalStates.launcherMinimized = false
-            GlobalStates.launcherOpen = true
-            LauncherSearch.startPlugin(name)
+            const samePluginOpen = GlobalStates.launcherOpen 
+                && !GlobalStates.launcherMinimized 
+                && PluginRunner.activePlugin?.id === name
+            
+            if (samePluginOpen) {
+                GlobalStates.softClose = true
+                GlobalStates.launcherOpen = false
+            } else {
+                GlobalStates.launcherMinimized = false
+                GlobalStates.launcherOpen = true
+                LauncherSearch.startPlugin(name)
+            }
         }
     }
 
