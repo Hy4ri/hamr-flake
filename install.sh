@@ -269,11 +269,30 @@ install_hamr() {
     chmod +x "$SCRIPT_DIR/scripts/ocr/ocr-index.sh" 2>/dev/null || true
     chmod +x "$SCRIPT_DIR/scripts/ocr/ocr-index.py" 2>/dev/null || true
     chmod +x "$SCRIPT_DIR/scripts/colors/switchwall.sh" 2>/dev/null || true
+    chmod +x "$SCRIPT_DIR/hamr" 2>/dev/null || true
+
+    # Install hamr command to ~/.local/bin
+    local bin_dir="$HOME/.local/bin"
+    mkdir -p "$bin_dir"
+    ln -sf "$SCRIPT_DIR/hamr" "$bin_dir/hamr"
+    info "Installed hamr command: $bin_dir/hamr"
+    
+    # Check if ~/.local/bin is in PATH
+    if [[ ":$PATH:" != *":$bin_dir:"* ]]; then
+        warn "$bin_dir is not in your PATH"
+        echo "Add to your shell rc file:"
+        echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    fi
 
     info "Installation complete!"
     echo ""
     echo "Start hamr with:"
-    echo "  qs -c hamr"
+    echo "  hamr"
+    echo ""
+    echo "Commands:"
+    echo "  hamr              Start daemon"
+    echo "  hamr toggle       Toggle open/close"
+    echo "  hamr plugin NAME  Open plugin directly"
     echo ""
     
     # Detect compositor and show appropriate instructions
@@ -314,10 +333,10 @@ show_niri_instructions() {
     echo ""
     echo "   binds {"
     echo "       // Toggle hamr with Ctrl+Space"
-    echo "       Ctrl+Space { spawn \"qs\" \"ipc\" \"call\" \"hamr\" \"toggle\"; }"
+    echo "       Ctrl+Space { spawn \"hamr\" \"toggle\"; }"
     echo ""
     echo "       // Or with Super key (Mod key)"
-    echo "       Mod+Space { spawn \"qs\" \"ipc\" \"call\" \"hamr\" \"toggle\"; }"
+    echo "       Mod+Space { spawn \"hamr\" \"toggle\"; }"
     echo "   }"
     echo ""
 }
@@ -398,6 +417,13 @@ uninstall_hamr() {
         [[ $REPLY =~ ^[Yy]$ ]] && rm -rf "$HAMR_LINK"
     else
         warn "No hamr installation found at $HAMR_LINK"
+    fi
+
+    # Remove hamr command from ~/.local/bin
+    local bin_link="$HOME/.local/bin/hamr"
+    if [[ -L "$bin_link" ]]; then
+        rm "$bin_link"
+        info "Removed command: $bin_link"
     fi
 
     info "Uninstall complete. User data in $CONFIG_DIR/hamr/ was preserved."
