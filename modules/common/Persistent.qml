@@ -171,7 +171,7 @@ Singleton {
             property JsonObject launcher: JsonObject {
                 property real xRatio: Config.options.appearance?.launcherXRatio ?? 0.5
                 property real yRatio: Config.options.appearance?.launcherYRatio ?? 0.1
-                property bool actionBarHidden: false
+                property int viewMode: 0  // 0=showAll, 1=hideActionBar, 2=minimal (hide results until typing)
                 property real minXRatio: 0.5
                 property real minYRatio: 0.9
                 property bool minimized: false

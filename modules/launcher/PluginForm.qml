@@ -34,6 +34,9 @@ Rectangle {
     // Emitted when form is cancelled
     signal cancelled()
     
+    // Emitted when cancel is requested but fields have data (needs confirmation)
+    signal cancelRequested()
+    
     property string title: form?.title ?? ""
     property string submitLabel: form?.submitLabel ?? "Submit"
     property string cancelLabel: form?.cancelLabel ?? "Cancel"
@@ -111,6 +114,26 @@ Rectangle {
             }
         }
         return true;
+    }
+    
+    // Check if all fields are empty (for Backspace cancel)
+    function allFieldsEmpty() {
+        for (let i = 0; i < fieldsRepeater.count; i++) {
+            let item = fieldsRepeater.itemAt(i);
+            if (item && item.fieldValue) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    // Try to cancel - if fields have data, request confirmation first
+    function tryCancel() {
+        if (allFieldsEmpty()) {
+            root.cancelled();
+        } else {
+            root.cancelRequested();
+        }
     }
     
     // Focus first field
@@ -353,7 +376,13 @@ Rectangle {
                     Keys.onPressed: event => {
                         // Escape to cancel form
                         if (event.key === Qt.Key_Escape) {
-                            root.cancelled();
+                            root.tryCancel();
+                            event.accepted = true;
+                            return;
+                        }
+                        // Backspace to cancel form (only when current field is empty)
+                        if (event.key === Qt.Key_Backspace && textInput.text === "") {
+                            root.tryCancel();
                             event.accepted = true;
                             return;
                         }
@@ -435,7 +464,13 @@ Rectangle {
                     
                     Keys.onPressed: event => {
                         if (event.key === Qt.Key_Escape) {
-                            root.cancelled();
+                            root.tryCancel();
+                            event.accepted = true;
+                            return;
+                        }
+                        // Backspace to cancel form (only when current field is empty)
+                        if (event.key === Qt.Key_Backspace && passwordInput.text === "") {
+                            root.tryCancel();
                             event.accepted = true;
                             return;
                         }
@@ -522,7 +557,13 @@ Rectangle {
                         Keys.onPressed: event => {
                             // Escape to cancel form
                             if (event.key === Qt.Key_Escape) {
-                                root.cancelled();
+                                root.tryCancel();
+                                event.accepted = true;
+                                return;
+                            }
+                            // Backspace to cancel form (only when current field is empty)
+                            if (event.key === Qt.Key_Backspace && textAreaInput.text === "") {
+                                root.tryCancel();
                                 event.accepted = true;
                                 return;
                             }
@@ -674,7 +715,13 @@ Rectangle {
                 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
-                        root.cancelled();
+                        root.tryCancel();
+                        event.accepted = true;
+                        return;
+                    }
+                    // Backspace to cancel form (select fields have no text input)
+                    if (event.key === Qt.Key_Backspace) {
+                        root.tryCancel();
                         event.accepted = true;
                         return;
                     }
@@ -742,7 +789,13 @@ Rectangle {
                 
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
-                        root.cancelled();
+                        root.tryCancel();
+                        event.accepted = true;
+                        return;
+                    }
+                    // Backspace to cancel form (checkboxes have no text input)
+                    if (event.key === Qt.Key_Backspace) {
+                        root.tryCancel();
                         event.accepted = true;
                         return;
                     }

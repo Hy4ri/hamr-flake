@@ -101,12 +101,19 @@ RowLayout {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: {
-                Persistent.states.launcher.actionBarHidden = !Persistent.states.launcher.actionBarHidden;
+                Persistent.states.launcher.viewMode = (Persistent.states.launcher.viewMode + 1) % 3;
             }
         }
         
         StyledToolTip {
-            text: Persistent.states.launcher.actionBarHidden ? "Show action bar" : "Hide action bar"
+            text: {
+                switch (Persistent.states.launcher.viewMode) {
+                    case 0: return "Hide action bar";
+                    case 1: return "Minimal mode";
+                    case 2: return "Show all";
+                    default: return "Hide action bar";
+                }
+            }
         }
     }
 

@@ -382,7 +382,7 @@ Item {
 
             ActionBar {
                 id: actionBar
-                visible: !Persistent.states.launcher.actionBarHidden
+                visible: Persistent.states.launcher.viewMode === 0
                 Layout.fillWidth: true
                 Layout.leftMargin: 12
                 Layout.rightMargin: 12
@@ -569,12 +569,17 @@ Item {
                         PluginRunner.cancelForm();
                         root.focusSearchInput();
                     }
+                    
+                    onCancelRequested: {
+                        formCancelModal.show();
+                    }
                 }
             }
 
              Rectangle {
                 id: resultsContainer
-                visible: root.showResults && !root.showCard && !root.showForm && !(PluginRunner.pluginBusy && PluginRunner.inputMode === "submit") && !root.showImageBrowser && !root.showGridBrowser
+                readonly property bool minimalModeHidesResults: Persistent.states.launcher.viewMode === 2 && root.searchingText === ""
+                visible: root.showResults && !root.showCard && !root.showForm && !(PluginRunner.pluginBusy && PluginRunner.inputMode === "submit") && !root.showImageBrowser && !root.showGridBrowser && !minimalModeHidesResults
                 Layout.fillWidth: true
                 Layout.leftMargin: 6
                 Layout.rightMargin: 6
@@ -862,5 +867,48 @@ Item {
         visible: keybindingMapPopup.visible
         z: 99
         onClicked: keybindingMapPopup.visible = false
+    }
+    
+    // Form cancel confirmation modal
+    ConfirmModal {
+        id: formCancelModal
+        message: "Discard changes?"
+        confirmText: "Discard"
+        cancelText: "Keep editing"
+        destructive: true
+        
+        anchors.centerIn: parent
+        z: 100
+        
+        onConfirmed: {
+            formCancelModal.hide();
+            PluginRunner.cancelForm();
+            root.focusSearchInput();
+        }
+        
+        onCancelled: {
+            formCancelModal.hide();
+            root.focusSearchInput();
+        }
+        
+        Connections {
+            target: GlobalStates
+            function onLauncherOpenChanged() {
+                if (!GlobalStates.launcherOpen) {
+                    formCancelModal.hide();
+                }
+            }
+        }
+    }
+    
+    // Click outside to close form cancel modal
+    MouseArea {
+        anchors.fill: parent
+        visible: formCancelModal.visible
+        z: 99
+        onClicked: {
+            formCancelModal.hide();
+            root.focusSearchInput();
+        }
     }
 }
