@@ -132,7 +132,7 @@ Item {
             horizontalCenter: parent.horizontalCenter
             topMargin: Appearance.sizes.elevationMargin * 20
         }
-        clip: true
+         clip: true
         implicitWidth: (root.showImageBrowser || root.showGridBrowser)
             ? Appearance.sizes.imageBrowserGridWidth + 12  // grid width + margins
             : columnLayout.implicitWidth
@@ -180,9 +180,9 @@ Item {
                 Layout.margins: 6
                 Layout.fillWidth: true
                 radius: Appearance.rounding.small
-                color: Appearance.colors.colSurfaceContainerHigh
-                border.width: 1
-                border.color: Appearance.colors.colSurfaceContainerHighest
+                color: "transparent"
+                border.width: 0
+                border.color: "transparent"
 
                 SearchBar {
                     id: searchBar

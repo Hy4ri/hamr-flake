@@ -29,5 +29,11 @@ TextField {
         id: background
         color: Appearance.colors.colLayer1
         radius: Appearance.rounding.full
+        border.width: filterField.activeFocus ? 2 : 0
+        border.color: Appearance.colors.colPrimary
+        
+        Behavior on border.width {
+            NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+        }
     }
 }
