@@ -111,6 +111,8 @@ Singleton {
             sessionStartCount: 0,
             resumeFromIdleCount: 0,
             launchFromEmptyCount: 0,
+            displayCountCounts: {},
+            sessionDurationCounts: new Array(5).fill(0),
             consecutiveDays: 0,
             lastConsecutiveDate: ""
         };
@@ -126,6 +128,8 @@ Singleton {
         const workspaceCounts = existing.workspaceCounts ? Object.assign({}, existing.workspaceCounts) : {};
         const monitorCounts = existing.monitorCounts ? Object.assign({}, existing.monitorCounts) : {};
         const launchedAfter = existing.launchedAfter ? Object.assign({}, existing.launchedAfter) : {};
+        const displayCountCounts = existing.displayCountCounts ? Object.assign({}, existing.displayCountCounts) : {};
+        const sessionDurationCounts = existing.sessionDurationCounts ? existing.sessionDurationCounts.slice() : new Array(5).fill(0);
 
         hourSlotCounts[hour] = (hourSlotCounts[hour] || 0) + 1;
         dayOfWeekCounts[day] = (dayOfWeekCounts[day] || 0) + 1;
@@ -146,6 +150,15 @@ Singleton {
                 for (const k of Object.keys(launchedAfter)) delete launchedAfter[k];
                 for (const [k, v] of topItems) launchedAfter[k] = v;
             }
+        }
+
+        if (context && context.displayCount) {
+            const key = String(context.displayCount);
+            displayCountCounts[key] = (displayCountCounts[key] || 0) + 1;
+        }
+
+        if (context && context.sessionDurationBucket >= 0) {
+            sessionDurationCounts[context.sessionDurationBucket] = (sessionDurationCounts[context.sessionDurationBucket] || 0) + 1;
         }
 
         let sessionStartCount = existing.sessionStartCount || 0;
@@ -184,6 +197,8 @@ Singleton {
             workspaceCounts: workspaceCounts,
             monitorCounts: monitorCounts,
             launchedAfter: launchedAfter,
+            displayCountCounts: displayCountCounts,
+            sessionDurationCounts: sessionDurationCounts,
             sessionStartCount: sessionStartCount,
             resumeFromIdleCount: resumeFromIdleCount,
             launchFromEmptyCount: launchFromEmptyCount,
@@ -198,6 +213,8 @@ Singleton {
         baseObj.workspaceCounts = smartFields.workspaceCounts;
         baseObj.monitorCounts = smartFields.monitorCounts;
         baseObj.launchedAfter = smartFields.launchedAfter;
+        baseObj.displayCountCounts = smartFields.displayCountCounts;
+        baseObj.sessionDurationCounts = smartFields.sessionDurationCounts;
         baseObj.sessionStartCount = smartFields.sessionStartCount;
         baseObj.resumeFromIdleCount = smartFields.resumeFromIdleCount;
         baseObj.launchFromEmptyCount = smartFields.launchFromEmptyCount;
@@ -431,6 +448,16 @@ Singleton {
                 if (scaled.launchedAfter) {
                     for (const k of Object.keys(scaled.launchedAfter)) {
                         scaled.launchedAfter[k] *= scaleFactor;
+                    }
+                }
+                if (scaled.displayCountCounts) {
+                    for (const k of Object.keys(scaled.displayCountCounts)) {
+                        scaled.displayCountCounts[k] *= scaleFactor;
+                    }
+                }
+                if (scaled.sessionDurationCounts) {
+                    for (let i = 0; i < scaled.sessionDurationCounts.length; i++) {
+                        scaled.sessionDurationCounts[i] *= scaleFactor;
                     }
                 }
                 if (scaled.sessionStartCount) {

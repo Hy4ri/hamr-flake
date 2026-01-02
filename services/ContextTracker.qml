@@ -44,6 +44,18 @@ Singleton {
         return timeSinceResume < dpmsResumeWindowMs;
     }
     
+    // Get session duration bucket (0-4)
+    // 0: 0-5min, 1: 5-30min, 2: 30min-2hr, 3: 2-6hr, 4: 6hr+
+    function getSessionDurationBucket() {
+        if (sessionStartTime === 0) return -1;
+        const minutesSinceStart = (Date.now() - sessionStartTime) / 60000;
+        if (minutesSinceStart < 5) return 0;
+        if (minutesSinceStart < 30) return 1;
+        if (minutesSinceStart < 120) return 2;
+        if (minutesSinceStart < 360) return 3;
+        return 4;
+    }
+
     // Get context object for suggestion calculation - fetches current values on demand
     function getContext() {
         const now = new Date();
@@ -56,7 +68,9 @@ Singleton {
             lastApp: isWithinSequenceWindow() ? lastLaunchedApp : "",
             isSessionStart: isSessionStart(),
             isResumeFromIdle: isResumeFromIdle(),
-            runningApps: CompositorService.runningAppIds
+            runningApps: CompositorService.runningAppIds,
+            displayCount: Quickshell.screens.length,
+            sessionDurationBucket: getSessionDurationBucket()
         };
     }
     
