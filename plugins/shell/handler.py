@@ -2,8 +2,8 @@
 """
 Shell workflow handler - search and execute shell commands.
 Indexes:
-- Shell history (from zsh/bash/fish)
-- Binaries from $PATH (for command auto-detection)
+- Shell history commands (from zsh/bash/fish)
+- Binaries from $PATH that appear in shell history (commands actually used)
 """
 
 import hashlib
@@ -16,8 +16,12 @@ from pathlib import Path
 IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
 
-def get_path_binaries() -> list[str]:
-    """Get all executable binaries from $PATH directories."""
+def get_path_binaries(filter_set: set[str] | None = None) -> list[str]:
+    """Get executable binaries from $PATH directories.
+
+    If filter_set is provided, only return binaries whose names are in the set.
+    This allows filtering to only commands that appear in shell history.
+    """
     path_dirs = os.environ.get("PATH", "").split(":")
     binaries = set()
 
@@ -29,7 +33,9 @@ def get_path_binaries() -> list[str]:
             if p.exists() and p.is_dir():
                 for entry in p.iterdir():
                     if entry.is_file() and os.access(entry, os.X_OK):
-                        binaries.add(entry.name)
+                        name = entry.name
+                        if filter_set is None or name in filter_set:
+                            binaries.add(name)
         except (PermissionError, OSError):
             continue
 
@@ -91,6 +97,20 @@ def get_shell_history() -> list[str]:
                 break
 
     return commands
+
+
+def get_history_command_names() -> set[str]:
+    """Extract unique command names (first word) from shell history.
+
+    Returns a set of command names that have been used, for filtering PATH binaries.
+    """
+    commands = get_shell_history()
+    names = set()
+    for cmd in commands:
+        first_word = cmd.split()[0] if cmd.split() else ""
+        if first_word:
+            names.add(first_word)
+    return names
 
 
 def fuzzy_filter(query: str, commands: list[str]) -> list[str]:
@@ -233,14 +253,16 @@ def main():
     selected = input_data.get("selected", {})
     action = input_data.get("action", "")
 
-    # Indexes both binaries from $PATH and shell history
     if step == "index":
         mode = input_data.get("mode", "full")
         indexed_ids = set(input_data.get("indexedIds", []))
 
-        # Get current binaries and history
-        binaries = get_path_binaries()
-        commands = get_shell_history()[:30]  # Limit to 30 for main search
+        # Get command names from history to filter binaries
+        history_cmd_names = get_history_command_names()
+
+        # Only index binaries that appear in shell history (commands actually used)
+        binaries = get_path_binaries(filter_set=history_cmd_names)
+        commands = get_shell_history()[:50]
 
         # Build current ID sets
         current_bin_ids = {f"bin:{b}" for b in binaries}
