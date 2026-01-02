@@ -497,6 +497,12 @@ def get_plugin_actions(cache_age: float | None = None) -> list[dict]:
             "icon": "lock",
             "shortcut": "Ctrl+2",
         },
+        {
+            "id": "logout",
+            "name": "Logout",
+            "icon": "logout",
+            "shortcut": "Ctrl+3",
+        },
     ]
 
 
@@ -526,6 +532,46 @@ def lock_vault() -> tuple[bool, str]:
         if result.returncode == 0:
             return True, "Vault locked"
         return False, result.stderr.strip() or "Failed to lock"
+    except Exception as e:
+        return False, str(e)
+
+
+def logout_vault() -> tuple[bool, str]:
+    """Logout from the vault completely"""
+    if TEST_MODE:
+        return True, "Logged out"
+
+    if not BW_PATH:
+        return False, "Bitwarden CLI not found"
+
+    # Clear session from keyring
+    clear_session_from_keyring()
+
+    # Clear items cache
+    clear_items_cache()
+
+    # Clear last email
+    if LAST_EMAIL_FILE.exists():
+        try:
+            LAST_EMAIL_FILE.unlink()
+        except OSError:
+            pass
+
+    # Logout via bw CLI
+    try:
+        result = subprocess.run(
+            [BW_PATH, "logout"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env={**os.environ, "NODE_NO_WARNINGS": "1"},
+        )
+        if result.returncode == 0:
+            return True, "Logged out"
+        # Already logged out is fine
+        if "not logged in" in result.stderr.lower():
+            return True, "Logged out"
+        return False, result.stderr.strip() or "Failed to logout"
     except Exception as e:
         return False, str(e)
 
@@ -1036,6 +1082,18 @@ def main():
                 )
             else:
                 respond_card("Error", f"Failed to lock vault: {message}")
+            return
+
+        # Plugin-level action: logout
+        if item_id == "__plugin__" and action == "logout":
+            success, message = logout_vault()
+            if success:
+                respond_execute(
+                    notify="Logged out of Bitwarden",
+                    close=True,
+                )
+            else:
+                respond_card("Error", f"Failed to logout: {message}")
             return
 
         # Legacy sync button (keep for backwards compatibility)

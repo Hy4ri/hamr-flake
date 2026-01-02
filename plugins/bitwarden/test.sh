@@ -572,6 +572,41 @@ test_action_response_has_icon() {
     fi
 }
 
+test_lock_action() {
+    # Plugin action lock should return execute with close
+    local items='[{"id":"i1","type":1,"name":"Item","login":{"username":"u","password":"p"},"notes":""}]'
+    set_cache_items "$items"
+    
+    local result=$(hamr_test action --id "__plugin__" --action "lock")
+    
+    assert_type "$result" "execute"
+    assert_closes "$result"
+    assert_contains "$result" "locked"
+}
+
+test_logout_action() {
+    # Plugin action logout should return execute with close
+    local items='[{"id":"i1","type":1,"name":"Item","login":{"username":"u","password":"p"},"notes":""}]'
+    set_cache_items "$items"
+    
+    local result=$(hamr_test action --id "__plugin__" --action "logout")
+    
+    assert_type "$result" "execute"
+    assert_closes "$result"
+    assert_contains "$result" "Logged out"
+}
+
+test_plugin_actions_include_logout() {
+    # Plugin actions should include logout option
+    local items='[{"id":"i1","type":1,"name":"Item","login":{"username":"u","password":"p"},"notes":""}]'
+    set_cache_items "$items"
+    
+    local result=$(hamr_test initial)
+    
+    assert_contains "$result" '"id": "logout"'
+    assert_contains "$result" '"icon": "logout"'
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -607,4 +642,7 @@ run_tests \
     test_empty_cache_no_results \
     test_all_responses_valid_json \
     test_action_copy_password_has_name_for_history \
-    test_action_response_has_icon
+    test_action_response_has_icon \
+    test_lock_action \
+    test_logout_action \
+    test_plugin_actions_include_logout
