@@ -552,6 +552,8 @@ Each plugin is either:
 
 **Language agnostic:** Plugins communicate via JSON over stdin/stdout. Use Python, Bash, Go, Rust, Node.js - any language that can read/write JSON.
 
+**Full documentation:** See [`plugins/README.md`](plugins/README.md) for the complete protocol reference, response types, indexing, forms, and more.
+
 ### What Plugins Can Do
 
 | Capability | Description |

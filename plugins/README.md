@@ -120,24 +120,26 @@ Your handler receives JSON on stdin with these fields:
 
 ```python
 {
-    "step": "initial|search|action",  # Current step type
-    "query": "user typed text",        # Search bar content
-    "selected": {"id": "item-id"},     # Selected item (for action step)
-    "action": "action-button-id",      # Action button clicked (optional)
-    "context": "custom-context",       # Your custom context (persists across searches)
-    "session": "unique-session-id",    # Session identifier
-    "replay": true                     # True when replaying from history (optional)
+    "step": "initial|search|action|form",  # Current step type
+    "query": "user typed text",             # Search bar content
+    "selected": {"id": "item-id"},          # Selected item (for action step)
+    "action": "action-button-id",           # Action button clicked (optional)
+    "context": "custom-context",            # Your custom context (persists across steps)
+    "formData": {"field": "value"},         # Form field values (for form step)
+    "session": "unique-session-id",         # Session identifier
+    "replay": true                          # True when replaying from history (optional)
 }
 ```
 
-| Field         | When Present     | Description                                               |
-| ------------- | ---------------- | --------------------------------------------------------- |
-| `step`        | Always           | `initial` on start, `search` on typing, `action` on click |
-| `query`       | `search` step    | Current search bar text                                   |
-| `selected.id` | `action` step    | ID of clicked item                                        |
-| `action`      | `action` step    | ID of action button (if clicked via action button)        |
-| `context`     | After you set it | Persists your custom state across `search` calls          |
-| `replay`      | History replay   | `true` when action is replayed from search history        |
+| Field         | When Present     | Description                                                        |
+| ------------- | ---------------- | ------------------------------------------------------------------ |
+| `step`        | Always           | `initial` on start, `search` on typing, `action` on click, `form` on submit |
+| `query`       | `search` step    | Current search bar text                                            |
+| `selected.id` | `action` step    | ID of clicked item                                                 |
+| `action`      | `action` step    | ID of action button (if clicked via action button)                 |
+| `context`     | After you set it | Persists your custom state across steps                            |
+| `formData`    | `form` step      | Object with field id → value pairs from form submission            |
+| `replay`      | History replay   | `true` when action is replayed from search history                 |
 
 ### Output (stdout)
 
@@ -172,6 +174,7 @@ Display a list of selectable items.
     "placeholder": "Search...",          # Optional: search bar placeholder
     "clearInput": true,                  # Optional: clear search text
     "context": "my-state",               # Optional: persist state for search calls
+    "notify": "Action completed",        # Optional: show notification toast
     "pluginActions": [                   # Optional: plugin-level action bar buttons
         {"id": "add", "name": "Add", "icon": "add_circle"},
         {"id": "wipe", "name": "Wipe All", "icon": "delete_sweep", "confirm": "Are you sure?"}
@@ -213,6 +216,7 @@ The `pluginActions` field displays action buttons in a toolbar below the search 
 | `icon`     | string | Yes      | Material icon name                                 |
 | `shortcut` | string | No       | Keyboard shortcut (default: Ctrl+1 through Ctrl+6) |
 | `confirm`  | string | No       | If set, shows confirmation dialog before executing |
+| `active`   | bool   | No       | Highlight button as active (for toggle filters)    |
 
 **Keyboard shortcuts:** Ctrl+1 through Ctrl+6 execute plugin actions directly.
 
@@ -270,10 +274,31 @@ def main():
         # Item-specific actions...
 ```
 
+**Toggle filters with `active` field:**
+
+```python
+def get_plugin_actions(active_filter: str = "") -> list[dict]:
+    return [
+        {
+            "id": "filter_images",
+            "name": "Images",
+            "icon": "image",
+            "active": active_filter == "images",  # Highlighted when active
+        },
+        {
+            "id": "filter_text",
+            "name": "Text",
+            "icon": "text_fields",
+            "active": active_filter == "text",
+        },
+    ]
+```
+
 **Best practices:**
 - Maximum 6 actions (Ctrl+1 through Ctrl+6)
 - Use `confirm` for dangerous/irreversible actions
 - Hide actions during special modes (e.g., pass empty array during add mode)
+- Use `active` for toggle/filter buttons to show current state
 - Common actions: Add, Refresh, Clear/Wipe, Settings, Export
 
 **Example plugins:** [`clipboard/`](clipboard/handler.py), [`todo/`](todo/handler.py), [`notes/`](notes/handler.py)
@@ -282,7 +307,7 @@ def main():
 
 ### 2. `card` - Show Rich Content
 
-Display markdown-formatted content.
+Display markdown-formatted content with optional action buttons.
 
 ```python
 {
@@ -290,14 +315,31 @@ Display markdown-formatted content.
     "card": {
         "title": "Card Title",
         "content": "**Markdown** content with *formatting*",
-        "markdown": true
+        "markdown": true,
+        "actions": [                      # Optional: action buttons
+            {"id": "edit", "name": "Edit", "icon": "edit"},
+            {"id": "copy", "name": "Copy", "icon": "content_copy"},
+            {"id": "back", "name": "Back", "icon": "arrow_back"}
+        ]
     },
-    "inputMode": "submit",               # Optional: wait for Enter before next search
-    "placeholder": "Type reply..."       # Optional: hint for input
+    "context": "item-id",                 # Optional: preserve state for action handling
+    "inputMode": "submit",                # Optional: wait for Enter before next search
+    "placeholder": "Type reply..."        # Optional: hint for input
 }
 ```
 
-**Example plugin:** [`dict/`](dict/handler.py) - Shows word definitions as markdown
+**Card with actions:** When user clicks a card action, handler receives:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "item-id"},        # From context field
+    "action": "edit",                      # The action ID clicked
+    "context": "item-id"
+}
+```
+
+**Example plugins:** [`dict/`](dict/handler.py) - Word definitions, [`notes/`](notes/handler.py) - Note viewer with edit/copy/delete
 
 ---
 
@@ -530,7 +572,200 @@ Add a `preview` field to result items to show rich content in a side panel when 
 
 ---
 
-### 8. `prompt` - Show Input Prompt
+### 8. `form` - Multi-Field Input Dialog
+
+Display a form dialog for collecting multiple inputs at once.
+
+```python
+{
+    "type": "form",
+    "form": {
+        "title": "Add New Note",           # Dialog title
+        "submitLabel": "Save",             # Submit button text (default: "Submit")
+        "cancelLabel": "Cancel",           # Cancel button text (default: "Cancel")
+        "fields": [
+            {
+                "id": "title",             # Field identifier (used in formData)
+                "type": "text",            # Field type: "text" or "textarea"
+                "label": "Title",          # Field label
+                "placeholder": "Enter...", # Placeholder text
+                "required": True,          # Validation (default: false)
+                "default": ""              # Pre-filled value
+            },
+            {
+                "id": "content",
+                "type": "textarea",
+                "label": "Content",
+                "placeholder": "Enter content...\n\nSupports multiple lines.",
+                "rows": 6,                 # Textarea height (default: 4)
+                "default": ""
+            }
+        ]
+    },
+    "context": "__add__"                   # Context passed to form submission
+}
+```
+
+**Field types:**
+
+| Type | Description | Extra Fields |
+|------|-------------|--------------|
+| `text` | Single-line text input | `placeholder`, `required`, `default`, `hint` |
+| `textarea` | Multi-line text input | `placeholder`, `required`, `default`, `rows`, `hint` |
+| `email` | Email input with validation | `placeholder`, `required`, `default`, `hint` |
+| `password` | Masked password input | `placeholder`, `required`, `hint` |
+| `hidden` | Hidden field (not displayed) | `value` (required) |
+
+**Field properties:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id` | string | Field identifier (key in formData) |
+| `type` | string | Field type (see table above) |
+| `label` | string | Display label |
+| `placeholder` | string | Placeholder text |
+| `required` | bool | Validation: field must have value |
+| `default` | string | Pre-filled value |
+| `hint` | string | Help text shown below field |
+| `rows` | int | Textarea height (default: 4) |
+| `value` | string | Value for hidden fields |
+
+**Hidden fields for multi-step forms:**
+
+Use hidden fields to pass data through multi-step form workflows (e.g., 2FA):
+
+```python
+# Step 1: User enters email/password, but 2FA is required
+# Step 2: Show 2FA form with hidden fields to preserve credentials
+{
+    "type": "form",
+    "form": {
+        "title": "Two-Factor Authentication",
+        "fields": [
+            {"id": "email", "type": "hidden", "value": email},
+            {"id": "password", "type": "hidden", "value": password},
+            {"id": "code", "type": "text", "label": "2FA Code", "placeholder": "Enter code"},
+        ]
+    }
+}
+```
+
+**Example plugin:** [`bitwarden/`](bitwarden/handler.py) - Uses email, password, hidden fields for login flow
+
+**Receiving form submission:**
+
+When the user submits the form, the handler receives:
+
+```python
+{
+    "step": "form",                        # Step is "form"
+    "formData": {                          # User's input keyed by field id
+        "title": "My Note Title",
+        "content": "Note content here..."
+    },
+    "context": "__add__",                  # Context you set earlier
+    "session": "..."
+}
+```
+
+**Handling form cancellation:**
+
+When the user cancels the form, the handler receives an action step:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "__form_cancel__"},
+    "context": "__add__",
+    "session": "..."
+}
+```
+
+**Example: Add/Edit workflow**
+
+```python
+def show_add_form():
+    print(json.dumps({
+        "type": "form",
+        "form": {
+            "title": "Add Item",
+            "submitLabel": "Save",
+            "fields": [
+                {"id": "name", "type": "text", "label": "Name", "required": True},
+                {"id": "notes", "type": "textarea", "label": "Notes", "rows": 4}
+            ]
+        },
+        "context": "__add__"
+    }))
+
+def show_edit_form(item):
+    print(json.dumps({
+        "type": "form",
+        "form": {
+            "title": "Edit Item",
+            "submitLabel": "Save",
+            "fields": [
+                {"id": "name", "type": "text", "label": "Name", "required": True, "default": item["name"]},
+                {"id": "notes", "type": "textarea", "label": "Notes", "rows": 4, "default": item.get("notes", "")}
+            ]
+        },
+        "context": f"__edit__:{item['id']}"  # Encode item ID in context
+    }))
+
+def main():
+    input_data = json.load(sys.stdin)
+    step = input_data.get("step", "initial")
+    context = input_data.get("context", "")
+    form_data = input_data.get("formData", {})
+    
+    # Handle form submission
+    if step == "form":
+        if context == "__add__":
+            name = form_data.get("name", "").strip()
+            if name:
+                create_item(name, form_data.get("notes", ""))
+                # Return to list view
+                print(json.dumps({
+                    "type": "results",
+                    "results": get_all_items(),
+                    "navigateBack": True
+                }))
+            else:
+                print(json.dumps({"type": "error", "message": "Name is required"}))
+            return
+        
+        if context.startswith("__edit__:"):
+            item_id = context.split(":", 1)[1]
+            update_item(item_id, form_data)
+            print(json.dumps({
+                "type": "results",
+                "results": get_all_items(),
+                "navigateBack": True
+            }))
+            return
+    
+    # Handle form cancellation
+    if step == "action" and input_data.get("selected", {}).get("id") == "__form_cancel__":
+        print(json.dumps({
+            "type": "results",
+            "results": get_all_items()
+        }))
+        return
+```
+
+**Best practices:**
+
+- Use `context` to distinguish between add vs edit modes
+- Encode item IDs in context for edit operations (e.g., `__edit__:item_123`)
+- Return `navigateBack: True` after successful submission to go back to list view
+- Handle `__form_cancel__` to gracefully return to previous view
+- Use `required: True` for mandatory fields
+
+**Example plugin:** [`notes/`](notes/handler.py) - Add/edit notes with title and content fields
+
+---
+
+### 9. `prompt` - Show Input Prompt
 
 Display a simple text prompt.
 
@@ -545,7 +780,7 @@ Display a simple text prompt.
 
 ---
 
-### 9. `error` - Show Error
+### 10. `error` - Show Error
 
 Display an error message.
 
@@ -680,6 +915,125 @@ if step == "index":
 | `execute.name` | string | Display name for history tracking |
 | `keepOpen` | bool | Keep launcher open after execution (default: false) |
 | `actions` | array | Secondary action buttons |
+| `entryPoint` | object | Entry point for plugin drill-down (see below) |
+
+### Index Item Actions
+
+Actions on index items can include direct execution commands or entry points for plugin navigation:
+
+```python
+"actions": [
+    # Direct command execution (no handler invocation)
+    {
+        "id": "copy",
+        "name": "Copy",
+        "icon": "content_copy",
+        "command": ["wl-copy", "text to copy"],  # Runs directly
+    },
+    # Entry point (invokes handler)
+    {
+        "id": "edit",
+        "name": "Edit",
+        "icon": "edit",
+        "entryPoint": {
+            "step": "action",
+            "selected": {"id": "item-id"},
+            "action": "edit",
+        },
+        "keepOpen": True,  # Keep launcher open
+    },
+]
+```
+
+| Action Field | Type | Description |
+|--------------|------|-------------|
+| `id` | string | Action identifier |
+| `name` | string | Action label |
+| `icon` | string | Material icon |
+| `command` | string[] | Direct shell command (no handler) |
+| `entryPoint` | object | Handler entry point for complex actions |
+| `keepOpen` | bool | Keep launcher open after action |
+
+### Index Item `entryPoint`
+
+For indexed items that need to open the plugin UI (e.g., view details, edit):
+
+```python
+{
+    "id": "note:123",
+    "name": "My Note",
+    "icon": "sticky_note_2",
+    "verb": "View",
+    # Opens plugin with this entry point instead of executing
+    "entryPoint": {
+        "step": "action",
+        "selected": {"id": "123"},
+        "action": "view",
+    },
+    "keepOpen": True,  # Required for entryPoint to work
+}
+```
+
+**Example plugins:** [`notes/`](notes/handler.py), [`bitwarden/`](bitwarden/handler.py)
+
+### Incremental Indexing
+
+For efficient updates, plugins can support incremental indexing. Instead of returning all items, return only new and removed items.
+
+**Input fields for incremental mode:**
+
+```python
+{
+    "step": "index",
+    "mode": "incremental",           # "full" (default) or "incremental"
+    "indexedIds": ["id1", "id2"],    # Previously indexed item IDs
+}
+```
+
+**Handler implementation:**
+
+```python
+if step == "index":
+    mode = input_data.get("mode", "full")
+    indexed_ids = set(input_data.get("indexedIds", []))
+    
+    # Get current items
+    current_items = get_all_items()
+    current_ids = {item["id"] for item in current_items}
+    
+    if mode == "incremental" and indexed_ids:
+        # Find new items (in current but not previously indexed)
+        new_ids = current_ids - indexed_ids
+        new_items = [item for item in current_items if item["id"] in new_ids]
+        
+        # Find removed items (previously indexed but no longer exist)
+        removed_ids = list(indexed_ids - current_ids)
+        
+        print(json.dumps({
+            "type": "index",
+            "mode": "incremental",
+            "items": new_items,
+            "remove": removed_ids,  # IDs to remove from index
+        }))
+    else:
+        # Full reindex
+        print(json.dumps({
+            "type": "index",
+            "items": [item_to_index(i) for i in current_items],
+        }))
+    return
+```
+
+**Response fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Always `"index"` |
+| `mode` | string | `"incremental"` for delta updates |
+| `items` | array | New items to add to index |
+| `remove` | array | Item IDs to remove from index |
+
+**Example plugins:** [`clipboard/`](clipboard/handler.py), [`apps/`](apps/handler.py), [`bitwarden/`](bitwarden/handler.py)
 
 ### Automatic Reindexing
 
@@ -1233,7 +1587,32 @@ Hamr tracks navigation depth automatically and provides a Back button in the UI.
 # Jump to specific depth (e.g., breadcrumb click to go back multiple levels)
 {"type": "results", "results": [...], "navigationDepth": 0}  # Jump to root
 {"type": "results", "results": [...], "navigationDepth": 2}  # Jump to level 2
+
+# Explicitly prevent navigation (for in-place updates like toggle, sync, filter)
+{"type": "results", "results": [...], "navigateForward": False}
 ```
+
+**When to use `navigateForward: False`:**
+
+Use this when an action modifies the view but should NOT increase navigation depth:
+- Toggling item state (e.g., todo done/undone)
+- Applying filters (e.g., show only images)
+- Refreshing/syncing data
+- Any action where pressing Back should NOT undo the action
+
+```python
+# Example: Toggle filter without affecting navigation
+if action == "filter_images":
+    new_filter = "" if context == "images" else "images"
+    print(json.dumps({
+        "type": "results",
+        "results": get_filtered_results(new_filter),
+        "context": new_filter,
+        "navigateForward": False,  # Don't push to navigation stack
+    }))
+```
+
+**Example plugins:** [`clipboard/`](clipboard/handler.py) - Filter toggle, [`todo/`](todo/handler.py) - Task toggle, [`bitwarden/`](bitwarden/handler.py) - Vault sync
 
 **For plugins with nested views** (e.g., folder browser, category drill-down), handle `__back__` to return to the previous view:
 
@@ -1275,6 +1654,40 @@ if step == "action":
 - Set `navigationDepth: N` in `__back__` handler to set exact depth (or use `navigateBack: true` to decrement by 1)
 
 **Important:** Don't add explicit `__back__` items to your results list. Hamr provides a Back button in the UI automatically.
+
+---
+
+## Special Item IDs
+
+Hamr reserves certain item ID prefixes for special handling:
+
+| ID Pattern | Sent By | Purpose |
+|------------|---------|---------|
+| `__back__` | Hamr | User pressed Escape or Back button |
+| `__plugin__` | Hamr | Plugin action button clicked (with `action` field) |
+| `__form_cancel__` | Hamr | User cancelled a form dialog |
+| `__empty__` | Handler | Non-actionable placeholder for empty state |
+| `__info__` | Handler | Non-actionable informational item |
+| `__add__` | Handler | Convention for "add new item" action |
+
+**Empty state placeholder:**
+
+```python
+if not results:
+    results = [{
+        "id": "__empty__",
+        "name": "No items found",
+        "icon": "search_off",
+        "description": "Try a different search term",
+    }]
+
+# In action step, ignore or close
+if item_id == "__empty__":
+    print(json.dumps({"type": "execute", "execute": {"close": True}}))
+    return
+```
+
+**Example plugins:** [`todo/`](todo/handler.py), [`apps/`](apps/handler.py), [`hyprland/`](hyprland/handler.py)
 
 ---
 
