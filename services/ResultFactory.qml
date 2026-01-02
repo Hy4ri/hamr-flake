@@ -352,6 +352,7 @@ Singleton {
             iconName: item.icon ?? 'extension',
             iconType: iconType,
             thumbnail: item.thumbnail ?? "",
+            preview: item.preview ?? undefined,
             verb: verb,
             keepOpen: itemKeepOpen,
             windowCount: windowCount,

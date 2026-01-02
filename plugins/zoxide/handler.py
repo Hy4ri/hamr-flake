@@ -108,11 +108,11 @@ def get_directory_preview(path: str) -> str:
 
         items = []
         for item in sorted(path_obj.iterdir())[:20]:
-            prefix = "/" if item.is_dir() else " "
-            items.append(f"{prefix} {item.name}")
+            suffix = "/" if item.is_dir() else ""
+            items.append(f"{item.name}{suffix}")
 
         if len(list(path_obj.iterdir())) > 20:
-            items.append(f"  ... and more")
+            items.append("...")
 
         return "\n".join(items) if items else "(empty directory)"
     except (PermissionError, OSError):
@@ -135,7 +135,7 @@ def dir_to_index_item(dir_info: dict) -> dict:
 
     # Get directory contents preview
     if TEST_MODE:
-        preview_content = "/ subdir1\n/ subdir2\n  file1.txt\n  file2.py"
+        preview_content = "subdir1/\nsubdir2/\nfile1.txt\nfile2.py"
     else:
         preview_content = get_directory_preview(path)
 

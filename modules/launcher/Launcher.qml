@@ -375,24 +375,23 @@ Scope {
                 property real screenH: fullScreenBackground.height
                 
                 readonly property real panelWidth: Appearance.sizes.searchWidth * 0.75
-                readonly property real overlapRight: 32
-                readonly property real overlapLeft: 12
+                readonly property real overlap: 8
                 
                 readonly property bool showOnRight: {
                     const rightSpace = screenW - launcherRight;
                     const leftSpace = launcherLeft;
-                    return rightSpace >= panelWidth - overlapRight || rightSpace >= leftSpace;
+                    return rightSpace >= panelWidth - overlap || rightSpace >= leftSpace;
                 }
                 
-                // Open position (overlapping with launcher)
+                // Open position (slight overlap to look connected like a drawer)
                 readonly property real openX: showOnRight 
-                    ? launcherRight - overlapRight
-                    : launcherLeft - panelWidth + overlapLeft
+                    ? launcherRight - overlap
+                    : launcherLeft - panelWidth + overlap
                 
                 // Closed position (hidden behind launcher)
                 readonly property real closedX: showOnRight
-                    ? launcherRight - panelWidth + overlapRight
-                    : launcherLeft - overlapLeft
+                    ? launcherRight - panelWidth + overlap
+                    : launcherLeft - overlap
                 
                 // Drawer state: closed -> opening -> open -> closing -> closed
                 property bool drawerOpen: false
