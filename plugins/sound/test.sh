@@ -47,6 +47,12 @@ test_index_returns_items() {
     assert_contains "$result" "sound:mute-toggle"
 }
 
+test_volume_bar_displayed() {
+    local result=$(hamr_test initial)
+    # Volume bar should be displayed in results (mock returns 50%)
+    assert_contains "$result" "[====="
+}
+
 run_tests \
     test_initial_shows_actions \
     test_initial_shows_volume \
@@ -54,4 +60,5 @@ run_tests \
     test_action_vol_up \
     test_action_mute_toggle \
     test_plugin_action_vol_up \
-    test_index_returns_items
+    test_index_returns_items \
+    test_volume_bar_displayed

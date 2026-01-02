@@ -13,6 +13,7 @@ MOCK_PLAYERS = [
         "title": "Bohemian Rhapsody",
         "artist": "Queen",
         "album": "A Night at the Opera",
+        "artUrl": "file:///tmp/album-art.jpg",
     },
     {
         "name": "firefox",
@@ -20,6 +21,7 @@ MOCK_PLAYERS = [
         "title": "YouTube Video",
         "artist": "YouTube",
         "album": "",
+        "artUrl": "",
     },
 ]
 
@@ -57,14 +59,15 @@ def get_players() -> list[dict]:
                 player_name,
                 "metadata",
                 "--format",
-                "{{title}}\t{{artist}}\t{{album}}",
+                "{{title}}\t{{artist}}\t{{album}}\t{{mpris:artUrl}}",
             ]
         )
 
-        parts = metadata.split("\t") if metadata else ["", "", ""]
+        parts = metadata.split("\t") if metadata else ["", "", "", ""]
         title = parts[0] if len(parts) > 0 else ""
         artist = parts[1] if len(parts) > 1 else ""
         album = parts[2] if len(parts) > 2 else ""
+        art_url = parts[3] if len(parts) > 3 else ""
 
         players.append(
             {
@@ -73,6 +76,7 @@ def get_players() -> list[dict]:
                 "title": title,
                 "artist": artist,
                 "album": album,
+                "artUrl": art_url,
             }
         )
 
@@ -90,6 +94,15 @@ def get_status_icon(status: str) -> str:
     return "music_note"
 
 
+def get_art_path(art_url: str) -> str | None:
+    """Convert art URL to local file path if it's a file:// URL"""
+    if not art_url:
+        return None
+    if art_url.startswith("file://"):
+        return art_url[7:]  # Strip "file://"
+    return None
+
+
 def player_to_result(player: dict) -> dict:
     description = player["artist"]
     if player["album"]:
@@ -102,11 +115,12 @@ def player_to_result(player: dict) -> dict:
     status_text = f"[{player['status']}]"
     name = player["title"] or player["name"]
 
-    return {
+    art_path = get_art_path(player.get("artUrl", ""))
+
+    result = {
         "id": f"player:{player['name']}",
         "name": f"{name} {status_text}",
         "description": description or player["name"],
-        "icon": get_status_icon(player["status"]),
         "verb": "Pause" if player["status"].lower() == "playing" else "Play",
         "actions": [
             {"id": "previous", "name": "Previous", "icon": "skip_previous"},
@@ -115,6 +129,14 @@ def player_to_result(player: dict) -> dict:
             {"id": "more", "name": "More", "icon": "tune"},
         ],
     }
+
+    # Use album art as thumbnail if available, otherwise use status icon
+    if art_path:
+        result["thumbnail"] = art_path
+    else:
+        result["icon"] = get_status_icon(player["status"])
+
+    return result
 
 
 def get_initial_plugin_actions() -> list[dict]:

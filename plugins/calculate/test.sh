@@ -69,6 +69,42 @@ test_clear_history_action() {
     assert_contains "$result" "cleared"
 }
 
+test_hex_to_decimal() {
+    local result=$(hamr_test search --query "0xFF to decimal")
+    assert_type "$result" "results"
+    assert_json "$result" '.results[0].name' "255"
+}
+
+test_decimal_to_hex() {
+    local result=$(hamr_test search --query "255 to hex")
+    assert_type "$result" "results"
+    assert_json "$result" '.results[0].name' "0xff"
+}
+
+test_decimal_to_binary() {
+    local result=$(hamr_test search --query "255 to binary")
+    assert_type "$result" "results"
+    assert_json "$result" '.results[0].name' "0b11111111"
+}
+
+test_binary_to_decimal() {
+    local result=$(hamr_test search --query "0b1111 to decimal")
+    assert_type "$result" "results"
+    assert_json "$result" '.results[0].name' "15"
+}
+
+test_binary_to_hex() {
+    local result=$(hamr_test search --query "0b1111 to hex")
+    assert_type "$result" "results"
+    assert_json "$result" '.results[0].name' "0xf"
+}
+
+test_hex_to_binary() {
+    local result=$(hamr_test search --query "0xff to bin")
+    assert_type "$result" "results"
+    assert_json "$result" '.results[0].name' "0b11111111"
+}
+
 run_tests \
     test_initial_shows_prompt \
     test_match_basic_math \
@@ -79,4 +115,10 @@ run_tests \
     test_action_copies_result \
     test_initial_shows_prompt_when_no_history \
     test_history_item_action \
-    test_clear_history_action
+    test_clear_history_action \
+    test_hex_to_decimal \
+    test_decimal_to_hex \
+    test_decimal_to_binary \
+    test_binary_to_decimal \
+    test_binary_to_hex \
+    test_hex_to_binary

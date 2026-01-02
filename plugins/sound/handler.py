@@ -70,11 +70,27 @@ def get_volume_info() -> dict:
     return {"volume": volume, "muted": muted}
 
 
-def action_to_result(action: dict) -> dict:
+def format_volume_bar(volume: float, width: int = 10) -> str:
+    """Create a visual volume bar like [====------]"""
+    filled = int(volume * width)
+    empty = width - filled
+    return f"[{'=' * filled}{'-' * empty}]"
+
+
+def action_to_result(action: dict, vol_info: dict | None = None) -> dict:
+    description = action["description"]
+
+    # Add volume visualization for volume actions
+    if vol_info and action["id"] in ("vol-up", "vol-down", "mute-toggle"):
+        vol_pct = int(vol_info["volume"] * 100)
+        bar = format_volume_bar(vol_info["volume"])
+        mute_indicator = " [MUTED]" if vol_info["muted"] else ""
+        description = f"{bar} {vol_pct}%{mute_indicator}"
+
     return {
         "id": action["id"],
         "name": action["name"],
-        "description": action["description"],
+        "description": description,
         "icon": action["icon"],
         "verb": "Run",
     }
@@ -122,7 +138,7 @@ def main():
         vol_pct = int(vol_info["volume"] * 100)
         mute_status = " [MUTED]" if vol_info["muted"] else ""
 
-        results = [action_to_result(a) for a in SOUND_ACTIONS]
+        results = [action_to_result(a, vol_info) for a in SOUND_ACTIONS]
         print(
             json.dumps(
                 {
@@ -136,6 +152,7 @@ def main():
         return
 
     if step == "search":
+        vol_info = get_volume_info()
         filtered = [
             a
             for a in SOUND_ACTIONS
@@ -143,7 +160,7 @@ def main():
             or query in a["name"].lower()
             or query in a["description"].lower()
         ]
-        results = [action_to_result(a) for a in filtered]
+        results = [action_to_result(a, vol_info) for a in filtered]
         if not results:
             results = [
                 {

@@ -160,6 +160,50 @@ def show_add_form(name: str = "", url: str = "", icon_url: str = ""):
     )
 
 
+def show_edit_form(app: dict):
+    """Show form for editing an existing web app"""
+    print(
+        json.dumps(
+            {
+                "type": "form",
+                "form": {
+                    "title": f"Edit {app['name']}",
+                    "submitLabel": "Save",
+                    "cancelLabel": "Cancel",
+                    "fields": [
+                        {
+                            "id": "name",
+                            "type": "text",
+                            "label": "App Name",
+                            "placeholder": "My Favorite Web App",
+                            "required": True,
+                            "default": app["name"],
+                        },
+                        {
+                            "id": "url",
+                            "type": "text",
+                            "label": "URL",
+                            "placeholder": "https://example.com",
+                            "required": True,
+                            "default": app["url"],
+                        },
+                        {
+                            "id": "icon_url",
+                            "type": "text",
+                            "label": "Icon URL (leave empty to keep current)",
+                            "placeholder": "https://example.com/icon.png",
+                            "required": False,
+                            "default": "",
+                            "hint": "Leave empty to keep current icon",
+                        },
+                    ],
+                },
+                "context": f"__edit__:{app['id']}",
+            }
+        )
+    )
+
+
 def get_webapp_results(webapps: list[dict]) -> list[dict]:
     """Convert webapps to result format"""
     results = []
@@ -183,6 +227,7 @@ def get_webapp_results(webapps: list[dict]) -> list[dict]:
                         "name": "Open Floating",
                         "icon": "picture_in_picture",
                     },
+                    {"id": "edit", "name": "Edit", "icon": "edit"},
                     {"id": "delete", "name": "Delete", "icon": "delete"},
                 ],
             }
@@ -419,6 +464,81 @@ def main():
                 )
             return
 
+        # Editing existing webapp
+        if context.startswith("__edit__:"):
+            app_id = context.split(":", 1)[1]
+            app = next((a for a in webapps if a["id"] == app_id), None)
+
+            if not app:
+                print(json.dumps({"type": "error", "message": "Web app not found"}))
+                return
+
+            name = form_data.get("name", "").strip()
+            url = form_data.get("url", "").strip()
+            icon_url = form_data.get("icon_url", "").strip()
+
+            if not name:
+                print(json.dumps({"type": "error", "message": "App name is required"}))
+                return
+
+            if not url:
+                print(json.dumps({"type": "error", "message": "URL is required"}))
+                return
+
+            # Add https:// if missing
+            if not url.startswith("http://") and not url.startswith("https://"):
+                url = "https://" + url
+
+            # Update app
+            app["name"] = name
+            app["url"] = url
+
+            # Download new icon if provided
+            if icon_url:
+                if not icon_url.startswith("http://") and not icon_url.startswith(
+                    "https://"
+                ):
+                    icon_url = "https://" + icon_url
+
+                new_icon_path = download_icon(icon_url, name)
+                if new_icon_path:
+                    # Delete old icon if different
+                    old_icon = app.get("icon", "")
+                    if (
+                        old_icon
+                        and old_icon != new_icon_path
+                        and Path(old_icon).exists()
+                    ):
+                        Path(old_icon).unlink()
+                    app["icon"] = new_icon_path
+                else:
+                    print(
+                        json.dumps(
+                            {"type": "error", "message": "Failed to download new icon"}
+                        )
+                    )
+                    return
+
+            if save_webapps(webapps):
+                print(
+                    json.dumps(
+                        {
+                            "type": "results",
+                            "results": get_webapp_results(webapps),
+                            "inputMode": "realtime",
+                            "clearInput": True,
+                            "context": "",
+                            "placeholder": "Search web apps...",
+                            "pluginActions": get_plugin_actions(),
+                        }
+                    )
+                )
+            else:
+                print(
+                    json.dumps({"type": "error", "message": "Failed to save web app"})
+                )
+            return
+
     # Action handling
     if step == "action":
         # Plugin-level action: add (from action bar)
@@ -446,6 +566,13 @@ def main():
 
         # Non-actionable items
         if selected_id in ("__empty__",):
+            return
+
+        # Edit action - show edit form
+        if action == "edit":
+            app = next((a for a in webapps if a["id"] == selected_id), None)
+            if app:
+                show_edit_form(app)
             return
 
         # Floating action - open as floating window

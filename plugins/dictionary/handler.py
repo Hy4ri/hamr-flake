@@ -26,6 +26,8 @@ MOCK_DEFINITIONS = {
                         "example": "Hello, how are you?",
                     }
                 ],
+                "synonyms": ["hi", "hey", "greetings"],
+                "antonyms": ["goodbye", "farewell"],
             },
             {
                 "partOfSpeech": "noun",
@@ -35,7 +37,26 @@ MOCK_DEFINITIONS = {
                         "example": "She gave a friendly hello.",
                     }
                 ],
+                "synonyms": [],
+                "antonyms": [],
             },
+        ],
+    },
+    "happy": {
+        "word": "happy",
+        "phonetic": "/ˈhæpi/",
+        "meanings": [
+            {
+                "partOfSpeech": "adjective",
+                "definitions": [
+                    {
+                        "definition": "Feeling or showing pleasure or contentment.",
+                        "example": "She was happy to see him.",
+                    }
+                ],
+                "synonyms": ["cheerful", "content", "delighted", "joyful", "glad"],
+                "antonyms": ["sad", "unhappy", "miserable", "depressed"],
+            }
         ],
     },
     "cat": {
@@ -50,6 +71,8 @@ MOCK_DEFINITIONS = {
                         "example": "The cat sat on the mat.",
                     }
                 ],
+                "synonyms": ["feline", "kitty"],
+                "antonyms": [],
             }
         ],
     },
@@ -65,6 +88,8 @@ MOCK_DEFINITIONS = {
                         "example": "The dog wagged its tail.",
                     }
                 ],
+                "synonyms": ["canine", "hound", "pooch"],
+                "antonyms": [],
             }
         ],
     },
@@ -80,6 +105,8 @@ MOCK_DEFINITIONS = {
                         "example": "She ran to catch the bus.",
                     }
                 ],
+                "synonyms": ["sprint", "dash", "race", "jog"],
+                "antonyms": ["walk", "stroll"],
             }
         ],
     },
@@ -95,6 +122,8 @@ MOCK_DEFINITIONS = {
                         "example": "We walked along the beach.",
                     }
                 ],
+                "synonyms": ["stroll", "amble", "saunter"],
+                "antonyms": ["run", "sprint"],
             }
         ],
     },
@@ -110,6 +139,8 @@ MOCK_DEFINITIONS = {
                         "example": "I think it's going to rain.",
                     }
                 ],
+                "synonyms": ["believe", "consider", "ponder", "reflect"],
+                "antonyms": [],
             }
         ],
     },
@@ -125,6 +156,8 @@ MOCK_DEFINITIONS = {
                         "example": "A man walked into the room.",
                     }
                 ],
+                "synonyms": [],
+                "antonyms": [],
             }
         ],
     },
@@ -160,6 +193,9 @@ def format_definition(data: dict) -> str:
         lines.append(f"**{word}**")
     lines.append("")
 
+    all_synonyms = []
+    all_antonyms = []
+
     for meaning in data.get("meanings", [])[:3]:  # Limit to 3 meanings
         part_of_speech = meaning.get("partOfSpeech", "")
         lines.append(f"*{part_of_speech}*")
@@ -174,6 +210,22 @@ def format_definition(data: dict) -> str:
             if example:
                 lines.append(f'   > "{example}"')
 
+        # Collect synonyms/antonyms from meaning level
+        all_synonyms.extend(meaning.get("synonyms", []))
+        all_antonyms.extend(meaning.get("antonyms", []))
+
+        lines.append("")
+
+    # Add synonyms section if any exist
+    if all_synonyms:
+        unique_synonyms = list(dict.fromkeys(all_synonyms))[:8]  # Limit to 8
+        lines.append(f"**Synonyms:** {', '.join(unique_synonyms)}")
+        lines.append("")
+
+    # Add antonyms section if any exist
+    if all_antonyms:
+        unique_antonyms = list(dict.fromkeys(all_antonyms))[:8]  # Limit to 8
+        lines.append(f"**Antonyms:** {', '.join(unique_antonyms)}")
         lines.append("")
 
     return "\n".join(lines)

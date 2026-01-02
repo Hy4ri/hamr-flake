@@ -15,7 +15,7 @@ test_index_returns_items() {
     local result=$(hamr_test index)
     assert_type "$result" "index"
     local count=$(json_get "$result" '.items | length')
-    assert_eq "$count" "8"
+    assert_eq "$count" "9"
 }
 
 test_index_item_has_power_id() {
@@ -48,6 +48,7 @@ test_initial_has_all_actions() {
     assert_has_result "$result" "lock"
     assert_has_result "$result" "logout"
     assert_has_result "$result" "reload-hyprland"
+    assert_has_result "$result" "reload-niri"
     assert_has_result "$result" "reload-hamr"
 }
 

@@ -64,6 +64,13 @@ test_back_navigation() {
     assert_has_result "$result" "player:spotify"
 }
 
+test_album_art_displayed() {
+    local result=$(hamr_test initial)
+    # Spotify mock player has artUrl, should show thumbnail
+    assert_contains "$result" "thumbnail"
+    assert_contains "$result" "/tmp/album-art.jpg"
+}
+
 run_tests \
     test_initial_shows_players \
     test_initial_shows_status \
@@ -74,4 +81,5 @@ run_tests \
     test_controls_have_plugin_actions \
     test_plugin_action_play_pause \
     test_control_loop_track \
-    test_back_navigation
+    test_back_navigation \
+    test_album_art_displayed

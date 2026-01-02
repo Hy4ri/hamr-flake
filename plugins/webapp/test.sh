@@ -165,6 +165,15 @@ test_initial_has_floating_action() {
     assert_contains "$actions" "floating"
 }
 
+test_initial_has_edit_action() {
+    clear_webapps
+    create_test_webapp "TestApp" "https://example.com"
+    local result=$(hamr_test initial)
+    
+    local actions=$(json_get "$result" '.results[] | select(.name == "TestApp") | .actions')
+    assert_contains "$actions" "edit"
+}
+
 # ============================================================================
 # Tests - Search / Filter
 # ============================================================================
@@ -278,6 +287,56 @@ test_add_form_cancel_returns_to_list() {
     
     assert_type "$result" "results"
     assert_contains "$result" "pluginActions"
+}
+
+# ============================================================================
+# Tests - Edit Web App (Form API)
+# ============================================================================
+
+test_edit_shows_form() {
+    clear_webapps
+    create_test_webapp "TestApp" "https://example.com"
+    local result=$(hamr_test action --id "testapp" --action "edit")
+    
+    assert_type "$result" "form"
+    assert_contains "$result" "__edit__:testapp"
+    assert_contains "$result" "Edit TestApp"
+}
+
+test_edit_form_has_defaults() {
+    clear_webapps
+    create_test_webapp "TestApp" "https://example.com"
+    local result=$(hamr_test action --id "testapp" --action "edit")
+    
+    local name_field=$(json_get "$result" '.form.fields[] | select(.id == "name")')
+    assert_contains "$name_field" '"default": "TestApp"'
+    
+    local url_field=$(json_get "$result" '.form.fields[] | select(.id == "url")')
+    assert_contains "$url_field" '"default": "https://example.com"'
+}
+
+test_edit_form_icon_not_required() {
+    clear_webapps
+    create_test_webapp "TestApp" "https://example.com"
+    local result=$(hamr_test action --id "testapp" --action "edit")
+    
+    local icon_field=$(json_get "$result" '.form.fields[] | select(.id == "icon_url")')
+    assert_contains "$icon_field" '"required": false'
+}
+
+test_edit_updates_webapp() {
+    clear_webapps
+    create_test_webapp "TestApp" "https://example.com"
+    
+    # Submit edit form
+    local result=$(hamr_test form --data '{"name": "UpdatedApp", "url": "https://updated.com", "icon_url": ""}' --context "__edit__:testapp")
+    
+    assert_type "$result" "results"
+    
+    # Verify the file was updated
+    local webapp_data=$(cat "$WEBAPPS_FILE")
+    assert_contains "$webapp_data" "UpdatedApp"
+    assert_contains "$webapp_data" "https://updated.com"
 }
 
 # ============================================================================
@@ -440,6 +499,7 @@ run_tests \
     test_initial_shows_url_as_description \
     test_initial_has_delete_action \
     test_initial_has_floating_action \
+    test_initial_has_edit_action \
     test_search_filters_by_name \
     test_search_filters_by_url \
     test_search_no_results \
@@ -452,6 +512,10 @@ run_tests \
     test_add_form_requires_url \
     test_add_form_requires_icon_url \
     test_add_form_cancel_returns_to_list \
+    test_edit_shows_form \
+    test_edit_form_has_defaults \
+    test_edit_form_icon_not_required \
+    test_edit_updates_webapp \
     test_delete_removes_webapp \
     test_delete_shows_remaining \
     test_delete_shows_empty_when_last \

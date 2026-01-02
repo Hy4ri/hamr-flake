@@ -69,6 +69,17 @@ POWER_ACTIONS = [
         ],
     },
     {
+        "id": "reload-niri",
+        "name": "Reload Niri",
+        "description": "Reload Niri configuration",
+        "icon": "refresh",
+        "command": [
+            "bash",
+            "-c",
+            "niri msg action load-config-file && notify-send 'Niri' 'Configuration reloaded'",
+        ],
+    },
+    {
         "id": "reload-hamr",
         "name": "Reload Hamr",
         "description": "Restart Hamr launcher",

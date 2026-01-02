@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Tests for dict plugin
+# Tests for dictionary plugin
 # Run: ./test.sh
 #
 
@@ -14,7 +14,7 @@ source "$SCRIPT_DIR/../test-helpers.sh"
 # Config
 # ============================================================================
 
-TEST_NAME="Dict Plugin Tests"
+TEST_NAME="Dictionary Plugin Tests"
 HANDLER="$SCRIPT_DIR/handler.py"
 
 # ============================================================================
@@ -215,6 +215,24 @@ test_copy_with_context_from_card() {
     assert_closes "$result"
 }
 
+test_synonyms_displayed() {
+    # Test that synonyms are shown in the definition
+    local result=$(hamr_test search --query "happy")
+    
+    assert_type "$result" "card"
+    assert_contains "$result" "Synonyms"
+    assert_contains "$result" "cheerful"
+}
+
+test_antonyms_displayed() {
+    # Test that antonyms are shown in the definition
+    local result=$(hamr_test search --query "happy")
+    
+    assert_type "$result" "card"
+    assert_contains "$result" "Antonyms"
+    assert_contains "$result" "sad"
+}
+
 # ============================================================================
 # Run
 # ============================================================================
@@ -241,4 +259,6 @@ run_tests \
     test_search_special_characters \
     test_word_lookup_formats_definition \
     test_single_letter_word \
-    test_copy_with_context_from_card
+    test_copy_with_context_from_card \
+    test_synonyms_displayed \
+    test_antonyms_displayed

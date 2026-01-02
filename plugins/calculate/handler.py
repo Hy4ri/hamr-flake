@@ -240,6 +240,68 @@ def preprocess_conversion(expr: str) -> str:
     return expr
 
 
+def convert_hex_binary(expr: str) -> str | None:
+    """
+    Handle hex/binary/decimal conversions:
+    - "0xFF to decimal" or "0xff to dec" -> "255"
+    - "255 to hex" -> "0xFF"
+    - "255 to binary" or "255 to bin" -> "0b11111111"
+    - "0b1111 to decimal" -> "15"
+    - "0b1111 to hex" -> "0xF"
+    """
+    expr_lower = expr.lower().strip()
+
+    # Hex to decimal: "0xff to decimal" or "0xff to dec"
+    match = re.match(r"^(0x[0-9a-f]+)\s+to\s+(decimal|dec)$", expr_lower)
+    if match:
+        try:
+            return str(int(match.group(1), 16))
+        except ValueError:
+            return None
+
+    # Hex to binary: "0xff to binary" or "0xff to bin"
+    match = re.match(r"^(0x[0-9a-f]+)\s+to\s+(binary|bin)$", expr_lower)
+    if match:
+        try:
+            return bin(int(match.group(1), 16))
+        except ValueError:
+            return None
+
+    # Binary to decimal: "0b1111 to decimal"
+    match = re.match(r"^(0b[01]+)\s+to\s+(decimal|dec)$", expr_lower)
+    if match:
+        try:
+            return str(int(match.group(1), 2))
+        except ValueError:
+            return None
+
+    # Binary to hex: "0b1111 to hex"
+    match = re.match(r"^(0b[01]+)\s+to\s+hex$", expr_lower)
+    if match:
+        try:
+            return hex(int(match.group(1), 2))
+        except ValueError:
+            return None
+
+    # Decimal to hex: "255 to hex"
+    match = re.match(r"^(\d+)\s+to\s+hex$", expr_lower)
+    if match:
+        try:
+            return hex(int(match.group(1)))
+        except ValueError:
+            return None
+
+    # Decimal to binary: "255 to binary" or "255 to bin"
+    match = re.match(r"^(\d+)\s+to\s+(binary|bin)$", expr_lower)
+    if match:
+        try:
+            return bin(int(match.group(1)))
+        except ValueError:
+            return None
+
+    return None
+
+
 def preprocess_expression(query: str, math_prefix: str = "=") -> str:
     """Preprocess query into qalc-friendly syntax."""
     expr = query.strip()
@@ -259,6 +321,11 @@ def preprocess_expression(query: str, math_prefix: str = "=") -> str:
 
 def calculate(expr: str) -> str | None:
     """Run qalc and return result, or None on error."""
+    # Try hex/binary conversion first (doesn't need qalc)
+    hex_bin_result = convert_hex_binary(expr)
+    if hex_bin_result:
+        return hex_bin_result
+
     if TEST_MODE:
         # Mock responses for testing
         mock_results = {
