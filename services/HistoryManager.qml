@@ -139,15 +139,12 @@ Singleton {
 
         if (context && context.lastApp) {
             launchedAfter[context.lastApp] = (launchedAfter[context.lastApp] || 0) + 1;
-            const sorted = Object.entries(launchedAfter).sort((a, b) => b[1] - a[1]);
-            if (sorted.length > root.maxSequenceItems) {
-                const keys = Object.keys(launchedAfter);
-                for (const k of keys) {
-                    delete launchedAfter[k];
-                }
-                for (let i = 0; i < root.maxSequenceItems; i++) {
-                    launchedAfter[sorted[i][0]] = sorted[i][1];
-                }
+            if (Object.keys(launchedAfter).length > root.maxSequenceItems) {
+                const topItems = Object.entries(launchedAfter)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, root.maxSequenceItems);
+                for (const k of Object.keys(launchedAfter)) delete launchedAfter[k];
+                for (const [k, v] of topItems) launchedAfter[k] = v;
             }
         }
 
@@ -404,65 +401,54 @@ Singleton {
     function ageAndPruneHistory(history, now) {
         let totalCount = history.reduce((sum, item) => sum + item.count, 0);
 
+        // Scale counts in-place to avoid creating new arrays
         if (totalCount > root.maxTotalScore) {
             const scaleFactor = (root.maxTotalScore * 0.9) / totalCount;
-            history = history.map(item => {
-                const scaled = Object.assign({}, item);
-                scaled.count = item.count * scaleFactor;
+            for (const item of history) {
+                item.count *= scaleFactor;
 
-                if (scaled.hourSlotCounts) {
-                    scaled.hourSlotCounts = scaled.hourSlotCounts.map(c => c * scaleFactor);
-                }
-                if (scaled.dayOfWeekCounts) {
-                    scaled.dayOfWeekCounts = scaled.dayOfWeekCounts.map(c => c * scaleFactor);
-                }
-                if (scaled.workspaceCounts) {
-                    const ws = {};
-                    const entries = Object.entries(scaled.workspaceCounts);
-                    for (let i = 0; i < entries.length; i++) {
-                        ws[entries[i][0]] = entries[i][1] * scaleFactor;
+                if (item.hourSlotCounts) {
+                    for (let i = 0; i < item.hourSlotCounts.length; i++) {
+                        item.hourSlotCounts[i] *= scaleFactor;
                     }
-                    scaled.workspaceCounts = ws;
                 }
-                if (scaled.monitorCounts) {
-                    const mc = {};
-                    const entries = Object.entries(scaled.monitorCounts);
-                    for (let i = 0; i < entries.length; i++) {
-                        mc[entries[i][0]] = entries[i][1] * scaleFactor;
+                if (item.dayOfWeekCounts) {
+                    for (let i = 0; i < item.dayOfWeekCounts.length; i++) {
+                        item.dayOfWeekCounts[i] *= scaleFactor;
                     }
-                    scaled.monitorCounts = mc;
                 }
-                if (scaled.launchedAfter) {
-                    const la = {};
-                    const entries = Object.entries(scaled.launchedAfter);
-                    for (let i = 0; i < entries.length; i++) {
-                        la[entries[i][0]] = entries[i][1] * scaleFactor;
+                if (item.workspaceCounts) {
+                    for (const k of Object.keys(item.workspaceCounts)) {
+                        item.workspaceCounts[k] *= scaleFactor;
                     }
-                    scaled.launchedAfter = la;
                 }
-                if (scaled.sessionStartCount) {
-                    scaled.sessionStartCount = scaled.sessionStartCount * scaleFactor;
+                if (item.monitorCounts) {
+                    for (const k of Object.keys(item.monitorCounts)) {
+                        item.monitorCounts[k] *= scaleFactor;
+                    }
                 }
-                if (scaled.resumeFromIdleCount) {
-                    scaled.resumeFromIdleCount = scaled.resumeFromIdleCount * scaleFactor;
+                if (item.launchedAfter) {
+                    for (const k of Object.keys(item.launchedAfter)) {
+                        item.launchedAfter[k] *= scaleFactor;
+                    }
                 }
-                if (scaled.launchFromEmptyCount) {
-                    scaled.launchFromEmptyCount = scaled.launchFromEmptyCount * scaleFactor;
+                if (item.sessionStartCount) {
+                    item.sessionStartCount *= scaleFactor;
                 }
-
-                return scaled;
-            });
+                if (item.resumeFromIdleCount) {
+                    item.resumeFromIdleCount *= scaleFactor;
+                }
+                if (item.launchFromEmptyCount) {
+                    item.launchFromEmptyCount *= scaleFactor;
+                }
+            }
         }
 
         const maxAgeMs = root.maxAgeDays * 24 * 60 * 60 * 1000;
-        history = history.filter(item => {
+        return history.filter(item => {
             const age = now - item.lastUsed;
-            const isOld = age > maxAgeMs;
-            const hasLowScore = item.count < 1;
-            return !(isOld && hasLowScore);
+            return !(age > maxAgeMs && item.count < 1);
         });
-
-        return history;
     }
 
     function getAppLaunchCount(appId) {

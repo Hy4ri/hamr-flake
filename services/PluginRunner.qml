@@ -435,6 +435,10 @@ Singleton {
     // Each plugin: { id, path, manifest: { name, description, icon, ... }, isBuiltin: bool }
     // User plugins override built-in plugins with the same id
     property var plugins: []
+    // Plugins sorted by match priority (highest first) for efficient pattern matching
+    property var pluginsByPriority: plugins.slice().sort((a, b) => 
+        (b.manifest?.match?.priority ?? 0) - (a.manifest?.match?.priority ?? 0)
+    )
     property var pendingManifestLoads: []
     property bool pluginsLoaded: false  // True when all manifests have been loaded
     property string pendingPluginStart: ""  // Plugin ID to start once loaded
@@ -1386,36 +1390,28 @@ Singleton {
      
      // Check if query matches any plugin's patterns
      // Returns: { pluginId, priority } or null if no match
+     // Uses pluginsByPriority (sorted highest-first) for early exit on first match
      function findMatchingPlugin(query) {
          if (!query || query.trim() === "") return null;
          
-         let bestMatch = null;
-         let bestPriority = -Infinity;
-         
-         for (const plugin of root.plugins) {
+         // Iterate in priority order - first match wins
+         for (const plugin of root.pluginsByPriority) {
              if (!plugin?.manifest?.match?.patterns) continue;
              
              const patterns = root.matchPatternCache[plugin.id];
              if (!patterns) continue;
              
-             const priority = plugin.manifest.match.priority ?? 0;
-             
-             // Skip if we already have a higher priority match
-             if (priority < bestPriority) continue;
-             
-             // Check if any pattern matches
              for (const regex of patterns) {
                  if (regex.test(query)) {
-                     if (priority > bestPriority) {
-                         bestPriority = priority;
-                         bestMatch = { pluginId: plugin.id, priority: priority };
-                     }
-                     break;
+                     return { 
+                         pluginId: plugin.id, 
+                         priority: plugin.manifest.match.priority ?? 0 
+                     };
                  }
              }
          }
          
-         return bestMatch;
+         return null;
      }
      
      // Check if a plugin has match patterns defined

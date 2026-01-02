@@ -424,82 +424,82 @@ Singleton {
      function rebuildHistorySearchables() {
          const items = [];
 
+         // Build lookup maps once - O(n) instead of O(n²) with repeated .find()
          const indexedItems = PluginRunner.getAllIndexedItems();
-         for (const historyItem of searchHistoryData.filter(h => h.type === "app" && h.recentSearchTerms?.length > 0)) {
-             const appItem = indexedItems.find(item => item.appId === historyItem.name);
-             if (!appItem) continue;
-             for (const term of historyItem.recentSearchTerms) {
-                 items.push({
-                     name: Fuzzy.prepare(term),
-                     sourceType: ResultFactory.sourceType.INDEXED_ITEM,
-                     id: appItem.id,
-                     data: { item: appItem, historyItem },
-                     isHistoryTerm: true,
-                     matchedTerm: term
-                 });
-             }
-         }
+         const appIdMap = new Map(indexedItems.filter(i => i.appId).map(i => [i.appId, i]));
+         const actionMap = new Map(root.allActions.map(a => [a.action, a]));
+         const pluginMap = new Map(PluginRunner.plugins.map(p => [p.id, p]));
 
-         for (const historyItem of searchHistoryData.filter(h => h.type === "action" && h.recentSearchTerms?.length > 0)) {
-             const action = root.allActions.find(a => a.action === historyItem.name);
-             if (!action) continue;
-             for (const term of historyItem.recentSearchTerms) {
-                 items.push({
-                     name: Fuzzy.prepare(term),
-                     sourceType: ResultFactory.sourceType.PLUGIN,
-                     id: `action:${action.action}`,
-                     data: { action, historyItem, isAction: true },
-                     isHistoryTerm: true,
-                     matchedTerm: term
-                 });
-             }
-         }
-
-         for (const historyItem of searchHistoryData.filter(h => h.type === "workflow" && h.recentSearchTerms?.length > 0)) {
-             const plugin = PluginRunner.getPlugin(historyItem.name);
-             if (!plugin) continue;
-             for (const term of historyItem.recentSearchTerms) {
-                 items.push({
-                     name: Fuzzy.prepare(term),
-                     sourceType: ResultFactory.sourceType.PLUGIN,
-                     id: `workflow:${plugin.id}`,
-                     data: { plugin, historyItem, isAction: false },
-                     isHistoryTerm: true,
-                     matchedTerm: term
-                 });
-             }
-         }
-
-         for (const historyItem of searchHistoryData.filter(h => h.type === "workflowExecution")) {
-             items.push({
-                 name: Fuzzy.prepare(`${historyItem.workflowName} ${historyItem.name}`),
-                 sourceType: ResultFactory.sourceType.PLUGIN_EXECUTION,
-                 id: historyItem.key,
-                 data: { historyItem },
-                 isHistoryTerm: false
-             });
-             if (historyItem.recentSearchTerms) {
+         // Single pass through history data
+         for (const historyItem of searchHistoryData) {
+             if (historyItem.type === "app" && historyItem.recentSearchTerms?.length > 0) {
+                 const appItem = appIdMap.get(historyItem.name);
+                 if (!appItem) continue;
                  for (const term of historyItem.recentSearchTerms) {
                      items.push({
                          name: Fuzzy.prepare(term),
-                         sourceType: ResultFactory.sourceType.PLUGIN_EXECUTION,
-                         id: historyItem.key,
-                         data: { historyItem },
+                         sourceType: ResultFactory.sourceType.INDEXED_ITEM,
+                         id: appItem.id,
+                         data: { item: appItem, historyItem },
                          isHistoryTerm: true,
                          matchedTerm: term
                      });
                  }
+             } else if (historyItem.type === "action" && historyItem.recentSearchTerms?.length > 0) {
+                 const action = actionMap.get(historyItem.name);
+                 if (!action) continue;
+                 for (const term of historyItem.recentSearchTerms) {
+                     items.push({
+                         name: Fuzzy.prepare(term),
+                         sourceType: ResultFactory.sourceType.PLUGIN,
+                         id: `action:${action.action}`,
+                         data: { action, historyItem, isAction: true },
+                         isHistoryTerm: true,
+                         matchedTerm: term
+                     });
+                 }
+             } else if (historyItem.type === "workflow" && historyItem.recentSearchTerms?.length > 0) {
+                 const plugin = pluginMap.get(historyItem.name);
+                 if (!plugin) continue;
+                 for (const term of historyItem.recentSearchTerms) {
+                     items.push({
+                         name: Fuzzy.prepare(term),
+                         sourceType: ResultFactory.sourceType.PLUGIN,
+                         id: `workflow:${plugin.id}`,
+                         data: { plugin, historyItem, isAction: false },
+                         isHistoryTerm: true,
+                         matchedTerm: term
+                     });
+                 }
+             } else if (historyItem.type === "workflowExecution") {
+                 items.push({
+                     name: Fuzzy.prepare(`${historyItem.workflowName} ${historyItem.name}`),
+                     sourceType: ResultFactory.sourceType.PLUGIN_EXECUTION,
+                     id: historyItem.key,
+                     data: { historyItem },
+                     isHistoryTerm: false
+                 });
+                 if (historyItem.recentSearchTerms) {
+                     for (const term of historyItem.recentSearchTerms) {
+                         items.push({
+                             name: Fuzzy.prepare(term),
+                             sourceType: ResultFactory.sourceType.PLUGIN_EXECUTION,
+                             id: historyItem.key,
+                             data: { historyItem },
+                             isHistoryTerm: true,
+                             matchedTerm: term
+                         });
+                     }
+                 }
+             } else if (historyItem.type === "webSearch") {
+                 items.push({
+                     name: Fuzzy.prepare(historyItem.name),
+                     sourceType: ResultFactory.sourceType.WEB_SEARCH,
+                     id: `webSearch:${historyItem.name}`,
+                     data: { query: historyItem.name, historyItem },
+                     isHistoryTerm: false
+                 });
              }
-         }
-
-         for (const historyItem of searchHistoryData.filter(h => h.type === "webSearch")) {
-             items.push({
-                 name: Fuzzy.prepare(historyItem.name),
-                 sourceType: ResultFactory.sourceType.WEB_SEARCH,
-                 id: `webSearch:${historyItem.name}`,
-                 data: { query: historyItem.name, historyItem },
-                 isHistoryTerm: false
-             });
          }
 
          root.preppedHistorySearchables = items;
@@ -721,12 +721,12 @@ Singleton {
     }
 
     // Create suggestion results from SmartSuggestions
-    function createSuggestionResults(allIndexed) {
+    function createSuggestionResults(allIndexed, appIdMap) {
         const suggestions = SmartSuggestions.getSuggestions();
 
         return suggestions.map(suggestion => {
             const historyItem = suggestion.item;
-            const appItem = allIndexed.find(idx => idx.appId === historyItem.name);
+            const appItem = appIdMap.get(historyItem.name);
             if (!appItem) return null;
 
             const appId = appItem.appId;
@@ -858,9 +858,13 @@ Singleton {
              const _historyLoaded = searchHistoryData.length;
 
              const allIndexed = PluginRunner.getAllIndexedItems();
+             // Build lookup maps for O(1) access instead of O(n) .find() calls
+             const appIdMap = new Map(allIndexed.filter(i => i.appId).map(i => [i.appId, i]));
+             const actionMap = new Map(root.allActions.map(a => [a.action, a]));
+             const pluginMap = new Map(PluginRunner.plugins.map(p => [p.id, p]));
 
              // Get smart suggestions first
-             const suggestions = root.createSuggestionResults(allIndexed);
+             const suggestions = root.createSuggestionResults(allIndexed, appIdMap);
              const suggestionAppIds = new Set(suggestions.map(s => s.id));
 
              if (_historyLoaded === 0) return suggestions;
@@ -876,7 +880,7 @@ Singleton {
                      });
 
                     if (item.type === "app") {
-                        const appItem = allIndexed.find(idx => idx.appId === item.name);
+                        const appItem = appIdMap.get(item.name);
                         if (!appItem) return null;
                         const appId = appItem.appId;
                         return resultComp.createObject(null, {
@@ -904,7 +908,7 @@ Singleton {
                              })(appItem, appId)
                          });
                      } else if (item.type === "action") {
-                         const action = root.allActions.find(a => a.action === item.name);
+                         const action = actionMap.get(item.name);
                          if (!action) return null;
                         return resultComp.createObject(null, {
                             type: "Recent",
@@ -919,7 +923,7 @@ Singleton {
                             }
                         });
                     } else if (item.type === "workflow") {
-                        const plugin = PluginRunner.getPlugin(item.name);
+                        const plugin = pluginMap.get(item.name);
                         if (!plugin) return null;
                         return resultComp.createObject(null, {
                             type: "Recent",
