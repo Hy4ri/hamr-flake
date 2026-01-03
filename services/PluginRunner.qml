@@ -98,22 +98,25 @@ Singleton {
     // Updated via: response.status field, or IPC call "hamr status <plugin> <json>"
     
     // Status per plugin: { pluginId: { badges: [...], description: "..." } }
-    property var pluginStatuses: ({})
+    // Using a non-reactive internal object to avoid triggering full results rebuild
+    property var _pluginStatusesInternal: ({})
     
-    // Signal when plugin status changes (for LauncherSearch to update entries)
-    signal pluginStatusChanged(string pluginId)
+    // Version counter - increments on any status update to trigger badge refresh
+    // SearchItem depends on this to re-evaluate badges without rebuilding results list
+    property int statusVersion: 0
     
-    // Update status for a plugin (called from response handling or IPC)
+    function getPluginStatus(pluginId) {
+        return root._pluginStatusesInternal[pluginId] ?? null;
+    }
+    
     function updatePluginStatus(pluginId, status) {
         if (!status || typeof status !== "object") return;
         
-        const newStatuses = Object.assign({}, root.pluginStatuses);
-        newStatuses[pluginId] = {
+        root._pluginStatusesInternal[pluginId] = {
             badges: status.badges ?? [],
             description: status.description ?? null
         };
-        root.pluginStatuses = newStatuses;
-        root.pluginStatusChanged(pluginId);
+        root.statusVersion++;
     }
 
     // ==================== PLUGIN INDEXING ====================

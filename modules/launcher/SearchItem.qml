@@ -36,7 +36,18 @@ RippleButton {
     property string bigText: entry?.iconType === LauncherSearchResult.IconType.Text ? entry?.iconName ?? "" : ""
     property string materialSymbol: entry?.iconType === LauncherSearchResult.IconType.Material ? entry?.iconName ?? "" : ""
     property string thumbnail: entry?.thumbnail ?? ""
-    property var badges: entry?.badges ?? []
+    property bool isPluginEntry: entry?.resultType === LauncherSearchResult.ResultType.PluginEntry
+    property string entryPluginId: entry?.pluginId ?? ""
+    // For plugin entries, get badges from live status; otherwise use entry badges
+    // Depends on statusVersion to trigger re-evaluation when status updates
+    property var badges: {
+        const _version = PluginRunner.statusVersion; // Reactive dependency
+        if (isPluginEntry && entryPluginId) {
+            const status = PluginRunner.getPluginStatus(entryPluginId);
+            if (status?.badges) return status.badges;
+        }
+        return entry?.badges ?? [];
+    }
     property var graphData: entry?.graph ?? null
     property var gaugeData: entry?.gauge ?? null
     // Progress bar properties

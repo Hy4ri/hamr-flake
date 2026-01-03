@@ -1250,6 +1250,8 @@ Badges use the same format as result item badges:
 - **On reindex**: Plugins with file/event watchers update on data changes
 - **Via IPC**: External scripts can push updates anytime via `hamr status`
 
+**Live updates**: Status badges update in real-time without flickering or resetting selection. External processes can push frequent updates (e.g., progress indicators) and the UI will smoothly reflect changes.
+
 **Example plugins:** [`todo/`](todo/handler.py) - Shows pending task count
 
 ---
