@@ -114,6 +114,7 @@ Singleton {
         
         root._pluginStatusesInternal[pluginId] = {
             badges: status.badges ?? [],
+            chips: status.chips ?? [],
             description: status.description ?? null
         };
         root.statusVersion++;

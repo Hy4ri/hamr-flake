@@ -95,8 +95,10 @@ QtObject {
      property string displayValue: ""
      
      // ==================== VISUAL ENHANCEMENTS ====================
-     // Badges: array of { label, value, icon, image }
+     // Badges: array of { text, icon, image, background, color }
      property var badges: []
+     // Chips: array of { text, icon, background, color } - pill-shaped tags for longer text
+     property var chips: []
      // Graph: { data: number[], min?, max? }
      property var graph: null
      // Gauge: { value, max, label? }

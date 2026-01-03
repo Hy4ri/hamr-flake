@@ -54,11 +54,12 @@ def load_todos() -> list[dict]:
 
 
 def get_status(todos: list[dict]) -> dict:
-    """Get plugin status with pending count badge"""
+    """Get plugin status with pending count chip"""
     pending = sum(1 for t in todos if not t.get("done", False))
     if pending > 0:
-        return {"badges": [{"text": str(pending)}]}
-    return {"badges": []}
+        label = "task" if pending == 1 else "tasks"
+        return {"chips": [{"text": f"{pending} {label}", "icon": "task_alt"}]}
+    return {"chips": []}
 
 
 def save_todos(todos: list[dict]) -> None:

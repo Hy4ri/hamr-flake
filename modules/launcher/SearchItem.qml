@@ -38,7 +38,7 @@ RippleButton {
     property string thumbnail: entry?.thumbnail ?? ""
     property bool isPluginEntry: entry?.resultType === LauncherSearchResult.ResultType.PluginEntry
     property string entryPluginId: entry?.pluginId ?? ""
-    // For plugin entries, get badges from live status; otherwise use entry badges
+    // For plugin entries, get badges/chips from live status; otherwise use entry values
     // Depends on statusVersion to trigger re-evaluation when status updates
     property var badges: {
         const _version = PluginRunner.statusVersion; // Reactive dependency
@@ -47,6 +47,14 @@ RippleButton {
             if (status?.badges) return status.badges;
         }
         return entry?.badges ?? [];
+    }
+    property var chips: {
+        const _version = PluginRunner.statusVersion; // Reactive dependency
+        if (isPluginEntry && entryPluginId) {
+            const status = PluginRunner.getPluginStatus(entryPluginId);
+            if (status?.chips) return status.chips;
+        }
+        return entry?.chips ?? [];
     }
     property var graphData: entry?.graph ?? null
     property var gaugeData: entry?.gauge ?? null
@@ -577,6 +585,20 @@ RippleButton {
                     Layout.rightMargin: 4
                     text: modelData.text ?? ""
                     image: modelData.image ?? ""
+                    icon: modelData.icon ?? ""
+                    backgroundColor: modelData.background ? Qt.color(modelData.background) : Appearance.colors.colSurfaceContainerHighest
+                    textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface
+                }
+            }
+            
+            // Chips (pill-shaped tags for longer text)
+            Repeater {
+                model: root.chips.slice(0, 3)
+                
+                delegate: Chip {
+                    required property var modelData
+                    Layout.rightMargin: 4
+                    text: modelData.text ?? ""
                     icon: modelData.icon ?? ""
                     backgroundColor: modelData.background ? Qt.color(modelData.background) : Appearance.colors.colSurfaceContainerHighest
                     textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface

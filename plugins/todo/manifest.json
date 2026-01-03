@@ -2,5 +2,9 @@
     "name": "Todo",
     "description": "Manage your todo list",
     "icon": "checklist",
-    "supportedCompositors": ["*"]
+    "supportedCompositors": ["*"],
+    "index": {
+        "enabled": true,
+        "reindex": "never"
+    }
 }

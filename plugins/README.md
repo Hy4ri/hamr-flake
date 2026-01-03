@@ -1219,12 +1219,13 @@ hamr status todo '{"badges": [{"text": "!"}], "description": "Action required"}'
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `badges` | array | Array of badge objects (same format as result badges) |
+| `badges` | array | Circular indicators (1-3 chars, icons) |
+| `chips` | array | Pill-shaped tags for longer text |
 | `description` | string | Override the manifest description temporarily |
 
 ### Badge Format
 
-Badges use the same format as result item badges:
+Badges are circular indicators for short content (1-3 characters):
 
 ```python
 {
@@ -1235,14 +1236,28 @@ Badges use the same format as result item badges:
 }
 ```
 
+### Chip Format
+
+Chips are pill-shaped tags for longer text (a few words):
+
+```python
+{
+    "text": "5 tasks",              # Longer descriptive text
+    "icon": "task_alt",             # Optional: material icon before text
+    "background": "#4caf50",        # Optional: background color
+    "color": "#ffffff"              # Optional: text color
+}
+```
+
 ### Use Cases
 
-| Use Case | Example |
-|----------|---------|
-| Unread count | `{"badges": [{"text": "12"}]}` |
-| Alert/warning | `{"badges": [{"text": "!", "background": "#f44336"}]}` |
-| Status indicator | `{"badges": [{"icon": "sync"}]}` |
-| Multiple badges | `{"badges": [{"text": "3"}, {"icon": "star"}]}` |
+| Use Case | Format | Example |
+|----------|--------|---------|
+| Unread count | Badge | `{"badges": [{"text": "12"}]}` |
+| Alert/warning | Badge | `{"badges": [{"text": "!", "background": "#f44336"}]}` |
+| Status indicator | Badge | `{"badges": [{"icon": "sync"}]}` |
+| Task count | Chip | `{"chips": [{"text": "5 tasks", "icon": "task_alt"}]}` |
+| Status text | Chip | `{"chips": [{"text": "Syncing...", "icon": "sync"}]}` |
 
 ### When Status Updates
 
@@ -1252,7 +1267,7 @@ Badges use the same format as result item badges:
 
 **Live updates**: Status badges update in real-time without flickering or resetting selection. External processes can push frequent updates (e.g., progress indicators) and the UI will smoothly reflect changes.
 
-**Example plugins:** [`todo/`](todo/handler.py) - Shows pending task count
+**Example plugins:** [`todo/`](todo/handler.py) - Shows pending task count as chip
 
 ---
 

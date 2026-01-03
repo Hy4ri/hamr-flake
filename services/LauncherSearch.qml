@@ -806,8 +806,8 @@ Singleton {
             });
 
             const pluginMatches = searchString === ""
-                ? PluginRunner.plugins.slice(0, 20)
-                : Fuzzy.go(searchString, root.preppedPlugins, { key: "name", limit: 20 }).map(r => r.obj.plugin);
+                ? PluginRunner.plugins
+                : Fuzzy.go(searchString, root.preppedPlugins, { key: "name", limit: 50 }).map(r => r.obj.plugin);
 
             const pluginItems = pluginMatches.map(plugin => {
                 return resultComp.createObject(null, {
