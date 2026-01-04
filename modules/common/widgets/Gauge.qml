@@ -25,6 +25,10 @@ Item {
 
     Shape {
         anchors.fill: parent
+        antialiasing: true
+        layer.enabled: true
+        layer.smooth: true
+        layer.samples: 4
 
         ShapePath {
             id: backgroundPath

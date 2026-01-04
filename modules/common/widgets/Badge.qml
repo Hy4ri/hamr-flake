@@ -13,11 +13,10 @@ Rectangle {
     property string image: ""
     // Material icon name
     property string icon: ""
-    // Colors (optional - defaults to theme colors)
-    property color backgroundColor: Appearance.colors.colSurfaceContainerHighest
+    // Icon/text color (background is always theme default)
     property color textColor: Appearance.m3colors.m3onSurface
 
-    readonly property int badgeSize: 24
+    readonly property int badgeSize: 20
     readonly property bool hasImage: root.image !== "" && avatarImage.status === Image.Ready
     readonly property bool hasIcon: root.icon !== "" && root.image === ""
     readonly property bool hasText: root.text !== "" && root.image === "" && root.icon === ""
@@ -28,14 +27,14 @@ Rectangle {
     height: badgeSize
 
     radius: badgeSize / 2
-    color: root.hasImage ? "transparent" : root.backgroundColor
-    border.width: 2
-    border.color: Appearance.colors.colPrimary
+    color: root.hasImage ? "transparent" : Appearance.colors.colSurfaceContainerHighest
+    border.width: 1
+    border.color: Appearance.colors.colOutline
 
     Image {
         id: avatarImage
         anchors.fill: parent
-        anchors.margins: 2
+        anchors.margins: 1
         visible: root.image !== ""
         source: {
             if (!root.image) return "";
@@ -60,7 +59,7 @@ Rectangle {
         visible: root.hasIcon
         anchors.centerIn: parent
         text: root.icon
-        iconSize: 14
+        iconSize: 12
         color: root.textColor
     }
 
@@ -74,7 +73,7 @@ Rectangle {
         color: root.textColor
         font {
             family: Appearance.font.family.monospace
-            pixelSize: root.text.length > 2 ? 8 : (root.text.length > 1 ? 9 : 10)
+            pixelSize: root.text.length > 2 ? 7 : (root.text.length > 1 ? 8 : 9)
             weight: Font.Bold
         }
     }
