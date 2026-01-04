@@ -44,6 +44,8 @@ Hamr is an extensible launcher for Wayland compositors built with [Quickshell](h
 - **Preview panel** - Drawer-style side panel shows rich previews (images, markdown, metadata) on hover/selection; pin previews to screen
 - **Draggable & persistent position** - Drag the launcher anywhere on screen; position remembered across sessions
 - **State restoration** - Click outside to dismiss, reopen within 30s to resume where you left off (configurable)
+- **Live plugin updates** - Plugins can emit real-time updates via daemon mode (no full list refresh, preserves focus)
+- **File watching** - Plugins can watch files/directories for changes with native inotify
 
 ### Prefix Shortcuts
 
@@ -87,9 +89,10 @@ All plugins are indexed and searchable directly from the main bar - no prefix re
 | `sound` | System volume controls (volume up/down, mute, mic mute) |
 | `shell` | Shell command history (zsh/bash/fish) |
 | `snippet` | Text snippets for quick insertion |
-| `todo` | Simple todo list manager |
-| `topcpu` | Process monitor sorted by CPU usage (auto-refresh) |
-| `topmem` | Process monitor sorted by memory usage (auto-refresh) |
+| `theme` | Dark/light mode and accent color switching |
+| `todo` | Simple todo list manager (live updates via daemon) |
+| `topcpu` | Process monitor sorted by CPU usage (live daemon refresh) |
+| `topmem` | Process monitor sorted by memory usage (live daemon refresh) |
 | `url` | Open URLs in browser (auto-detects domain patterns) |
 | `wallpaper` | Wallpaper selector (swww, hyprpaper, swaybg, feh) |
 | `webapp` | Install and manage web apps |
@@ -162,15 +165,6 @@ The `niri` plugin provides natural language access to Niri window management, op
 - `power off monitors`, `power on monitors`
 
 Type `/niri` to browse all available actions, or search directly from the main bar.
-
-### Simple Actions (Scripts)
-
-| Action | Description |
-|--------|-------------|
-| `screenshot-snip` | Take screenshot with grim + satty |
-| `dark` | Switch to dark mode (matugen + gsettings) |
-| `light` | Switch to light mode (matugen + gsettings) |
-| `accentcolor` | Set accent color from hex (matugen) |
 
 ## Installation
 
@@ -552,7 +546,7 @@ Each plugin is either:
 
 **Language agnostic:** Plugins communicate via JSON over stdin/stdout. Use Python, Bash, Go, Rust, Node.js - any language that can read/write JSON.
 
-**Full documentation:** See [`plugins/README.md`](plugins/README.md) for the complete protocol reference, response types, indexing, forms, and more.
+**Full documentation:** See [`plugins/README.md`](plugins/README.md) for the complete protocol reference, response types, indexing, daemon mode, forms, and more.
 
 ### What Plugins Can Do
 
@@ -572,7 +566,10 @@ Each plugin is either:
 | **Custom placeholders** | Change search bar placeholder text per step |
 | **Live search** | Filter results as user types |
 | **Submit mode** | Wait for Enter before processing (for text input, chat) |
-| **Auto-refresh polling** | Periodic updates for live data (process monitors, stats) |
+| **Daemon mode** | Persistent processes with live updates (async file watching, real-time data) |
+| **File watching** | Plugins watch files/directories with inotify for instant updates |
+| **Incremental updates** | `update` response type patches individual items without full refresh |
+| **Visual enhancements** | Badges, chips, gauges, progress bars, graphs for rich result displays |
 
 <details>
 <summary><strong>Quick Start: Hello World Plugin</strong></summary>
@@ -673,6 +670,20 @@ Type `/hello` to try it!
 }
 ```
 
+**Update Individual Items (preserves selection/focus):**
+```json
+{
+  "type": "update",
+  "items": [
+    {
+      "id": "item-1",
+      "gauge": {"value": 75, "max": 100},
+      "badges": [{"text": "5"}]
+    }
+  ]
+}
+```
+
 **Show Card:**
 ```json
 {
@@ -769,19 +780,43 @@ Add `pluginActions` to display toolbar buttons below the search bar. Useful for 
 - Use `confirm` field for dangerous actions (shows inline confirmation dialog)
 - Handler receives `{"step": "action", "selected": {"id": "__plugin__"}, "action": "add"}`
 
-#### Polling (Auto-Refresh)
+#### Daemon Mode (Live Updates)
 
-For live data (process monitors, stats), enable polling in `manifest.json`:
+For plugins that need real-time updates or file watching, use daemon mode instead of polling:
 
 ```json
 {
-  "name": "Top CPU",
-  "icon": "speed",
-  "poll": 2000
+  "name": "My Plugin",
+  "daemon": {
+    "enabled": true,
+    "background": false
+  }
 }
 ```
 
-Handle `step: "poll"` in your handler (same format as `search`). Disable dynamically with `"pollInterval": 0` in response.
+- **`background: false`** - Daemon runs only when plugin is active (e.g., live data displays)
+- **`background: true`** - Daemon always runs (e.g., status badges, file watching)
+
+Daemon handlers use an event loop to handle multiple requests and emit updates asynchronously. See [`plugins/README.md`](plugins/README.md#daemon-mode-persistent-processes) for full documentation with examples.
+
+**Benefits over polling:**
+- Single persistent process (more efficient)
+- Real-time updates via inotify (instant, not scheduled)
+- Bidirectional communication (hamr can control daemon behavior)
+- Supports both foreground and background modes
+- File watching with fallback to mtime polling
+
+**Example daemon response (live update):**
+```python
+# Emit update to individual items without full list refresh
+emit({"type": "update", "items": [{"id": "volume", "gauge": {"value": 75, "max": 100}}]})
+
+# Emit status update for plugin badge in main list
+emit({"type": "status", "status": {"badges": [{"text": "5"}]}})
+
+# Emit incremental index update (adds items to search)
+emit({"type": "index", "mode": "incremental", "items": [{"id": "new-item", "name": "..."}]})
+```
 
 </details>
 
