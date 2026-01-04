@@ -8,7 +8,6 @@ import sys
 import time
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
-DAEMON_MODE = os.environ.get("HAMR_DAEMON_MODE") == "1"
 
 shutdown = False
 
@@ -440,7 +439,12 @@ def handle_step(input_data: dict):
                 return
 
             if not action:
-                run_player_command(player_name, ["play-pause"])
+                # Get current status to determine command
+                status, _ = run_playerctl(["-p", player_name, "status"])
+                if status.lower() == "playing":
+                    run_player_command(player_name, ["pause"])
+                else:
+                    run_player_command(player_name, ["play"])
                 emit(
                     {
                         "type": "execute",
@@ -478,23 +482,27 @@ def main():
     signal.signal(signal.SIGTERM, handle_shutdown)
     signal.signal(signal.SIGINT, handle_shutdown)
 
-    if not DAEMON_MODE:
-        input_data = json.load(sys.stdin)
-        handle_step(input_data)
-        return
-
     last_refresh = 0
+    current_context = ""  # Track current view: "" = players, "controls:X" = controls
+
     while not shutdown:
         try:
             ready, _, _ = select.select([sys.stdin], [], [], 0.5)
             if ready:
-                input_data = json.load(sys.stdin)
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                input_data = json.loads(line.strip())
+                # Track context from input
+                current_context = input_data.get("context", "")
                 handle_step(input_data)
                 last_refresh = time.time()
             elif time.time() - last_refresh > 1.0:
-                return_players_view()
+                # Only auto-refresh on players view, not controls
+                if not current_context.startswith("controls:"):
+                    return_players_view()
                 last_refresh = time.time()
-        except (json.JSONDecodeError, EOFError):
+        except json.JSONDecodeError:
             pass
         except Exception:
             pass
