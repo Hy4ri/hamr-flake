@@ -208,8 +208,18 @@ Singleton {
         property QtObject pixelSize: QtObject {
             // Scale based on system font size
             // Base sizes are designed for a 14px system font (typical default)
-            readonly property real systemFontSize: Qt.application.font.pixelSize > 0 ? Qt.application.font.pixelSize : 14
-            readonly property real scaleFactor: systemFontSize / 14.0
+            // Qt.application.font.pixelSize returns -1 when font is set in points (common on Linux)
+            // In that case, convert pointSize to pixels: points * (96 DPI / 72) = points * 1.333
+            readonly property real systemFontSize: {
+                if (Qt.application.font.pixelSize > 0)
+                    return Qt.application.font.pixelSize
+                if (Qt.application.font.pointSize > 0)
+                    return Math.round(Qt.application.font.pointSize * (96 / 72))
+                return 14
+            }
+            // User-configurable font scale (0.75 - 1.5)
+            readonly property real fontScale: Math.max(0.75, Math.min(1.5, Config.options.appearance?.fontScale ?? 1.0))
+            readonly property real scaleFactor: (systemFontSize / 14.0) * fontScale
             
             property int smallest: Math.round(9 * scaleFactor)
             property int smaller: Math.round(11 * scaleFactor)

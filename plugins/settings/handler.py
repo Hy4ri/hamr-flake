@@ -184,6 +184,14 @@ SETTINGS_SCHEMA: dict = {
             "step": 0.05,
             "description": "Launcher Y position (0=top, 0.5=center, 1=bottom)",
         },
+        "fontScale": {
+            "default": 1.0,
+            "type": "slider",
+            "min": 0.75,
+            "max": 1.5,
+            "step": 0.05,
+            "description": "Font scale (0.75=75%, 1.0=100%, 1.5=150%)",
+        },
     },
     "sizes": {
         "searchWidth": {

@@ -170,6 +170,9 @@ Singleton {
                 // Launcher position as ratio of screen (0.0-1.0)
                 property real launcherXRatio: 0.5 // 0.5 = centered
                 property real launcherYRatio: 0.1 // 0.1 = 10% from top
+                
+                // Font scale multiplier (0.75 = 75%, 1.0 = 100%, 1.5 = 150%)
+                property real fontScale: 1.0
             }
 
             // ==================== SIZES ====================
