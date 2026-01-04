@@ -9,8 +9,8 @@ CODE_COMPLEXITY.md
 # Future project spec (not part of current hamr)
 RUSTY_HAMR.md
 
-# AUR package repo (separate git repo)
-aur/
+# AUR package repo (separate git repo, at root level only)
+/aur/
 
 # makepkg build artifacts
 *.pkg.tar.zst

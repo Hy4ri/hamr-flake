@@ -77,6 +77,7 @@ All plugins are indexed and searchable directly from the main bar - no prefix re
 | `dict` | Dictionary lookup with definitions |
 | `emoji` | Emoji picker with search |
 | `files` | File search with fd + fzf, thumbnails for images |
+| `aur` | Search and install packages from AUR (yay/paru) |
 | `flathub` | Search and install apps from Flathub |
 | `notes` | Quick notes with multi-line content support |
 | `pictures` | Browse images with thumbnails |
