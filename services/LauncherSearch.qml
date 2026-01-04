@@ -268,11 +268,14 @@ Singleton {
         }
     }
     
-    property var _pluginResultCache: ({})
+    // Use a non-reactive cache to avoid binding loops
+    // This is a plain JS object, not a QML property
+    readonly property var _pluginResultCacheHolder: ({ cache: {} })
     
     function clearPluginResultCache() {
-        for (const id of Object.keys(root._pluginResultCache)) {
-            const cached = root._pluginResultCache[id];
+        const cache = root._pluginResultCacheHolder.cache;
+        for (const id of Object.keys(cache)) {
+            const cached = cache[id];
             if (cached?.result) {
                 cached.result.destroy();
             }
@@ -282,10 +285,11 @@ Singleton {
                 }
             }
         }
-        root._pluginResultCache = ({});
+        root._pluginResultCacheHolder.cache = {};
     }
 
     function pluginResultsToSearchResults(pluginResults: var): var {
+        const existingCache = root._pluginResultCacheHolder.cache;
         const newCache = {};
         const pluginId = PluginRunner.activePlugin?.id ?? "";
         const pluginName = PluginRunner.activePlugin?.manifest?.name ?? "Plugin";
@@ -309,7 +313,7 @@ Singleton {
         
         const results = pluginResults.map(item => {
              const itemId = item.id;
-             const cached = root._pluginResultCache[itemId];
+             const cached = existingCache[itemId];
              
              const iconName = item.icon ?? PluginRunner.activePlugin?.manifest?.icon ?? 'extension';
              let isSystemIcon;
@@ -445,9 +449,9 @@ Singleton {
              return result;
          });
          
-         for (const id of Object.keys(root._pluginResultCache)) {
+         for (const id of Object.keys(existingCache)) {
              if (!newCache[id]) {
-                 const cached = root._pluginResultCache[id];
+                 const cached = existingCache[id];
                  if (cached?.result) {
                      cached.result.destroy();
                  }
@@ -458,7 +462,7 @@ Singleton {
                  }
              }
          }
-         root._pluginResultCache = newCache;
+         root._pluginResultCacheHolder.cache = newCache;
          
          return results;
      }
