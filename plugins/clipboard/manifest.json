@@ -3,8 +3,8 @@
   "description": "Browse and manage clipboard history",
   "icon": "content_paste",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "watchFiles": ["~/.cache/cliphist/db"]
+    "background": true
   }
 }

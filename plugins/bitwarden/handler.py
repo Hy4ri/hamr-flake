@@ -9,8 +9,10 @@ Requires:
 The plugin will guide users through login/unlock if no session is found.
 """
 
+import ctypes
 import json
 import os
+import select
 import shutil
 import subprocess
 import sys
@@ -33,6 +35,50 @@ def _get_keyring():  # type: ignore
 
 # Test mode - return mock data instead of calling real Bitwarden CLI
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+
+
+# inotify constants
+IN_CLOSE_WRITE = 0x00000008
+IN_MOVED_TO = 0x00000080
+IN_CREATE = 0x00000100
+
+
+def create_inotify_fd(watch_path: Path) -> int | None:
+    """Create inotify fd watching a directory. Returns fd or None."""
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        fd = libc.inotify_init()
+        if fd < 0:
+            return None
+        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
+        wd = libc.inotify_add_watch(fd, str(watch_path).encode(), mask)
+        if wd < 0:
+            os.close(fd)
+            return None
+        return fd
+    except (OSError, AttributeError):
+        return None
+
+
+def read_inotify_events(fd: int) -> list[str]:
+    """Read pending inotify events, return list of changed filenames."""
+    import struct
+
+    filenames = []
+    try:
+        buf = os.read(fd, 4096)
+        offset = 0
+        while offset < len(buf):
+            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
+            offset += 16
+            if length:
+                name = buf[offset : offset + length].rstrip(b"\x00").decode()
+                filenames.append(name)
+                offset += length
+    except (OSError, struct.error):
+        pass
+    return filenames
+
 
 # Mock vault items for testing
 MOCK_VAULT_ITEMS = [
@@ -606,6 +652,32 @@ def open_url(url: str) -> None:
     )
 
 
+def get_item_type_badge(item: dict) -> dict | None:
+    """Get badge for item type"""
+    item_type = item.get("type", 1)
+    badges = {
+        1: None,  # Login - most common, no badge needed
+        2: {"icon": "note", "color": "#9c27b0"},  # Secure Note - purple
+        3: {"icon": "credit_card", "color": "#ff9800"},  # Card - orange
+        4: {"icon": "person", "color": "#4caf50"},  # Identity - green
+    }
+    return badges.get(item_type)
+
+
+def get_item_chips(item: dict) -> list[dict]:
+    """Get feature chips for item"""
+    chips = []
+    login = item.get("login", {}) or {}
+    uris = get_item_uris(item)
+
+    if login.get("totp"):
+        chips.append({"text": "2FA", "icon": "schedule"})
+    if len(uris) > 1:
+        chips.append({"text": f"{len(uris)} URLs", "icon": "link"})
+
+    return chips
+
+
 def format_item_results(items: list[dict]) -> list[dict]:
     """Format vault items as results"""
     results = []
@@ -633,17 +705,28 @@ def format_item_results(items: list[dict]) -> list[dict]:
                 {"id": "open_url", "name": "Open URL", "icon": "open_in_new"}
             )
 
-        results.append(
-            {
-                "id": item_id,
-                "name": name,
-                "description": username
-                or (item.get("notes", "")[:50] if item.get("notes") else ""),
-                "icon": get_item_icon(item),
-                "verb": "Copy Password" if login.get("password") else "View",
-                "actions": actions,
-            }
-        )
+        badges = []
+        type_badge = get_item_type_badge(item)
+        if type_badge:
+            badges.append(type_badge)
+
+        chips = get_item_chips(item)
+
+        result = {
+            "id": item_id,
+            "name": name,
+            "description": username
+            or (item.get("notes", "")[:50] if item.get("notes") else ""),
+            "icon": get_item_icon(item),
+            "verb": "Copy Password" if login.get("password") else "View",
+            "actions": actions,
+        }
+        if badges:
+            result["badges"] = badges
+        if chips:
+            result["chips"] = chips
+
+        results.append(result)
 
     return results
 
@@ -799,7 +882,14 @@ def item_to_index_item(item: dict) -> dict:
             }
         )
 
-    return {
+    badges = []
+    type_badge = get_item_type_badge(item)
+    if type_badge:
+        badges.append(type_badge)
+
+    chips = get_item_chips(item)
+
+    result = {
         "id": f"bitwarden:{item_id}",
         "name": name,
         "description": username,
@@ -814,10 +904,16 @@ def item_to_index_item(item: dict) -> dict:
             "action": "copy_password" if has_password else "copy_username",
         },
     }
+    if badges:
+        result["badges"] = badges
+    if chips:
+        result["chips"] = chips
+
+    return result
 
 
-def main():
-    input_data = json.load(sys.stdin)
+def handle_request(input_data: dict):
+    """Handle a single request from stdin"""
     step = input_data.get("step", "initial")
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
@@ -1288,6 +1384,75 @@ def main():
             )
         else:
             respond_card("Error", "No credentials to copy")
+
+
+def main():
+    """Daemon mode main loop with inotify file watching"""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    watch_dir = CACHE_DIR
+    watch_filename = "items.json"
+
+    # Emit full index on startup
+    if not TEST_MODE:
+        cached_items = load_cached_items()
+        if cached_items:
+            items = [item_to_index_item(item) for item in cached_items]
+        else:
+            items = []
+        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+
+    inotify_fd = create_inotify_fd(watch_dir)
+
+    if inotify_fd is not None:
+        # Daemon mode with inotify
+        while True:
+            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
+
+            for r in readable:
+                if r == sys.stdin:
+                    try:
+                        line = sys.stdin.readline()
+                        if not line:
+                            return
+                        input_data = json.loads(line)
+                        handle_request(input_data)
+                        sys.stdout.flush()
+                    except json.JSONDecodeError:
+                        continue
+
+                elif r == inotify_fd:
+                    changed = read_inotify_events(inotify_fd)
+                    if watch_filename in changed:
+                        print(json.dumps({"type": "index"}))
+                        sys.stdout.flush()
+    else:
+        # Fallback: mtime polling
+        last_mtime = (
+            ITEMS_CACHE_FILE.stat().st_mtime if ITEMS_CACHE_FILE.exists() else 0
+        )
+
+        while True:
+            readable, _, _ = select.select([sys.stdin], [], [], 2.0)
+
+            if readable:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        return
+                    input_data = json.loads(line)
+                    handle_request(input_data)
+                    sys.stdout.flush()
+                except json.JSONDecodeError:
+                    continue
+
+            # Check mtime
+            if ITEMS_CACHE_FILE.exists():
+                current = ITEMS_CACHE_FILE.stat().st_mtime
+                if current != last_mtime:
+                    last_mtime = current
+                    print(json.dumps({"type": "index"}))
+                    sys.stdout.flush()
 
 
 if __name__ == "__main__":

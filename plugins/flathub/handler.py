@@ -190,17 +190,21 @@ def app_to_result(app: dict, installed_apps: set[str]) -> dict:
     is_installed = app_id in installed_apps
     installs = app.get("installs_last_month", 0)
     verified = app.get("verification_verified", False)
-
     developer = app.get("developer_name", "")
-    stats = []
-    if developer:
-        stats.append(developer)
-    if verified:
-        stats.append("Verified")
-    if installs:
-        stats.append(f"{format_installs(installs)} installs/mo")
 
-    description = " · ".join(stats) if stats else app.get("summary", "")
+    description = app.get("summary", "")
+
+    badges = []
+    if verified:
+        badges.append({"icon": "verified", "color": "#4caf50"})
+    if is_installed:
+        badges.append({"icon": "check_circle", "color": "#2196f3"})
+
+    chips = []
+    if developer:
+        chips.append({"text": developer, "icon": "business"})
+    if installs:
+        chips.append({"text": f"{format_installs(installs)}/mo", "icon": "download"})
 
     actions = []
     if is_installed:
@@ -209,7 +213,7 @@ def app_to_result(app: dict, installed_apps: set[str]) -> dict:
         actions.append({"id": "install", "name": "Install", "icon": "download"})
     actions.append({"id": "open_web", "name": "View on Flathub", "icon": "open_in_new"})
 
-    return {
+    result = {
         "id": app_id,
         "name": app.get("name", app_id),
         "description": description,
@@ -217,6 +221,13 @@ def app_to_result(app: dict, installed_apps: set[str]) -> dict:
         "verb": "Open" if is_installed else "Install",
         "actions": actions,
     }
+
+    if badges:
+        result["badges"] = badges
+    if chips:
+        result["chips"] = chips
+
+    return result
 
 
 def get_plugin_actions(in_search_mode: bool = False) -> list[dict]:

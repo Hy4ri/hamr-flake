@@ -4,15 +4,63 @@ Hyprland plugin handler - window management and dispatcher commands.
 
 Uses hyprctl to query windows and execute Hyprland dispatchers.
 Supports natural language commands like "move to workspace 2" or "toggle floating".
+
+Runs as a daemon, watching Hyprland's IPC socket for window events.
 """
 
 import json
 import os
 import re
+import select
+import socket
 import subprocess
 import sys
+from pathlib import Path
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+
+# Hyprland events that trigger reindex
+WATCH_EVENTS = {"openwindow", "closewindow", "movewindow", "windowtitle"}
+
+
+def get_hyprland_socket_path() -> Path | None:
+    """Get path to Hyprland's event socket (.socket2.sock)."""
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    instance_sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if not runtime_dir or not instance_sig:
+        return None
+    socket_path = Path(runtime_dir) / "hypr" / instance_sig / ".socket2.sock"
+    return socket_path if socket_path.exists() else None
+
+
+def connect_hyprland_socket() -> socket.socket | None:
+    """Connect to Hyprland's event socket. Returns socket or None."""
+    socket_path = get_hyprland_socket_path()
+    if not socket_path:
+        return None
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.connect(str(socket_path))
+        sock.setblocking(False)
+        return sock
+    except (OSError, socket.error):
+        return None
+
+
+def read_hyprland_events(sock: socket.socket) -> list[str]:
+    """Read pending events from Hyprland socket. Returns list of event names."""
+    events = []
+    try:
+        data = sock.recv(4096)
+        if data:
+            for line in data.decode(errors="ignore").split("\n"):
+                if ">>" in line:
+                    event_name = line.split(">>")[0]
+                    events.append(event_name)
+    except (OSError, socket.error, BlockingIOError):
+        pass
+    return events
+
 
 HYPR_DISPATCHERS = [
     # Workspace Navigation
@@ -1040,8 +1088,23 @@ def execute_dispatcher(dispatcher: dict, param: str | None = None) -> tuple[bool
         return False, f"Failed to execute {dispatcher_name}: {e}"
 
 
-def main():
-    input_data = json.load(sys.stdin)
+def get_index_items() -> list[dict]:
+    """Generate full index items (windows + dispatchers + shortcuts)."""
+    windows = get_windows()
+    items = [window_to_index_item(w) for w in windows]
+    # Only index dispatchers that have static params (can be executed directly)
+    for d in HYPR_DISPATCHERS:
+        if d.get("param_type") != "workspace":
+            items.append(dispatcher_to_index_item(d))
+    items.extend(generate_workspace_index_items())
+    # Add global shortcuts
+    shortcuts = get_global_shortcuts()
+    items.extend([shortcut_to_index_item(s) for s in shortcuts])
+    return items
+
+
+def handle_request(input_data: dict):
+    """Handle a single request from stdin."""
     step = input_data.get("step", "initial")
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
@@ -1051,15 +1114,7 @@ def main():
     workspaces = get_workspaces()
 
     if step == "index":
-        items = [window_to_index_item(w) for w in windows]
-        # Only index dispatchers that have static params (can be executed directly)
-        for d in HYPR_DISPATCHERS:
-            if d.get("param_type") != "workspace":
-                items.append(dispatcher_to_index_item(d))
-        items.extend(generate_workspace_index_items())
-        # Add global shortcuts
-        shortcuts = get_global_shortcuts()
-        items.extend([shortcut_to_index_item(s) for s in shortcuts])
+        items = get_index_items()
         print(json.dumps({"type": "index", "items": items}))
         return
 
@@ -1398,6 +1453,70 @@ def main():
             return
 
     print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+
+
+def main():
+    """Daemon main loop with Hyprland IPC socket watching."""
+    # In test mode, handle single request and exit
+    if TEST_MODE:
+        input_data = json.load(sys.stdin)
+        handle_request(input_data)
+        return
+
+    # Emit full index on startup
+    items = get_index_items()
+    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+
+    # Try to connect to Hyprland's event socket
+    hypr_socket = connect_hyprland_socket()
+
+    if hypr_socket is not None:
+        # Daemon mode with Hyprland IPC socket
+        while True:
+            try:
+                readable, _, _ = select.select([sys.stdin, hypr_socket], [], [], 1.0)
+            except (ValueError, OSError):
+                # Socket closed, try to reconnect
+                hypr_socket = connect_hyprland_socket()
+                if hypr_socket is None:
+                    break
+                continue
+
+            for r in readable:
+                if r == sys.stdin:
+                    try:
+                        line = sys.stdin.readline()
+                        if not line:
+                            return
+                        input_data = json.loads(line)
+                        handle_request(input_data)
+                        sys.stdout.flush()
+                    except json.JSONDecodeError:
+                        continue
+
+                elif r == hypr_socket:
+                    events = read_hyprland_events(hypr_socket)
+                    if any(ev in WATCH_EVENTS for ev in events):
+                        print(json.dumps({"type": "index"}))
+                        sys.stdout.flush()
+    else:
+        # Fallback: no socket, just handle stdin requests (polling mode)
+        while True:
+            try:
+                readable, _, _ = select.select([sys.stdin], [], [], 2.0)
+            except (ValueError, OSError):
+                break
+
+            if readable:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        return
+                    input_data = json.loads(line)
+                    handle_request(input_data)
+                    sys.stdout.flush()
+                except json.JSONDecodeError:
+                    continue
 
 
 if __name__ == "__main__":

@@ -11,10 +11,15 @@ Features:
 
 import json
 import os
+import select
+import signal
 import subprocess
 import sys
 from configparser import ConfigParser
 from pathlib import Path
+
+# Test mode - skip external tool calls
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 # Search history path (same as LauncherSearch.qml)
 HAMR_CONFIG = Path.home() / ".config" / "hamr"
@@ -63,6 +68,11 @@ CATEGORY_ICONS = {
     "Utilities": "build",
     "Other": "more_horiz",
 }
+
+
+def emit(data: dict) -> None:
+    """Emit JSON response to stdout (line-buffered)."""
+    print(json.dumps(data), flush=True)
 
 
 def parse_desktop_file(path: Path) -> dict | None:
@@ -368,28 +378,20 @@ def get_categories(apps: list[dict]) -> list[str]:
     return result
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    context = input_data.get("context", "")  # Current category
+def handle_request(
+    request: dict, all_apps: list[dict], frecency: dict[str, float]
+) -> None:
+    """Handle incoming request from hamr."""
+    step = request.get("step", "initial")
+    query = request.get("query", "").strip()
+    selected = request.get("selected", {})
+    context = request.get("context", "")
 
     selected_id = selected.get("id", "")
 
-    # Load all apps
-    all_apps = load_all_apps()
-    frecency = load_app_frecency()
-
-    # Sort apps by frecency then name
-    def sort_key(app):
-        return (-frecency.get(app["name"], 0), app["name"].lower())
-
-    all_apps.sort(key=sort_key)
-
     if step == "index":
-        mode = input_data.get("mode", "full")
-        indexed_ids = set(input_data.get("indexedIds", []))
+        mode = request.get("mode", "full")
+        indexed_ids = set(request.get("indexedIds", []))
 
         # Build current ID set (desktop filename without .desktop)
         current_ids = {
@@ -408,20 +410,18 @@ def main():
             # Find removed items
             removed_ids = list(indexed_ids - current_ids)
 
-            print(
-                json.dumps(
-                    {
-                        "type": "index",
-                        "mode": "incremental",
-                        "items": new_items,
-                        "remove": removed_ids,
-                    }
-                )
+            emit(
+                {
+                    "type": "index",
+                    "mode": "incremental",
+                    "items": new_items,
+                    "remove": removed_ids,
+                }
             )
         else:
             # Full reindex
             items = [app_to_index_item(app) for app in all_apps]
-            print(json.dumps({"type": "index", "items": items}))
+            emit({"type": "index", "items": items})
         return
 
     if step == "initial":
@@ -445,15 +445,13 @@ def main():
                 }
             )
 
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search apps or select category...",
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": results,
+                "inputMode": "realtime",
+                "placeholder": "Search apps or select category...",
+            }
         )
         return
 
@@ -491,18 +489,16 @@ def main():
                     }
                 ]
 
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "placeholder": f"Search in {category}..."
-                        if category != "All"
-                        else "Search all apps...",
-                        "context": context,
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                    "placeholder": f"Search in {category}..."
+                    if category != "All"
+                    else "Search all apps...",
+                    "context": context,
+                }
             )
             return
 
@@ -528,15 +524,13 @@ def main():
                     }
                 ]
 
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "placeholder": "Search apps or select category...",
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                    "placeholder": "Search apps or select category...",
+                }
             )
         else:
             # Show categories
@@ -560,15 +554,13 @@ def main():
                     }
                 )
 
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "placeholder": "Search apps or select category...",
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                    "placeholder": "Search apps or select category...",
+                }
             )
         return
 
@@ -594,18 +586,16 @@ def main():
                     }
                 )
 
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "placeholder": "Search apps or select category...",
-                        "clearInput": True,
-                        "context": "",  # Clear context
-                        "navigateBack": True,  # Going back to categories
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                    "placeholder": "Search apps or select category...",
+                    "clearInput": True,
+                    "context": "",
+                    "navigateBack": True,
+                }
             )
             return
 
@@ -635,23 +625,21 @@ def main():
                     if action:
                         # Execute the action's command
                         exec_parts = action["exec"].split()
-                        print(
-                            json.dumps(
-                                {
-                                    "type": "execute",
-                                    "execute": {
-                                        "command": exec_parts,
-                                        "name": f"{app['name']}: {action['name']}",
-                                        "icon": action.get("icon") or app["icon"],
-                                        "iconType": "system",
-                                        "close": True,
-                                    },
-                                }
-                            )
+                        emit(
+                            {
+                                "type": "execute",
+                                "execute": {
+                                    "command": exec_parts,
+                                    "name": f"{app['name']}: {action['name']}",
+                                    "icon": action.get("icon") or app["icon"],
+                                    "iconType": "system",
+                                    "close": True,
+                                },
+                            }
                         )
                         return
 
-            print(json.dumps({"type": "error", "message": "Action not found"}))
+            emit({"type": "error", "message": "Action not found"})
             return
 
         if selected_id.startswith("__cat__:"):
@@ -665,20 +653,18 @@ def main():
                 app_to_result(a, show_category=(category == "All")) for a in apps[:50]
             ]
 
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results,
-                        "inputMode": "realtime",
-                        "placeholder": f"Search in {category}..."
-                        if category != "All"
-                        else "Search all apps...",
-                        "clearInput": True,
-                        "context": selected_id,  # Set category context
-                        "navigateForward": True,  # Drilling into category
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": results,
+                    "inputMode": "realtime",
+                    "placeholder": f"Search in {category}..."
+                    if category != "All"
+                    else "Search all apps...",
+                    "clearInput": True,
+                    "context": selected_id,
+                    "navigateForward": True,
+                }
             )
             return
 
@@ -691,26 +677,57 @@ def main():
         if app:
             # Use gio launch with full path - more reliable than gtk-launch
             # especially for Flatpak apps with .desktop.desktop naming
-            print(
-                json.dumps(
-                    {
-                        "type": "execute",
-                        "execute": {
-                            "command": ["gio", "launch", selected_id],
-                            "name": f"Launch {app['name']}",
-                            "icon": app["icon"],
-                            "iconType": "system",  # App icons are system icons
-                            "close": True,
-                        },
-                    }
-                )
+            emit(
+                {
+                    "type": "execute",
+                    "execute": {
+                        "command": ["gio", "launch", selected_id],
+                        "name": f"Launch {app['name']}",
+                        "icon": app["icon"],
+                        "iconType": "system",
+                        "close": True,
+                    },
+                }
             )
         else:
-            print(
-                json.dumps(
-                    {"type": "error", "message": f"App not found: {selected_id}"}
-                )
-            )
+            emit({"type": "error", "message": f"App not found: {selected_id}"})
+
+
+def main():
+    def shutdown_handler(signum, frame):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
+
+    # Load apps once at startup
+    all_apps = load_all_apps()
+    frecency = load_app_frecency()
+
+    # Sort apps by frecency then name
+    def sort_key(app):
+        return (-frecency.get(app["name"], 0), app["name"].lower())
+
+    all_apps.sort(key=sort_key)
+
+    # Emit initial full index on startup (for background daemon)
+    if not TEST_MODE:
+        items = [app_to_index_item(app) for app in all_apps]
+        emit({"type": "index", "mode": "full", "items": items})
+
+    # Main daemon loop - read requests from stdin
+    while True:
+        readable, _, _ = select.select([sys.stdin], [], [], 1.0)
+
+        if readable:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                request = json.loads(line.strip())
+                handle_request(request, all_apps, frecency)
+            except (json.JSONDecodeError, ValueError):
+                continue
 
 
 if __name__ == "__main__":

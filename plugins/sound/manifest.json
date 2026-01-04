@@ -1,10 +1,10 @@
 {
   "name": "Sound",
-  "description": "System volume and audio controls",
+  "description": "System volume controls",
   "icon": "volume_up",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "reindex": "never"
+    "background": false
   }
 }

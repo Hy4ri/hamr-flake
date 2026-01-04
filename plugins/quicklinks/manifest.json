@@ -3,8 +3,8 @@
   "description": "Search the web with quicklinks",
   "icon": "link",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "watchFiles": ["~/.config/hamr/quicklinks.json"]
+    "background": true
   }
 }

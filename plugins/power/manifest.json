@@ -3,8 +3,8 @@
   "description": "System power and session controls",
   "icon": "power_settings_new",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "reindex": "never"
+    "background": true
   }
 }

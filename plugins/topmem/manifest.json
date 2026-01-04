@@ -3,5 +3,8 @@
   "description": "Processes sorted by memory usage",
   "icon": "memory",
   "supportedCompositors": ["*"],
-  "poll": 2000
+  "daemon": {
+    "enabled": true,
+    "background": false
+  }
 }

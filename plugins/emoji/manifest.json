@@ -3,8 +3,8 @@
   "description": "Search and copy emojis",
   "icon": "emoji_emotions",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "reindex": "never"
+    "background": true
   }
 }

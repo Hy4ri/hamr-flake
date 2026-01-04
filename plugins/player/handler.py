@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 import json
 import os
+import signal
+import select
 import subprocess
 import sys
+import time
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+DAEMON_MODE = os.environ.get("HAMR_DAEMON_MODE") == "1"
+
+shutdown = False
 
 MOCK_PLAYERS = [
     {
@@ -24,6 +30,15 @@ MOCK_PLAYERS = [
         "artUrl": "",
     },
 ]
+
+
+def emit(data: dict):
+    print(json.dumps(data), flush=True)
+
+
+def handle_shutdown(signum, frame):
+    global shutdown
+    shutdown = True
 
 
 def run_playerctl(args: list[str]) -> tuple[str, int]:
@@ -83,6 +98,27 @@ def get_players() -> list[dict]:
     return players
 
 
+def format_time(seconds: int) -> str:
+    if seconds < 0:
+        return "0:00"
+    mins = seconds // 60
+    secs = seconds % 60
+    return f"{mins}:{secs:02d}"
+
+
+def get_player_position(player_name: str) -> tuple[int, int]:
+    position_str, _ = run_playerctl(["-p", player_name, "position"])
+    duration_str, _ = run_playerctl(
+        ["-p", player_name, "metadata", "--format", "{{mpris:length}}"]
+    )
+    try:
+        position = int(float(position_str)) if position_str else 0
+        duration = int(duration_str) // 1000000 if duration_str else 0
+        return position, duration
+    except ValueError:
+        return 0, 0
+
+
 def get_status_icon(status: str) -> str:
     status_lower = status.lower()
     if status_lower == "playing":
@@ -92,6 +128,17 @@ def get_status_icon(status: str) -> str:
     if status_lower == "stopped":
         return "stop"
     return "music_note"
+
+
+def get_status_badge(status: str) -> dict:
+    status_lower = status.lower()
+    if status_lower == "playing":
+        return {"icon": "play_arrow", "color": "#4caf50"}
+    if status_lower == "paused":
+        return {"icon": "pause", "color": "#ff9800"}
+    if status_lower == "stopped":
+        return {"icon": "stop", "color": "#f44336"}
+    return {"icon": "music_note", "color": "#2196f3"}
 
 
 def get_art_path(art_url: str) -> str | None:
@@ -128,9 +175,18 @@ def player_to_result(player: dict) -> dict:
             {"id": "stop", "name": "Stop", "icon": "stop"},
             {"id": "more", "name": "More", "icon": "tune"},
         ],
+        "badges": [get_status_badge(player["status"])],
+        "chips": [{"text": player["name"], "icon": "music_note"}],
     }
 
-    # Use album art as thumbnail if available, otherwise use status icon
+    position, duration = get_player_position(player["name"])
+    if duration > 0:
+        result["progress"] = {
+            "value": position,
+            "max": duration,
+            "label": f"{format_time(position)} / {format_time(duration)}",
+        }
+
     if art_path:
         result["thumbnail"] = art_path
     else:
@@ -205,33 +261,29 @@ def run_player_command(player_name: str, cmd: list[str]):
 def return_players_view():
     players = get_players()
     if not players:
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": [
-                        {
-                            "id": "__no_players__",
-                            "name": "No media players detected",
-                            "description": "Start playing media in a supported application",
-                            "icon": "music_off",
-                        }
-                    ],
-                    "placeholder": "Waiting for players...",
-                    "pluginActions": get_initial_plugin_actions(),
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": [
+                    {
+                        "id": "__no_players__",
+                        "name": "No media players detected",
+                        "description": "Start playing media in a supported application",
+                        "icon": "music_off",
+                    }
+                ],
+                "placeholder": "Waiting for players...",
+                "pluginActions": get_initial_plugin_actions(),
+            }
         )
     else:
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": [player_to_result(p) for p in players],
-                    "placeholder": "Select a player...",
-                    "pluginActions": get_initial_plugin_actions(),
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": [player_to_result(p) for p in players],
+                "placeholder": "Select a player...",
+                "pluginActions": get_initial_plugin_actions(),
+            }
         )
 
 
@@ -247,11 +299,10 @@ def return_controls_view(player_name: str, navigate_forward: bool = False):
     if navigate_forward:
         response["navigateForward"] = True
         response["clearInput"] = True
-    print(json.dumps(response))
+    emit(response)
 
 
-def main():
-    input_data = json.load(sys.stdin)
+def handle_step(input_data: dict):
     step = input_data.get("step", "initial")
     query = input_data.get("query", "").strip().lower()
     selected = input_data.get("selected", {})
@@ -275,23 +326,21 @@ def main():
                 else CONTROL_RESULTS
             )
             results = [control_to_result(c, player_name) for c in filtered]
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": results
-                        if results
-                        else [
-                            {
-                                "id": "__no_match__",
-                                "name": f"No controls matching '{query}'",
-                                "icon": "search_off",
-                            }
-                        ],
-                        "context": context,
-                        "pluginActions": get_control_plugin_actions(player_name),
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": results
+                    if results
+                    else [
+                        {
+                            "id": "__no_match__",
+                            "name": f"No controls matching '{query}'",
+                            "icon": "search_off",
+                        }
+                    ],
+                    "context": context,
+                    "pluginActions": get_control_plugin_actions(player_name),
+                }
             )
             return
 
@@ -309,31 +358,27 @@ def main():
         )
 
         if not filtered:
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": [
-                            {
-                                "id": "__no_match__",
-                                "name": f"No players matching '{query}'",
-                                "icon": "search_off",
-                            }
-                        ],
-                        "pluginActions": get_initial_plugin_actions(),
-                    }
-                )
-            )
-            return
-
-        print(
-            json.dumps(
+            emit(
                 {
                     "type": "results",
-                    "results": [player_to_result(p) for p in filtered],
+                    "results": [
+                        {
+                            "id": "__no_match__",
+                            "name": f"No players matching '{query}'",
+                            "icon": "search_off",
+                        }
+                    ],
                     "pluginActions": get_initial_plugin_actions(),
                 }
             )
+            return
+
+        emit(
+            {
+                "type": "results",
+                "results": [player_to_result(p) for p in filtered],
+                "pluginActions": get_initial_plugin_actions(),
+            }
         )
         return
 
@@ -355,18 +400,16 @@ def main():
                 }
                 if cmd_type in cmd_map:
                     run_player_command(player_name, cmd_map[cmd_type])
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "execute": {"close": False},
-                            }
-                        )
+                    emit(
+                        {
+                            "type": "execute",
+                            "execute": {"close": False},
+                        }
                     )
                     return
 
         if selected_id in ("__no_players__", "__no_match__"):
-            print(json.dumps({"type": "execute", "execute": {"close": False}}))
+            emit({"type": "execute", "execute": {"close": False}})
             return
 
         if selected_id == "__back__":
@@ -388,25 +431,21 @@ def main():
 
             if action in cmd_map:
                 run_player_command(player_name, cmd_map[action])
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "execute": {"close": False},
-                        }
-                    )
+                emit(
+                    {
+                        "type": "execute",
+                        "execute": {"close": False},
+                    }
                 )
                 return
 
             if not action:
                 run_player_command(player_name, ["play-pause"])
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "execute": {"close": False},
-                        }
-                    )
+                emit(
+                    {
+                        "type": "execute",
+                        "execute": {"close": False},
+                    }
                 )
                 return
 
@@ -421,24 +460,44 @@ def main():
 
                 if control:
                     run_player_command(player_name, control["cmd"])
-                    print(
-                        json.dumps(
-                            {
-                                "type": "execute",
-                                "execute": {"close": False},
-                            }
-                        )
+                    emit(
+                        {
+                            "type": "execute",
+                            "execute": {"close": False},
+                        }
                     )
                     return
 
-        print(
-            json.dumps(
-                {"type": "error", "message": f"Unknown selection: {selected_id}"}
-            )
-        )
+        emit({"type": "error", "message": f"Unknown selection: {selected_id}"})
         return
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+    emit({"type": "error", "message": f"Unknown step: {step}"})
+
+
+def main():
+    signal.signal(signal.SIGTERM, handle_shutdown)
+    signal.signal(signal.SIGINT, handle_shutdown)
+
+    if not DAEMON_MODE:
+        input_data = json.load(sys.stdin)
+        handle_step(input_data)
+        return
+
+    last_refresh = 0
+    while not shutdown:
+        try:
+            ready, _, _ = select.select([sys.stdin], [], [], 0.5)
+            if ready:
+                input_data = json.load(sys.stdin)
+                handle_step(input_data)
+                last_refresh = time.time()
+            elif time.time() - last_refresh > 1.0:
+                return_players_view()
+                last_refresh = time.time()
+        except (json.JSONDecodeError, EOFError):
+            pass
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

@@ -3,10 +3,13 @@
 Niri plugin handler - window management and compositor actions.
 
 Uses niri msg to query windows and execute Niri actions.
+Runs as a daemon emitting full index on startup.
 """
 
 import json
 import os
+import select
+import signal
 import subprocess
 import sys
 
@@ -768,8 +771,63 @@ def generate_workspace_index_items() -> list[dict]:
     return items
 
 
-def main():
-    input_data = json.load(sys.stdin)
+def get_index_items() -> list[dict]:
+    """Get full index of windows and actions on startup."""
+    items = []
+    windows = get_windows()
+    for w in windows:
+        items.append(window_to_index_item(w))
+    for a in NIRI_ACTIONS:
+        items.append(action_to_index_item(a))
+    items.extend(generate_workspace_index_items())
+    return items
+
+
+def start_niri_event_stream() -> subprocess.Popen | None:
+    """Start niri event-stream subprocess. Returns Popen or None."""
+    try:
+        proc = subprocess.Popen(
+            ["niri", "msg", "-j", "event-stream"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+        )
+        return proc
+    except (OSError, FileNotFoundError):
+        return None
+
+
+def read_niri_events(proc: subprocess.Popen) -> list[str]:
+    """Read pending events from niri event stream. Returns list of event types."""
+    import fcntl
+
+    events = []
+    try:
+        if proc.stdout is not None:
+            fd = proc.stdout.fileno()
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+            while True:
+                try:
+                    line = proc.stdout.readline()
+                    if not line:
+                        break
+                    data = json.loads(line)
+                    events.extend(data.keys())
+                except (json.JSONDecodeError, BlockingIOError):
+                    break
+    except (OSError, IOError):
+        pass
+    return events
+
+
+WATCH_EVENTS = {"WindowsChanged", "WindowOpenedOrChanged", "WindowClosed"}
+
+
+def handle_request(input_data: dict):
+    """Handle a single request (initial, search, action, index)."""
     step = input_data.get("step", "initial")
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
@@ -779,11 +837,8 @@ def main():
     workspaces = get_workspaces()
 
     if step == "index":
-        items = [window_to_index_item(w) for w in windows]
-        for a in NIRI_ACTIONS:
-            items.append(action_to_index_item(a))
-        items.extend(generate_workspace_index_items())
-        print(json.dumps({"type": "index", "items": items}))
+        items = get_index_items()
+        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
         return
 
     if step == "initial":
@@ -797,7 +852,8 @@ def main():
                     "placeholder": "Filter windows or type a command...",
                     "inputMode": "realtime",
                 }
-            )
+            ),
+            flush=True,
         )
         return
 
@@ -838,7 +894,8 @@ def main():
                     "results": results,
                     "inputMode": "realtime",
                 }
-            )
+            ),
+            flush=True,
         )
         return
 
@@ -846,7 +903,9 @@ def main():
         item_id = selected.get("id", "")
 
         if item_id == "__empty__":
-            print(json.dumps({"type": "execute", "execute": {"close": True}}))
+            print(
+                json.dumps({"type": "execute", "execute": {"close": True}}), flush=True
+            )
             return
 
         if item_id.startswith("action:"):
@@ -866,7 +925,8 @@ def main():
                                     "notify": f"Would run: {' '.join(cmd)}",
                                 },
                             }
-                        )
+                        ),
+                        flush=True,
                     )
                     return
                 try:
@@ -880,10 +940,14 @@ def main():
                                     "notify": f"{name} executed",
                                 },
                             }
-                        )
+                        ),
+                        flush=True,
                     )
                 except subprocess.CalledProcessError as e:
-                    print(json.dumps({"type": "error", "message": f"Failed: {e}"}))
+                    print(
+                        json.dumps({"type": "error", "message": f"Failed: {e}"}),
+                        flush=True,
+                    )
                 return
 
             if action_id_full.startswith("move-to-workspace:"):
@@ -900,7 +964,8 @@ def main():
                                     "notify": f"Would run: {' '.join(cmd)}",
                                 },
                             }
-                        )
+                        ),
+                        flush=True,
                     )
                     return
                 try:
@@ -914,10 +979,14 @@ def main():
                                     "notify": f"{name} executed",
                                 },
                             }
-                        )
+                        ),
+                        flush=True,
                     )
                 except subprocess.CalledProcessError as e:
-                    print(json.dumps({"type": "error", "message": f"Failed: {e}"}))
+                    print(
+                        json.dumps({"type": "error", "message": f"Failed: {e}"}),
+                        flush=True,
+                    )
                 return
 
             niri_action = next(
@@ -930,7 +999,8 @@ def main():
                             "type": "error",
                             "message": f"Unknown action: {action_id_full}",
                         }
-                    )
+                    ),
+                    flush=True,
                 )
                 return
 
@@ -942,10 +1012,11 @@ def main():
                             "type": "execute",
                             "execute": {"close": True, "notify": message},
                         }
-                    )
+                    ),
+                    flush=True,
                 )
             else:
-                print(json.dumps({"type": "error", "message": message}))
+                print(json.dumps({"type": "error", "message": message}), flush=True)
             return
 
         if item_id.startswith("window:"):
@@ -967,7 +1038,8 @@ def main():
                             "results": results,
                             "notify": message if success else None,
                         }
-                    )
+                    ),
+                    flush=True,
                 )
                 return
 
@@ -988,18 +1060,90 @@ def main():
                             "results": results,
                             "notify": message if success else None,
                         }
-                    )
+                    ),
+                    flush=True,
                 )
                 return
 
             success, message = focus_window(window_id)
             if success:
-                print(json.dumps({"type": "execute", "execute": {"close": True}}))
+                print(
+                    json.dumps({"type": "execute", "execute": {"close": True}}),
+                    flush=True,
+                )
             else:
-                print(json.dumps({"type": "error", "message": message}))
+                print(json.dumps({"type": "error", "message": message}), flush=True)
             return
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}), flush=True)
+
+
+def main():
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+
+    if TEST_MODE:
+        input_data = json.load(sys.stdin)
+        handle_request(input_data)
+        return
+
+    items = get_index_items()
+    print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+
+    event_proc = start_niri_event_stream()
+
+    if event_proc is not None:
+        while True:
+            try:
+                readable, _, _ = select.select(
+                    [sys.stdin, event_proc.stdout], [], [], 1.0
+                )
+            except (ValueError, OSError):
+                break
+
+            for r in readable:
+                if r == sys.stdin:
+                    try:
+                        line = sys.stdin.readline()
+                        if not line:
+                            event_proc.terminate()
+                            return
+                        input_data = json.loads(line)
+                        handle_request(input_data)
+                    except json.JSONDecodeError:
+                        continue
+
+                elif r == event_proc.stdout:
+                    events = read_niri_events(event_proc)
+                    if any(ev in WATCH_EVENTS for ev in events):
+                        items = get_index_items()
+                        print(
+                            json.dumps(
+                                {"type": "index", "mode": "full", "items": items}
+                            ),
+                            flush=True,
+                        )
+
+            if event_proc.poll() is not None:
+                event_proc = start_niri_event_stream()
+                if event_proc is None:
+                    break
+    else:
+        while True:
+            try:
+                readable, _, _ = select.select([sys.stdin], [], [], 2.0)
+            except (ValueError, OSError):
+                break
+
+            if readable:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        return
+                    input_data = json.loads(line)
+                    handle_request(input_data)
+                except json.JSONDecodeError:
+                    continue
 
 
 if __name__ == "__main__":

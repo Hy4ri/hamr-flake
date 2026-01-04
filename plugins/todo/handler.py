@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""
-Todo workflow handler - manage your todo list.
-Features: list, add, toggle done/undone, edit, delete
-"""
-
 import base64
+import ctypes
+import ctypes.util
 import json
 import os
+import select
+import signal
+import struct
 import subprocess
 import sys
 import time
@@ -14,6 +14,11 @@ from pathlib import Path
 
 # Test mode - skip external tool calls
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+
+# inotify constants
+IN_CLOSE_WRITE = 0x00000008
+IN_MOVED_TO = 0x00000080
+IN_CREATE = 0x00000100
 
 # Todo file location
 # Prefer illogical-impulse path for seamless sync between hamr and ii sidebar
@@ -54,12 +59,11 @@ def load_todos() -> list[dict]:
 
 
 def get_status(todos: list[dict]) -> dict:
-    """Get plugin status with pending count chip"""
     pending = sum(1 for t in todos if not t.get("done", False))
     if pending > 0:
         label = "task" if pending == 1 else "tasks"
         return {"chips": [{"text": f"{pending} {label}", "icon": "task_alt"}]}
-    return {"chips": []}
+    return {}
 
 
 def save_todos(todos: list[dict]) -> None:
@@ -153,6 +157,14 @@ def refresh_sidebar():
         pass  # qs not installed, skip refresh
 
 
+def emit(data: dict) -> None:
+    print(json.dumps(data), flush=True)
+
+
+def emit_status(todos: list[dict]) -> None:
+    emit({"type": "status", "status": get_status(todos)})
+
+
 def respond(
     results: list[dict],
     todos: list[dict],
@@ -164,7 +176,6 @@ def respond(
     plugin_actions: list[dict] | None = None,
     navigate_forward: bool | None = None,
 ):
-    """Send a results response"""
     response = {
         "type": "results",
         "results": results,
@@ -178,27 +189,21 @@ def respond(
         response["clearInput"] = True
     if context:
         response["context"] = context
-    # Explicit navigation control - override core's pendingNavigation
     if navigate_forward is not None:
         response["navigateForward"] = navigate_forward
     if refresh_ui:
         refresh_sidebar()
-    print(json.dumps(response))
+    emit(response)
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-    context = input_data.get("context", "")
+def handle_request(request: dict, current_query: str) -> tuple[str, list[dict]]:
+    step = request.get("step", "initial")
+    query = request.get("query", "").strip()
+    selected = request.get("selected", {})
+    action = request.get("action", "")
+    context = request.get("context", "")
 
     todos = load_todos()
-
-    if step == "index":
-        print(json.dumps({"type": "index", "items": [], "status": get_status(todos)}))
-        return
 
     if step == "initial":
         respond(
@@ -206,13 +211,10 @@ def main():
             todos,
             plugin_actions=get_plugin_actions(todos),
         )
-        return
+        return query, todos
 
     if step == "search":
-        # Add mode (submit mode)
-        # In submit mode, Enter should perform the action directly (single press).
         if context == "__add_mode__":
-            # Only add when query is provided (user pressed Enter in submit mode)
             if query:
                 todos.append(
                     {
@@ -229,8 +231,7 @@ def main():
                     clear_input=True,
                     plugin_actions=get_plugin_actions(todos),
                 )
-                return
-            # Empty query - stay in add mode
+                return "", todos
             respond(
                 [],
                 todos,
@@ -238,10 +239,8 @@ def main():
                 context="__add_mode__",
                 input_mode="submit",
             )
-            return
+            return query, todos
 
-        # Edit mode (submit mode)
-        # In submit mode, Enter should save directly (single press).
         if context.startswith("__edit__:"):
             todo_idx = int(context.split(":")[1])
             if 0 <= todo_idx < len(todos):
@@ -257,18 +256,16 @@ def main():
                         plugin_actions=get_plugin_actions(todos),
                         navigate_forward=False,
                     )
-                else:
-                    # Show current value in placeholder
-                    respond(
-                        [],
-                        todos,
-                        placeholder=f"Edit: {old_content[:50]}{'...' if len(old_content) > 50 else ''} (Enter to save)",
-                        context=context,
-                        input_mode="submit",
-                    )
-            return
+                    return "", todos
+                respond(
+                    [],
+                    todos,
+                    placeholder=f"Edit: {old_content[:50]}{'...' if len(old_content) > 50 else ''} (Enter to save)",
+                    context=context,
+                    input_mode="submit",
+                )
+            return query, todos
 
-        # Normal search: filter + add option
         if query:
             filtered = []
             encoded = base64.b64encode(query.encode()).decode()
@@ -311,16 +308,13 @@ def main():
                 todos,
                 plugin_actions=get_plugin_actions(todos),
             )
-        return
+        return query, todos
 
-    # Action: handle clicks
     if step == "action":
         item_id = selected.get("id", "")
 
-        # Plugin-level actions (from action bar)
         if item_id == "__plugin__":
             if action == "add":
-                # Enter add mode (submit mode) - empty results, placeholder tells user what to do
                 respond(
                     [],
                     todos,
@@ -328,12 +322,11 @@ def main():
                     clear_input=True,
                     context="__add_mode__",
                     input_mode="submit",
-                    plugin_actions=[],  # Hide actions in add mode
+                    plugin_actions=[],
                 )
-                return
+                return "", todos
 
             if action == "clear_completed":
-                # Remove all completed todos - this is a modification, not navigation
                 todos = [t for t in todos if not t.get("done", False)]
                 save_todos(todos)
                 respond(
@@ -342,11 +335,10 @@ def main():
                     refresh_ui=True,
                     clear_input=True,
                     plugin_actions=get_plugin_actions(todos),
-                    navigate_forward=False,  # Override pendingNavigation
+                    navigate_forward=False,
                 )
-                return
+                return "", todos
 
-        # Back
         if item_id == "__back__":
             respond(
                 get_todo_results(todos),
@@ -354,9 +346,8 @@ def main():
                 clear_input=True,
                 plugin_actions=get_plugin_actions(todos),
             )
-            return
+            return query, todos
 
-        # Enter add mode (submit mode) - legacy item click support
         if item_id == "__add__":
             respond(
                 [],
@@ -366,10 +357,8 @@ def main():
                 context="__add_mode__",
                 input_mode="submit",
             )
-            return
+            return "", todos
 
-        # Add task (content encoded in ID)
-        # This is a modification, not navigation - don't increase depth
         if item_id.startswith("__add__:"):
             encoded = item_id.split(":", 1)[1]
             if encoded:
@@ -389,20 +378,19 @@ def main():
                         refresh_ui=True,
                         clear_input=True,
                         plugin_actions=get_plugin_actions(todos),
-                        navigate_forward=False,  # Override pendingNavigation
+                        navigate_forward=False,
                     )
-                    return
+                    return "", todos
                 except Exception:
                     pass
             respond(
                 get_todo_results(todos),
                 todos,
                 plugin_actions=get_plugin_actions(todos),
-                navigate_forward=False,  # Override pendingNavigation
+                navigate_forward=False,
             )
-            return
+            return "", todos
 
-        # Save edit (content encoded in ID)
         if item_id.startswith("__save__:"):
             parts = item_id.split(":", 2)
             if len(parts) >= 3:
@@ -421,7 +409,7 @@ def main():
                             plugin_actions=get_plugin_actions(todos),
                             navigate_forward=False,
                         )
-                        return
+                        return "", todos
                     except Exception:
                         pass
             respond(
@@ -430,7 +418,7 @@ def main():
                 clear_input=True,
                 plugin_actions=get_plugin_actions(todos),
             )
-            return
+            return "", todos
 
         if item_id == "__empty__":
             respond(
@@ -438,15 +426,12 @@ def main():
                 todos,
                 plugin_actions=get_plugin_actions(todos),
             )
-            return
+            return query, todos
 
-        # Todo item actions
         if item_id.startswith("todo:"):
             todo_idx = int(item_id.split(":")[1])
 
             if action == "toggle" or not action:
-                # Toggle done (default click action)
-                # This is a modification, not navigation - don't increase depth
                 if 0 <= todo_idx < len(todos):
                     todos[todo_idx]["done"] = not todos[todo_idx].get("done", False)
                     save_todos(todos)
@@ -455,14 +440,13 @@ def main():
                         todos,
                         refresh_ui=True,
                         plugin_actions=get_plugin_actions(todos),
-                        navigate_forward=False,  # Override pendingNavigation
+                        navigate_forward=False,
                     )
-                return
+                return query, todos
 
             if action == "edit":
                 if 0 <= todo_idx < len(todos):
                     content = todos[todo_idx].get("content", "")
-                    # Show current value in placeholder - empty results for clean UI
                     respond(
                         [],
                         todos,
@@ -471,7 +455,7 @@ def main():
                         context=f"__edit__:{todo_idx}",
                         input_mode="submit",
                     )
-                return
+                return query, todos
 
             if action == "delete":
                 if 0 <= todo_idx < len(todos):
@@ -483,10 +467,146 @@ def main():
                         refresh_ui=True,
                         plugin_actions=get_plugin_actions(todos),
                     )
-                return
+                return "", todos
 
-    # Unknown
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+    return query, todos
+
+
+def get_file_mtime() -> float:
+    if not TODO_FILE.exists():
+        return 0
+    try:
+        return TODO_FILE.stat().st_mtime
+    except OSError:
+        return 0
+
+
+def create_inotify_fd() -> int | None:
+    """Create inotify fd watching the todo file directory. Returns fd or None."""
+    try:
+        libc_name = ctypes.util.find_library("c")
+        if not libc_name:
+            return None
+        libc = ctypes.CDLL(libc_name, use_errno=True)
+
+        inotify_init = libc.inotify_init
+        inotify_init.argtypes = []
+        inotify_init.restype = ctypes.c_int
+
+        inotify_add_watch = libc.inotify_add_watch
+        inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+        inotify_add_watch.restype = ctypes.c_int
+
+        fd = inotify_init()
+        if fd < 0:
+            return None
+
+        TODO_FILE.parent.mkdir(parents=True, exist_ok=True)
+        watch_dir = str(TODO_FILE.parent).encode()
+        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
+        wd = inotify_add_watch(fd, watch_dir, mask)
+        if wd < 0:
+            os.close(fd)
+            return None
+
+        return fd
+    except Exception:
+        return None
+
+
+def read_inotify_events(fd: int) -> list[str]:
+    """Read inotify events and return list of filenames that changed."""
+    filenames = []
+    try:
+        buf = os.read(fd, 4096)
+        offset = 0
+        while offset < len(buf):
+            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
+            offset += 16
+            if length > 0:
+                name = buf[offset : offset + length].rstrip(b"\x00").decode()
+                filenames.append(name)
+                offset += length
+    except (OSError, struct.error):
+        pass
+    return filenames
+
+
+def main():
+    def shutdown_handler(signum, frame):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
+
+    todos = load_todos()
+    if not TEST_MODE:
+        emit_status(todos)
+
+    current_query = ""
+    inotify_fd = create_inotify_fd()
+
+    if inotify_fd is not None:
+        todo_filename = TODO_FILE.name
+
+        while True:
+            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
+
+            stdin_ready = any(
+                (f if isinstance(f, int) else f.fileno()) == sys.stdin.fileno()
+                for f in readable
+            )
+            if stdin_ready:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        break
+                    request = json.loads(line.strip())
+                    current_query, todos = handle_request(request, current_query)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+            if inotify_fd in readable:
+                changed_files = read_inotify_events(inotify_fd)
+                if todo_filename in changed_files:
+                    todos = load_todos()
+                    if not TEST_MODE:
+                        respond(
+                            get_todo_results(todos),
+                            todos,
+                            plugin_actions=get_plugin_actions(todos),
+                        )
+    else:
+        last_mtime = get_file_mtime()
+        last_check = time.time()
+        check_interval = 2.0
+
+        while True:
+            readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+
+            if readable:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        break
+                    request = json.loads(line.strip())
+                    current_query, todos = handle_request(request, current_query)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+            now = time.time()
+            if now - last_check >= check_interval:
+                new_mtime = get_file_mtime()
+                if new_mtime != last_mtime and new_mtime != 0:
+                    last_mtime = new_mtime
+                    todos = load_todos()
+                    if not TEST_MODE:
+                        respond(
+                            get_todo_results(todos),
+                            todos,
+                            plugin_actions=get_plugin_actions(todos),
+                        )
+                last_check = now
 
 
 if __name__ == "__main__":

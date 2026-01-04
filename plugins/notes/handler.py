@@ -3,15 +3,19 @@
 Notes workflow handler - quick notes with CRUD operations.
 Features: list, add, view, edit, delete, copy
 
-Uses the Form API for multi-field input (title + content).
+Runs in daemon mode with proactive index emission on startup.
 """
 
 import json
 import os
+import select
+import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 # Notes file location
 CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
@@ -153,9 +157,14 @@ def format_note_card(note: dict) -> str:
     return f"## {title}\n\n{content}"
 
 
+def emit(data: dict) -> None:
+    """Emit JSON response to stdout (line-buffered)."""
+    print(json.dumps(data), flush=True)
+
+
 def respond(response: dict):
     """Send JSON response"""
-    print(json.dumps(response))
+    emit(response)
 
 
 def show_add_form(title_default: str = "", content_default: str = ""):
@@ -245,61 +254,28 @@ def note_to_index_item(note: dict) -> dict:
                 "command": ["wl-copy", f"{title}\n\n{content}"],
             },
         ],
-        # Default action: view note in plugin (keepOpen = show UI)
         "entryPoint": {
             "step": "action",
             "selected": {"id": note_id},
             "action": "view",
         },
-        "keepOpen": True,  # Don't close launcher, show plugin UI
+        "keepOpen": True,
     }
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-    context = input_data.get("context", "")
-    form_data = input_data.get("formData", {})
+def get_index_items(notes: list[dict]) -> list[dict]:
+    """Generate full index items from notes list"""
+    return [note_to_index_item(n) for n in notes]
 
-    notes = load_notes()
 
-    if step == "index":
-        mode = input_data.get("mode", "full")
-        indexed_ids = set(input_data.get("indexedIds", []))
-
-        # Build current ID set
-        current_ids = {f"notes:{n.get('id', '')}" for n in notes}
-
-        if mode == "incremental" and indexed_ids:
-            # Find new items
-            new_ids = current_ids - indexed_ids
-            new_items = [
-                note_to_index_item(n)
-                for n in notes
-                if f"notes:{n.get('id', '')}" in new_ids
-            ]
-
-            # Find removed items
-            removed_ids = list(indexed_ids - current_ids)
-
-            print(
-                json.dumps(
-                    {
-                        "type": "index",
-                        "mode": "incremental",
-                        "items": new_items,
-                        "remove": removed_ids,
-                    }
-                )
-            )
-        else:
-            # Full reindex
-            items = [note_to_index_item(n) for n in notes]
-            print(json.dumps({"type": "index", "items": items}))
-        return
+def handle_request(request: dict, notes: list[dict]) -> None:
+    """Handle a single request from hamr"""
+    step = request.get("step", "initial")
+    query = request.get("query", "").strip()
+    selected = request.get("selected", {})
+    action = request.get("action", "")
+    context = request.get("context", "")
+    form_data = request.get("formData", {})
 
     if step == "initial":
         respond(
@@ -318,7 +294,6 @@ def main():
         results = []
 
         if query:
-            # Show add option when searching
             results.append(
                 {
                     "id": f"__add_quick__:{query}",
@@ -342,7 +317,6 @@ def main():
         return
 
     if step == "form":
-        # Adding new note
         if context == "__add__":
             title = form_data.get("title", "").strip()
             content = form_data.get("content", "")
@@ -375,7 +349,6 @@ def main():
                 respond({"type": "error", "message": "Title is required"})
             return
 
-        # Editing existing note
         if context.startswith("__edit__:"):
             note_id = context.split(":", 1)[1]
             note = next((n for n in notes if n.get("id") == note_id), None)
@@ -413,12 +386,10 @@ def main():
     if step == "action":
         item_id = selected.get("id", "")
 
-        # Plugin-level action: add (from action bar)
         if item_id == "__plugin__" and action == "add":
             show_add_form()
             return
 
-        # Form cancelled - return to list
         if item_id == "__form_cancel__":
             respond(
                 {
@@ -433,11 +404,9 @@ def main():
             )
             return
 
-        # Info items - not actionable
         if item_id in ("__info__", "__current__", "__empty__"):
             return
 
-        # Back navigation (from Escape key or back button)
         if item_id == "__back__" or action == "back":
             respond(
                 {
@@ -452,12 +421,10 @@ def main():
             )
             return
 
-        # Start adding new note - show form
         if item_id == "__add__":
             show_add_form()
             return
 
-        # Quick add from search - show form with title prefilled
         if item_id.startswith("__add_quick__:"):
             title = item_id.split(":", 1)[1]
             show_add_form(title_default=title)
@@ -468,7 +435,6 @@ def main():
             respond({"type": "error", "message": f"Note not found: {item_id}"})
             return
 
-        # View action (default) - show as card
         if action == "view" or not action:
             respond(
                 {
@@ -483,17 +449,15 @@ def main():
                             {"id": "back", "name": "Back", "icon": "arrow_back"},
                         ],
                     },
-                    "context": item_id,  # Store note ID for card actions
+                    "context": item_id,
                 }
             )
             return
 
-        # Edit action - show form
         if action == "edit":
             show_edit_form(note)
             return
 
-        # Copy action
         if action == "copy":
             content = f"{note.get('title', '')}\n\n{note.get('content', '')}"
             subprocess.run(["wl-copy", content], check=False)
@@ -508,7 +472,6 @@ def main():
             )
             return
 
-        # Delete action
         if action == "delete":
             notes = [n for n in notes if n.get("id") != item_id]
             if save_notes(notes):
@@ -527,8 +490,36 @@ def main():
                 respond({"type": "error", "message": "Failed to delete note"})
             return
 
-    # Unknown step
     respond({"type": "error", "message": f"Unknown step: {step}"})
+
+
+def main():
+    """Daemon event loop"""
+
+    def shutdown_handler(signum, frame):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
+
+    notes = load_notes()
+
+    if not TEST_MODE:
+        items = get_index_items(notes)
+        emit({"type": "index", "mode": "full", "items": items})
+
+    while True:
+        readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+
+        if readable:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                request = json.loads(line.strip())
+                handle_request(request, notes)
+            except (json.JSONDecodeError, ValueError):
+                continue
 
 
 if __name__ == "__main__":

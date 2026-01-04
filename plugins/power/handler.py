@@ -7,6 +7,8 @@ Provides shutdown, restart, suspend, logout, lock, and Hyprland reload.
 
 import json
 import os
+import select
+import signal
 import sys
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
@@ -122,15 +124,21 @@ def action_to_result(action: dict) -> dict:
     }
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip().lower()
-    selected = input_data.get("selected", {})
+def get_index_items() -> list[dict]:
+    return [action_to_index_item(a) for a in POWER_ACTIONS]
+
+
+def handle_request(request: dict) -> None:
+    step = request.get("step", "initial")
+    query = request.get("query", "").strip().lower()
+    selected = request.get("selected", {})
 
     if step == "index":
-        items = [action_to_index_item(a) for a in POWER_ACTIONS]
-        print(json.dumps({"type": "index", "items": items}))
+        items = get_index_items()
+        print(
+            json.dumps({"type": "index", "mode": "full", "items": items}),
+            flush=True,
+        )
         return
 
     if step == "initial":
@@ -143,7 +151,8 @@ def main():
                     "placeholder": "Search power actions...",
                     "inputMode": "realtime",
                 }
-            )
+            ),
+            flush=True,
         )
         return
 
@@ -171,7 +180,8 @@ def main():
                     "results": results,
                     "inputMode": "realtime",
                 }
-            )
+            ),
+            flush=True,
         )
         return
 
@@ -179,7 +189,9 @@ def main():
         selected_id = selected.get("id", "")
 
         if selected_id == "__empty__":
-            print(json.dumps({"type": "execute", "execute": {"close": True}}))
+            print(
+                json.dumps({"type": "execute", "execute": {"close": True}}), flush=True
+            )
             return
 
         action = next((a for a in POWER_ACTIONS if a["id"] == selected_id), None)
@@ -187,7 +199,8 @@ def main():
             print(
                 json.dumps(
                     {"type": "error", "message": f"Unknown action: {selected_id}"}
-                )
+                ),
+                flush=True,
             )
             return
 
@@ -206,7 +219,8 @@ def main():
                             "close": True,
                         },
                     }
-                )
+                ),
+                flush=True,
             )
             return
 
@@ -221,11 +235,34 @@ def main():
                         "close": True,
                     },
                 }
-            )
+            ),
+            flush=True,
         )
         return
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}), flush=True)
+
+
+def main():
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+
+    # Emit full index on startup (skip in test mode - tests use explicit index step)
+    if not TEST_MODE:
+        items = get_index_items()
+        print(
+            json.dumps({"type": "index", "mode": "full", "items": items}),
+            flush=True,
+        )
+
+    while True:
+        readable, _, _ = select.select([sys.stdin], [], [], 1.0)
+        if readable:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            request = json.loads(line.strip())
+            handle_request(request)
 
 
 if __name__ == "__main__":

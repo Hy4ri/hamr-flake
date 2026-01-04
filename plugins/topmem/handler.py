@@ -1,20 +1,56 @@
 #!/usr/bin/env python3
 """
-Top Memory workflow handler - show processes sorted by memory usage.
+Top Memory daemon - show processes sorted by memory usage.
 """
 
 import json
 import os
+import select
+import signal
 import subprocess
 import sys
+import time
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 MOCK_PROCESSES = [
-    {"pid": "5678", "name": "code", "cpu": 15.3, "mem": 12.1, "user": "user"},
-    {"pid": "1234", "name": "firefox", "cpu": 25.5, "mem": 8.2, "user": "user"},
-    {"pid": "9012", "name": "python3", "cpu": 8.7, "mem": 2.5, "user": "user"},
+    {
+        "pid": "5678",
+        "name": "code",
+        "cpu": 15.3,
+        "mem": 12.1,
+        "rss": 1267589120,
+        "user": "user",
+    },
+    {
+        "pid": "1234",
+        "name": "firefox",
+        "cpu": 25.5,
+        "mem": 8.2,
+        "rss": 858993459,
+        "user": "user",
+    },
+    {
+        "pid": "9012",
+        "name": "python3",
+        "cpu": 8.7,
+        "mem": 2.5,
+        "rss": 262144000,
+        "user": "user",
+    },
 ]
+
+
+def format_bytes(bytes_val: int) -> str:
+    """Format bytes to human-readable format (e.g., 1.2 GB, 256 MB)"""
+    value = float(bytes_val)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024:
+            if unit == "B":
+                return f"{value:.0f} {unit}"
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} PB"
 
 
 def get_processes() -> list[dict]:
@@ -25,7 +61,7 @@ def get_processes() -> list[dict]:
     try:
         # Use ps to get process info sorted by memory
         result = subprocess.run(
-            ["ps", "axo", "pid,user,%cpu,%mem,comm", "--sort=-%mem"],
+            ["ps", "axo", "pid,user,%cpu,%mem,comm,rss", "--sort=-%mem"],
             capture_output=True,
             text=True,
             check=True,
@@ -34,12 +70,14 @@ def get_processes() -> list[dict]:
         processes = []
         for line in result.stdout.strip().split("\n")[1:51]:  # Skip header, limit to 50
             parts = line.split()
-            if len(parts) >= 5:
+            if len(parts) >= 6:
                 pid = parts[0]
                 user = parts[1]
                 cpu = float(parts[2])
                 mem = float(parts[3])
                 name = parts[4]
+                rss_kb = float(parts[5])
+                rss = int(rss_kb * 1024)  # Convert KB to bytes
 
                 # Skip kernel threads and very low memory processes
                 if mem < 0.1:
@@ -51,6 +89,7 @@ def get_processes() -> list[dict]:
                         "name": name,
                         "cpu": cpu,
                         "mem": mem,
+                        "rss": rss,
                         "user": user,
                     }
                 )
@@ -74,12 +113,23 @@ def get_process_results(processes: list[dict], query: str = "") -> list[dict]:
         ]
 
     for proc in processes:
+        mem = proc["mem"]
+        badges = []
+
+        if mem > 10:
+            badges.append({"icon": "warning", "color": "#f44336"})
+
         results.append(
             {
                 "id": f"proc:{proc['pid']}",
-                "name": f"{proc['name']} ({proc['pid']})",
-                "icon": "memory",
-                "description": f"Mem: {proc['mem']:.1f}%  |  CPU: {proc['cpu']:.1f}%  |  User: {proc['user']}",
+                "name": proc["name"],
+                "gauge": {
+                    "value": mem,
+                    "max": 100,
+                    "label": f"{mem:.0f}%",
+                },
+                "description": f"PID {proc['pid']}  •  {format_bytes(proc['rss'])}  •  {proc['user']}",
+                "badges": badges,
                 "verb": "Kill",
                 "actions": [
                     {"id": "kill", "name": "Kill (SIGTERM)", "icon": "cancel"},
@@ -118,68 +168,61 @@ def kill_process(pid: str, force: bool = False) -> tuple[bool, str]:
         return False, f"Failed to kill process {pid}"
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
+def emit(data: dict) -> None:
+    print(json.dumps(data), flush=True)
+
+
+def handle_request(request: dict, current_query: str) -> str:
+    step = request.get("step", "initial")
+    query = request.get("query", "").strip()
+    selected = request.get("selected", {})
+    action = request.get("action", "")
 
     if step == "initial":
         processes = get_processes()
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes),
-                    "placeholder": "Filter processes...",
-                    "inputMode": "realtime",
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": get_process_results(processes),
+                "placeholder": "Filter processes...",
+                "inputMode": "realtime",
+            }
         )
-        return
+        return query
 
     if step == "search":
         processes = get_processes()
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes, query),
-                    "inputMode": "realtime",
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": get_process_results(processes, query),
+                "inputMode": "realtime",
+            }
         )
-        return
+        return query
 
-    # Poll: refresh with current query (called periodically by PluginRunner)
     if step == "poll":
         processes = get_processes()
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes, query),
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": get_process_results(processes, query),
+            }
         )
-        return
+        return current_query
 
-    # Action: handle clicks
     if step == "action":
         item_id = selected.get("id", "")
 
         if item_id == "__empty__":
             processes = get_processes()
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": get_process_results(processes),
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": get_process_results(processes),
+                }
             )
-            return
+            return current_query
 
         if item_id.startswith("proc:"):
             pid = item_id.split(":")[1]
@@ -191,20 +234,54 @@ def main():
             else:
                 success, message = False, "Unknown action"
 
-            # Refresh process list after kill
             processes = get_processes()
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": get_process_results(processes),
-                        "notify": message if success else None,
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": get_process_results(processes),
+                    "notify": message if success else None,
+                }
             )
-            return
+            return current_query
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+    emit({"type": "error", "message": f"Unknown step: {step}"})
+    return current_query
+
+
+def main():
+    def shutdown_handler(signum, frame):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
+
+    current_query = ""
+    last_refresh = time.time()
+    refresh_interval = 2.0
+
+    while True:
+        readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+
+        if readable:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                request = json.loads(line.strip())
+                current_query = handle_request(request, current_query)
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+        now = time.time()
+        if now - last_refresh >= refresh_interval:
+            processes = get_processes()
+            emit(
+                {
+                    "type": "results",
+                    "results": get_process_results(processes, current_query),
+                }
+            )
+            last_refresh = now
 
 
 if __name__ == "__main__":

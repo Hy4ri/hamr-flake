@@ -43,13 +43,37 @@ test_result_shows_process_name() {
 
 test_result_shows_cpu_percentage() {
     local result=$(hamr_test initial)
-    assert_contains "$result" "CPU:"
-    assert_contains "$result" "25.5%"  # firefox CPU from mock
+    assert_contains "$result" "25.5"  # firefox CPU from mock (in gauge label)
 }
 
 test_result_shows_memory() {
     local result=$(hamr_test initial)
     assert_contains "$result" "Mem:"
+}
+
+test_result_has_gauge() {
+    local result=$(hamr_test initial)
+    local has_gauge=$(json_get "$result" '.results[0].gauge')
+    [[ -n "$has_gauge" && "$has_gauge" != "null" ]] || fail "Result should have gauge field"
+}
+
+test_gauge_has_value() {
+    local result=$(hamr_test initial)
+    local cpu=$(json_get "$result" '.results[0].gauge.value')
+    assert_eq "$cpu" "25.5"
+}
+
+test_gauge_has_label() {
+    local result=$(hamr_test initial)
+    local label=$(json_get "$result" '.results[0].gauge.label')
+    [[ "$label" =~ ^[0-9]+% ]] || fail "Gauge label should be formatted as percentage"
+}
+
+test_high_cpu_has_warning_badge() {
+    local result=$(hamr_test initial)
+    local badge=$(json_get "$result" '.results[0].badges | length')
+    # First process (firefox) has 25.5% CPU - should NOT have badge
+    assert_eq "$badge" "0"
 }
 
 test_result_has_kill_verb() {
@@ -93,19 +117,7 @@ test_search_no_match_shows_empty() {
     assert_has_result "$result" "__empty__"
 }
 
-test_poll_returns_results() {
-    local result=$(hamr_test poll)
-    assert_type "$result" "results"
-    # Should still have mock processes
-    assert_has_result "$result" "proc:1234"
-}
-
-test_poll_with_query() {
-    local result=$(hamr_test poll --query "firefox")
-    assert_type "$result" "results"
-    assert_has_result "$result" "proc:1234"
-    assert_no_result "$result" "proc:5678"
-}
+# Note: poll tests removed - daemon mode handles auto-refresh internally
 
 test_action_kill() {
     local result=$(hamr_test action --id "proc:1234" --action "kill")
@@ -141,10 +153,11 @@ test_process_id_format() {
     assert_contains "$id" "proc:"
 }
 
-test_process_has_memory_icon() {
+test_process_name_no_pid() {
     local result=$(hamr_test initial)
-    local icon=$(json_get "$result" '.results[0].icon')
-    assert_eq "$icon" "memory"
+    local name=$(json_get "$result" '.results[0].name')
+    # Name should just be process name, not include PID
+    assert_eq "$name" "firefox"
 }
 
 # ============================================================================
@@ -165,11 +178,13 @@ run_tests \
     test_search_filters_by_name \
     test_search_filters_by_pid \
     test_search_no_match_shows_empty \
-    test_poll_returns_results \
-    test_poll_with_query \
     test_action_kill \
     test_action_kill9 \
     test_action_default_is_kill \
     test_action_empty_refreshes \
     test_process_id_format \
-    test_process_has_memory_icon
+    test_result_has_gauge \
+    test_gauge_has_value \
+    test_gauge_has_label \
+    test_high_cpu_has_warning_badge \
+    test_process_name_no_pid

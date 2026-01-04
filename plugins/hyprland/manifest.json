@@ -3,9 +3,8 @@
   "description": "Window management and Hyprland dispatchers",
   "icon": "desktop_windows",
   "supportedCompositors": ["hyprland"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "watchHyprlandEvents": ["openwindow", "closewindow"],
-    "debounce": 200
+    "background": true
   }
 }

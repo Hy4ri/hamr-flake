@@ -3,8 +3,8 @@
   "description": "Text snippets for quick insertion",
   "icon": "content_paste",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "watchFiles": ["~/.config/hamr/snippets.json"]
+    "background": true
   }
 }

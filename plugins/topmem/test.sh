@@ -41,17 +41,18 @@ test_result_shows_process_name() {
     assert_contains "$result" "python3"
 }
 
-test_result_shows_memory_first() {
-    # topmem shows Mem first, then CPU (opposite of topcpu)
+test_result_has_gauge() {
     local result=$(hamr_test initial)
-    local desc=$(json_get "$result" '.results[0].description')
-    # Description should start with "Mem:"
-    [[ "$desc" == Mem:* ]] || { echo "Expected description to start with 'Mem:', got: $desc"; return 1; }
+    local gauge=$(json_get "$result" '.results[0].gauge')
+    # Gauge should have value, max, and label
+    [[ -n "$gauge" ]] || { echo "Expected gauge to exist"; return 1; }
 }
 
-test_result_shows_cpu() {
+test_result_shows_pid_in_description() {
     local result=$(hamr_test initial)
-    assert_contains "$result" "CPU:"
+    local desc=$(json_get "$result" '.results[0].description')
+    # Description should contain "PID"
+    [[ "$desc" == PID* ]] || { echo "Expected description to start with 'PID', got: $desc"; return 1; }
 }
 
 test_result_has_kill_verb() {
@@ -143,10 +144,11 @@ test_process_id_format() {
     assert_contains "$id" "proc:"
 }
 
-test_process_has_memory_icon() {
+test_process_has_badge_for_high_memory() {
     local result=$(hamr_test initial)
-    local icon=$(json_get "$result" '.results[0].icon')
-    assert_eq "$icon" "memory"
+    # First process (code with 12.1% memory) should have a badge
+    local badges=$(json_get "$result" '.results[0].badges | length')
+    assert_eq "$badges" "1"
 }
 
 # ============================================================================
@@ -159,8 +161,8 @@ run_tests \
     test_initial_realtime_mode \
     test_initial_has_mock_processes \
     test_result_shows_process_name \
-    test_result_shows_memory_first \
-    test_result_shows_cpu \
+    test_result_has_gauge \
+    test_result_shows_pid_in_description \
     test_result_has_kill_verb \
     test_result_has_actions \
     test_action_kill_names \
@@ -174,4 +176,4 @@ run_tests \
     test_action_default_is_kill \
     test_action_empty_refreshes \
     test_process_id_format \
-    test_process_has_memory_icon
+    test_process_has_badge_for_high_memory

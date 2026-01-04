@@ -3,13 +3,8 @@
   "description": "Browse and launch applications",
   "icon": "apps",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "watchDirs": [
-      "~/.local/share/applications",
-      "~/.local/share/flatpak/exports/share/applications",
-      "/usr/share/applications",
-      "/var/lib/flatpak/exports/share/applications"
-    ]
+    "background": true
   }
 }

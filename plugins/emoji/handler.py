@@ -2,10 +2,13 @@
 """
 Emoji plugin - search and copy emojis.
 Emojis are loaded from bundled emojis.txt file.
+Runs as a daemon and emits full index on startup.
 """
 
 import json
 import os
+import select
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -220,19 +223,19 @@ def format_index_items(emojis: list[dict]) -> list[dict]:
     ]
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "")
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-
-    # Load emojis
-    emojis = load_emojis()
+def handle_request(request: dict, emojis: list[dict]) -> None:
+    """Handle a single request from the launcher."""
+    step = request.get("step", "initial")
+    query = request.get("query", "")
+    selected = request.get("selected", {})
+    action = request.get("action", "")
 
     if step == "index":
         items = format_index_items(emojis)
-        print(json.dumps({"type": "index", "items": items}))
+        print(
+            json.dumps({"type": "index", "mode": "full", "items": items}),
+            flush=True,
+        )
         return
 
     if step == "initial":
@@ -254,7 +257,8 @@ def main():
                         ],
                     },
                 }
-            )
+            ),
+            flush=True,
         )
         return
 
@@ -269,7 +273,8 @@ def main():
                     "results": results,
                     "placeholder": "Search emojis...",
                 }
-            )
+            ),
+            flush=True,
         )
         return
 
@@ -285,7 +290,10 @@ def main():
             action_id = action if action else "copy"
 
         if not emoji:
-            print(json.dumps({"type": "error", "message": "No emoji selected"}))
+            print(
+                json.dumps({"type": "error", "message": "No emoji selected"}),
+                flush=True,
+            )
             return
 
         if action_id == "type":
@@ -297,7 +305,8 @@ def main():
                         "type": "execute",
                         "execute": {"notify": f"Typed {emoji}", "close": True},
                     }
-                )
+                ),
+                flush=True,
             )
         else:
             copy_to_clipboard(emoji)
@@ -308,11 +317,47 @@ def main():
                         "type": "execute",
                         "execute": {"notify": f"Copied {emoji}", "close": True},
                     }
-                )
+                ),
+                flush=True,
             )
         return
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+    print(
+        json.dumps({"type": "error", "message": f"Unknown step: {step}"}),
+        flush=True,
+    )
+
+
+def main():
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+
+    # Load emojis once at startup
+    emojis = load_emojis()
+
+    # Emit full index on startup (skip in test mode - tests use explicit index step)
+    if not TEST_MODE:
+        items = format_index_items(emojis)
+        print(
+            json.dumps({"type": "index", "mode": "full", "items": items}),
+            flush=True,
+        )
+
+    # Daemon loop
+    while True:
+        readable, _, _ = select.select([sys.stdin], [], [], 1.0)
+        if readable:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            try:
+                request = json.loads(line.strip())
+                handle_request(request, emojis)
+            except json.JSONDecodeError:
+                print(
+                    json.dumps({"type": "error", "message": "Invalid JSON"}),
+                    flush=True,
+                )
 
 
 if __name__ == "__main__":

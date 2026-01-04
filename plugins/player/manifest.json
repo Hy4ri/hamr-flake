@@ -2,5 +2,9 @@
   "name": "Player",
   "description": "Media player controls via playerctl",
   "icon": "play_circle",
-  "supportedCompositors": ["*"]
+  "supportedCompositors": ["*"],
+  "daemon": {
+    "enabled": true,
+    "background": false
+  }
 }

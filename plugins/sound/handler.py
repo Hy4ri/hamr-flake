@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import json
 import os
+import select
+import signal
 import subprocess
 import sys
+import time
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
@@ -100,18 +103,18 @@ def get_results(
             "type": "slider",
             "name": "Volume",
             "icon": get_volume_icon(vol_pct / 100, vol_info["muted"]),
+            "gauge": {
+                "value": vol_pct,
+                "max": 100,
+                "label": f"{vol_pct}%",
+            },
             "value": vol_pct,
             "min": 0,
             "max": 100,
             "step": 5,
-            "unit": "%",
-            "badges": [
-                {
-                    "icon": "volume_off" if vol_info["muted"] else "volume_up",
-                    "background": "#f44336" if vol_info["muted"] else "#4caf50",
-                    "color": "#ffffff",
-                }
-            ],
+            "badges": [{"icon": "volume_off", "color": "#f44336"}]
+            if vol_info["muted"]
+            else [],
             "actions": [
                 {
                     "id": "mute-toggle",
@@ -125,18 +128,18 @@ def get_results(
             "type": "slider",
             "name": "Microphone",
             "icon": "mic_off" if mic_info["muted"] else "mic",
+            "gauge": {
+                "value": mic_pct,
+                "max": 100,
+                "label": f"{mic_pct}%",
+            },
             "value": mic_pct,
             "min": 0,
             "max": 100,
             "step": 5,
-            "unit": "%",
-            "badges": [
-                {
-                    "icon": "mic_off" if mic_info["muted"] else "mic",
-                    "background": "#f44336" if mic_info["muted"] else "#4caf50",
-                    "color": "#ffffff",
-                }
-            ],
+            "badges": [{"icon": "mic_off", "color": "#f44336"}]
+            if mic_info["muted"]
+            else [],
             "actions": [
                 {
                     "id": "mic-mute-toggle",
@@ -165,54 +168,25 @@ def get_plugin_actions(vol_info: dict, mic_info: dict) -> list[dict]:
     ]
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
+def emit(data: dict) -> None:
+    print(json.dumps(data), flush=True)
 
-    if step == "index":
-        vol_info = get_volume_info()
-        vol_pct = int(vol_info["volume"] * 100)
-        items = [
-            {
-                "id": "sound:volume",
-                "name": "Volume Control",
-                "description": f"Current: {vol_pct}%",
-                "icon": get_volume_icon(vol_info["volume"], vol_info["muted"]),
-                "verb": "Open",
-                "keywords": ["sound", "volume", "audio", "speaker"],
-                "entryPoint": {"step": "initial"},
-                "keepOpen": True,
-            },
-            {
-                "id": "sound:mute",
-                "name": "Toggle Mute",
-                "description": "Mute/unmute audio",
-                "icon": "volume_off",
-                "verb": "Toggle",
-                "keywords": ["sound", "mute", "audio", "silent"],
-                "execute": {
-                    "command": ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"],
-                    "name": "Toggle Mute",
-                },
-            },
-        ]
-        print(json.dumps({"type": "index", "items": items}))
-        return
+
+def handle_request(request: dict) -> None:
+    step = request.get("step", "initial")
+    selected = request.get("selected", {})
+    action = request.get("action", "")
 
     vol_info = get_volume_info()
     mic_info = get_mic_info()
 
     if step in ("initial", "search"):
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_results(),
-                    "pluginActions": get_plugin_actions(vol_info, mic_info),
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": get_results(),
+                "pluginActions": get_plugin_actions(vol_info, mic_info),
+            }
         )
         return
 
@@ -222,19 +196,55 @@ def main():
         if selected_id == "__plugin__" and action:
             selected_id = action
 
-        # Handle slider value change
         if action == "slider":
-            new_value = int(input_data.get("value", 0))
+            new_value = int(request.get("value", 0))
 
             if selected_id == "volume":
                 set_volume(new_value)
             elif selected_id == "mic":
                 set_mic_volume(new_value)
 
-            print(json.dumps({"type": "noop"}))
+            vol_info = get_volume_info()
+            mic_info = get_mic_info()
+
+            # Get updated values for the changed slider
+            if selected_id == "volume":
+                emit(
+                    {
+                        "type": "update",
+                        "items": [
+                            {
+                                "id": "volume",
+                                "gauge": {
+                                    "value": int(vol_info["volume"] * 100),
+                                    "max": 100,
+                                    "label": f"{int(vol_info['volume'] * 100)}%",
+                                },
+                                "icon": get_volume_icon(
+                                    vol_info["volume"], vol_info["muted"]
+                                ),
+                            }
+                        ],
+                    }
+                )
+            elif selected_id == "mic":
+                emit(
+                    {
+                        "type": "update",
+                        "items": [
+                            {
+                                "id": "mic",
+                                "gauge": {
+                                    "value": int(mic_info["volume"] * 100),
+                                    "max": 100,
+                                    "label": f"{int(mic_info['volume'] * 100)}%",
+                                },
+                            }
+                        ],
+                    }
+                )
             return
 
-        # Handle mute toggles (from action buttons on slider items or plugin actions)
         if action == "mute-toggle" or selected_id == "mute-toggle":
             run_cmd(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
         elif action == "mic-mute-toggle" or selected_id == "mic-mute-toggle":
@@ -244,20 +254,39 @@ def main():
         mic_info = get_mic_info()
         vol_pct = int(vol_info["volume"] * 100)
         mute_status = " [MUTED]" if vol_info["muted"] else ""
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_results(),
-                    "placeholder": f"Volume: {vol_pct}%{mute_status}",
-                    "pluginActions": get_plugin_actions(vol_info, mic_info),
-                    "navigateForward": False,
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": get_results(),
+                "placeholder": f"Volume: {vol_pct}%{mute_status}",
+                "pluginActions": get_plugin_actions(vol_info, mic_info),
+                "navigateForward": False,
+            }
         )
         return
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+    emit({"type": "error", "message": f"Unknown step: {step}"})
+
+
+def main():
+    def shutdown_handler(signum, frame):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
+
+    while True:
+        readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+
+        if readable:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                request = json.loads(line.strip())
+                handle_request(request)
+            except (json.JSONDecodeError, ValueError):
+                continue
 
 
 if __name__ == "__main__":

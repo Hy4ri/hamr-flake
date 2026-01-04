@@ -11,10 +11,14 @@ Features:
 - Launch web apps in standalone browser window
 - Delete web apps
 - Index support for main search integration
+- Daemon mode with inotify file watching for automatic reindexing
 """
 
+import ctypes
 import json
 import os
+import select
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +36,46 @@ WEBAPPS_FILE = CONFIG_DIR / "webapps.json"
 ICONS_DIR = CONFIG_DIR / "webapp-icons"
 PLUGIN_DIR = Path(__file__).parent
 LAUNCHER_SCRIPT = PLUGIN_DIR / "launch-webapp"
+
+# inotify constants
+IN_CLOSE_WRITE = 0x00000008
+IN_MOVED_TO = 0x00000080
+IN_CREATE = 0x00000100
+
+
+def create_inotify_fd(watch_path: Path) -> int | None:
+    """Create inotify fd watching a directory. Returns fd or None."""
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        fd = libc.inotify_init()
+        if fd < 0:
+            return None
+        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
+        wd = libc.inotify_add_watch(fd, str(watch_path).encode(), mask)
+        if wd < 0:
+            os.close(fd)
+            return None
+        return fd
+    except (OSError, AttributeError):
+        return None
+
+
+def read_inotify_events(fd: int) -> list[str]:
+    """Read pending inotify events, return list of changed filenames."""
+    filenames = []
+    try:
+        buf = os.read(fd, 4096)
+        offset = 0
+        while offset < len(buf):
+            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
+            offset += 16
+            if length:
+                name = buf[offset : offset + length].rstrip(b"\x00").decode()
+                filenames.append(name)
+                offset += length
+    except (OSError, struct.error):
+        pass
+    return filenames
 
 
 def ensure_dirs():
@@ -288,8 +332,14 @@ def webapp_to_index_item(app: dict) -> dict:
     }
 
 
-def main():
-    input_data = json.load(sys.stdin)
+def get_index_items() -> list[dict]:
+    """Get all webapps as index items for main search integration."""
+    webapps = load_webapps()
+    return [webapp_to_index_item(app) for app in webapps]
+
+
+def handle_request(input_data: dict):
+    """Handle a single request (initial, search, action, form, index)"""
     step = input_data.get("step", "initial")
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
@@ -644,6 +694,68 @@ def main():
                 )
             )
         return
+
+
+def main():
+    ensure_dirs()
+
+    watch_dir = CONFIG_DIR
+    watch_filename = "webapps.json"
+
+    inotify_fd = create_inotify_fd(watch_dir)
+
+    # Emit full index on startup
+    if not TEST_MODE:
+        items = get_index_items()
+        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+
+    if inotify_fd is not None:
+        # Daemon mode with inotify
+        while True:
+            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
+
+            for r in readable:
+                if r == sys.stdin:
+                    try:
+                        line = sys.stdin.readline()
+                        if not line:
+                            return
+                        input_data = json.loads(line)
+                        handle_request(input_data)
+                        sys.stdout.flush()
+                    except json.JSONDecodeError:
+                        continue
+
+                elif r == inotify_fd:
+                    changed = read_inotify_events(inotify_fd)
+                    if watch_filename in changed:
+                        print(json.dumps({"type": "index"}))
+                        sys.stdout.flush()
+    else:
+        # Fallback: mtime polling
+        last_mtime = WEBAPPS_FILE.stat().st_mtime if WEBAPPS_FILE.exists() else 0
+
+        while True:
+            readable, _, _ = select.select([sys.stdin], [], [], 2.0)
+
+            if readable:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        return
+                    input_data = json.loads(line)
+                    handle_request(input_data)
+                    sys.stdout.flush()
+                except json.JSONDecodeError:
+                    continue
+
+            # Check mtime
+            if WEBAPPS_FILE.exists():
+                current = WEBAPPS_FILE.stat().st_mtime
+                if current != last_mtime:
+                    last_mtime = current
+                    print(json.dumps({"type": "index"}))
+                    sys.stdout.flush()
 
 
 if __name__ == "__main__":

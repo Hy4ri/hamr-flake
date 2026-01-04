@@ -3,9 +3,12 @@
 Zoxide plugin handler - index frequently used directories from zoxide.
 """
 
+import ctypes
 import json
 import os
+import select
 import shutil
+import struct
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +17,14 @@ TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
 
 MAX_ITEMS = 50
+
+# inotify constants
+IN_CLOSE_WRITE = 0x00000008
+IN_MOVED_TO = 0x00000080
+IN_CREATE = 0x00000100
+
+# Zoxide database location
+ZOXIDE_DB = Path.home() / ".local/share/zoxide/db.zo"
 
 
 def get_zoxide_dirs() -> list[dict]:
@@ -119,6 +130,41 @@ def get_directory_preview(path: str) -> str:
         return "(permission denied)"
 
 
+def create_inotify_fd(watch_path: Path) -> int | None:
+    """Create inotify fd watching a directory. Returns fd or None."""
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        fd = libc.inotify_init()
+        if fd < 0:
+            return None
+        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
+        wd = libc.inotify_add_watch(fd, str(watch_path).encode(), mask)
+        if wd < 0:
+            os.close(fd)
+            return None
+        return fd
+    except (OSError, AttributeError):
+        return None
+
+
+def read_inotify_events(fd: int) -> list[str]:
+    """Read pending inotify events, return list of changed filenames."""
+    filenames = []
+    try:
+        buf = os.read(fd, 4096)
+        offset = 0
+        while offset < len(buf):
+            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
+            offset += 16
+            if length:
+                name = buf[offset : offset + length].rstrip(b"\x00").decode()
+                filenames.append(name)
+                offset += length
+    except (OSError, struct.error):
+        pass
+    return filenames
+
+
 def dir_to_index_item(dir_info: dict) -> dict:
     """Convert directory info to indexable item format."""
     path = dir_info["path"]
@@ -172,8 +218,8 @@ def dir_to_index_item(dir_info: dict) -> dict:
     }
 
 
-def main():
-    input_data = json.load(sys.stdin)
+def handle_request(input_data: dict) -> None:
+    """Handle a single request."""
     step = input_data.get("step", "initial")
 
     if step == "index":
@@ -210,6 +256,89 @@ def main():
         return
 
     print(json.dumps({"type": "error", "message": "Zoxide is index-only"}))
+
+
+def emit_full_index() -> None:
+    """Emit full index of zoxide directories."""
+    if TEST_MODE:
+        dirs = get_mock_dirs()
+    else:
+        dirs = get_zoxide_dirs()
+
+    items = [dir_to_index_item(d) for d in dirs]
+    print(
+        json.dumps({"type": "index", "mode": "full", "items": items}),
+        flush=True,
+    )
+
+
+def main():
+    if TEST_MODE:
+        input_data = json.load(sys.stdin)
+        handle_request(input_data)
+        return
+
+    import signal
+
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+
+    # Emit full index on startup
+    emit_full_index()
+
+    watch_dir = ZOXIDE_DB.parent
+    watch_filename = "db.zo"
+
+    if not watch_dir.exists():
+        watch_dir.mkdir(parents=True, exist_ok=True)
+
+    inotify_fd = create_inotify_fd(watch_dir)
+
+    if inotify_fd is not None:
+        # Daemon mode with inotify
+        while True:
+            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
+
+            for r in readable:
+                if r == sys.stdin:
+                    try:
+                        line = sys.stdin.readline()
+                        if not line:
+                            return
+                        input_data = json.loads(line)
+                        handle_request(input_data)
+                        sys.stdout.flush()
+                    except json.JSONDecodeError:
+                        continue
+
+                elif r == inotify_fd:
+                    changed = read_inotify_events(inotify_fd)
+                    if watch_filename in changed:
+                        print(json.dumps({"type": "index"}), flush=True)
+    else:
+        # Fallback: mtime polling
+        last_mtime = ZOXIDE_DB.stat().st_mtime if ZOXIDE_DB.exists() else 0
+
+        while True:
+            readable, _, _ = select.select([sys.stdin], [], [], 2.0)
+
+            if readable:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        return
+                    input_data = json.loads(line)
+                    handle_request(input_data)
+                    sys.stdout.flush()
+                except json.JSONDecodeError:
+                    continue
+
+            # Check mtime
+            if ZOXIDE_DB.exists():
+                current = ZOXIDE_DB.stat().st_mtime
+                if current != last_mtime:
+                    last_mtime = current
+                    print(json.dumps({"type": "index"}), flush=True)
 
 
 if __name__ == "__main__":

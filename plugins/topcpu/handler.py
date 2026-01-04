@@ -5,8 +5,11 @@ Top CPU workflow handler - show processes sorted by CPU usage.
 
 import json
 import os
+import select
+import signal
 import subprocess
 import sys
+import time
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
@@ -112,12 +115,23 @@ def get_process_results(processes: list[dict], query: str = "") -> list[dict]:
         ]
 
     for proc in processes:
+        cpu = proc["cpu"]
+        badges = []
+
+        if cpu > 50:
+            badges.append({"icon": "warning", "color": "#f44336"})
+
         results.append(
             {
                 "id": f"proc:{proc['pid']}",
-                "name": f"{proc['name']} ({proc['pid']})",
-                "icon": "memory",
-                "description": f"CPU: {proc['cpu']:.1f}%  |  Mem: {proc['mem']:.1f}%  |  User: {proc['user']}",
+                "name": proc["name"],
+                "gauge": {
+                    "value": cpu,
+                    "max": 100,
+                    "label": f"{cpu:.0f}%",
+                },
+                "description": f"PID {proc['pid']}  •  Mem: {proc['mem']:.1f}%  •  {proc['user']}",
+                "badges": badges,
                 "verb": "Kill",
                 "actions": [
                     {"id": "kill", "name": "Kill (SIGTERM)", "icon": "cancel"},
@@ -156,68 +170,53 @@ def kill_process(pid: str, force: bool = False) -> tuple[bool, str]:
         return False, f"Failed to kill process {pid}"
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
+def emit(data: dict) -> None:
+    """Emit JSON response to stdout."""
+    print(json.dumps(data), flush=True)
+
+
+def handle_request(request: dict, current_query: str) -> str:
+    """Handle a request and return the updated query."""
+    step = request.get("step", "initial")
+    query = request.get("query", "").strip()
+    selected = request.get("selected", {})
+    action = request.get("action", "")
 
     if step == "initial":
         processes = get_processes()
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes),
-                    "placeholder": "Filter processes...",
-                    "inputMode": "realtime",
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": get_process_results(processes),
+                "placeholder": "Filter processes...",
+                "inputMode": "realtime",
+            }
         )
-        return
+        return ""
 
     if step == "search":
         processes = get_processes()
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes, query),
-                    "inputMode": "realtime",
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": get_process_results(processes, query),
+                "inputMode": "realtime",
+            }
         )
-        return
+        return query
 
-    # Poll: refresh with current query (called periodically by PluginRunner)
-    if step == "poll":
-        processes = get_processes()
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": get_process_results(processes, query),
-                }
-            )
-        )
-        return
-
-    # Action: handle clicks
     if step == "action":
         item_id = selected.get("id", "")
 
         if item_id == "__empty__":
             processes = get_processes()
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": get_process_results(processes),
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": get_process_results(processes),
+                }
             )
-            return
+            return current_query
 
         if item_id.startswith("proc:"):
             pid = item_id.split(":")[1]
@@ -229,20 +228,53 @@ def main():
             else:
                 success, message = False, "Unknown action"
 
-            # Refresh process list after kill
             processes = get_processes()
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": get_process_results(processes),
-                        "notify": message if success else None,
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": get_process_results(processes, current_query),
+                    "notify": message if success else None,
+                }
             )
-            return
+            return current_query
 
-    print(json.dumps({"type": "error", "message": f"Unknown step: {step}"}))
+    emit({"type": "error", "message": f"Unknown step: {step}"})
+    return current_query
+
+
+def main():
+    """Run in daemon mode with auto-refresh."""
+    signal.signal(signal.SIGTERM, lambda s, f: sys.exit(0))
+    signal.signal(signal.SIGINT, lambda s, f: sys.exit(0))
+
+    current_query = ""
+    last_refresh = 0
+    refresh_interval = 2.0
+
+    while True:
+        readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+
+        if readable:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                request = json.loads(line.strip())
+                current_query = handle_request(request, current_query)
+                last_refresh = time.time()
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+        # Auto-refresh every 2 seconds
+        if time.time() - last_refresh >= refresh_interval:
+            processes = get_processes()
+            emit(
+                {
+                    "type": "results",
+                    "results": get_process_results(processes, current_query),
+                }
+            )
+            last_refresh = time.time()
 
 
 if __name__ == "__main__":

@@ -210,6 +210,80 @@ def format_size(size: int) -> str:
     return f"{size_float:.1f} TB"
 
 
+def get_file_type_chip(path: str) -> dict | None:
+    """Get file type chip based on extension"""
+    if os.path.isdir(path):
+        return None
+
+    ext = Path(path).suffix.lower()
+
+    type_map = {
+        # Code
+        ".py": ("Python", "code"),
+        ".js": ("JavaScript", "code"),
+        ".ts": ("TypeScript", "code"),
+        ".jsx": ("React", "code"),
+        ".tsx": ("React", "code"),
+        ".rs": ("Rust", "code"),
+        ".go": ("Go", "code"),
+        ".c": ("C", "code"),
+        ".cpp": ("C++", "code"),
+        ".java": ("Java", "code"),
+        ".kt": ("Kotlin", "code"),
+        ".rb": ("Ruby", "code"),
+        ".php": ("PHP", "code"),
+        ".swift": ("Swift", "code"),
+        ".lua": ("Lua", "code"),
+        ".sh": ("Shell", "terminal"),
+        ".bash": ("Bash", "terminal"),
+        ".zsh": ("Zsh", "terminal"),
+        # Web
+        ".html": ("HTML", "html"),
+        ".css": ("CSS", "css"),
+        ".scss": ("SCSS", "css"),
+        # Data
+        ".json": ("JSON", "data_object"),
+        ".yaml": ("YAML", "data_object"),
+        ".yml": ("YAML", "data_object"),
+        ".toml": ("TOML", "data_object"),
+        ".xml": ("XML", "data_object"),
+        ".sql": ("SQL", "storage"),
+        # Documents
+        ".md": ("Markdown", "article"),
+        ".txt": ("Text", "article"),
+        ".pdf": ("PDF", "picture_as_pdf"),
+        ".doc": ("Word", "description"),
+        ".docx": ("Word", "description"),
+        # Media
+        ".png": ("PNG", "image"),
+        ".jpg": ("JPEG", "image"),
+        ".jpeg": ("JPEG", "image"),
+        ".gif": ("GIF", "image"),
+        ".webp": ("WebP", "image"),
+        ".svg": ("SVG", "image"),
+        ".mp4": ("Video", "movie"),
+        ".mkv": ("Video", "movie"),
+        ".avi": ("Video", "movie"),
+        ".mov": ("Video", "movie"),
+        ".mp3": ("Audio", "music_note"),
+        ".flac": ("Audio", "music_note"),
+        ".wav": ("Audio", "music_note"),
+        ".ogg": ("Audio", "music_note"),
+        # Archives
+        ".zip": ("Archive", "folder_zip"),
+        ".tar": ("Archive", "folder_zip"),
+        ".gz": ("Archive", "folder_zip"),
+        ".7z": ("Archive", "folder_zip"),
+        ".rar": ("Archive", "folder_zip"),
+    }
+
+    if ext in type_map:
+        text, icon = type_map[ext]
+        return {"text": text, "icon": icon}
+
+    return None
+
+
 def get_file_preview(path: str) -> dict | None:
     """Generate preview data for a file"""
     if not os.path.exists(path):
@@ -349,6 +423,24 @@ def path_to_result(path: str, show_actions: bool = True) -> dict:
         if not is_dir:
             actions.append({"id": "delete", "name": "Delete", "icon": "delete"})
         result["actions"] = actions
+
+    # Add chips for file type and size
+    chips = []
+    type_chip = get_file_type_chip(path)
+    if type_chip:
+        chips.append(type_chip)
+
+    # Add size chip for large files (> 10MB)
+    if not is_dir:
+        try:
+            size = os.path.getsize(path)
+            if size > 10 * 1024 * 1024:  # > 10MB
+                chips.append({"text": format_size(size), "icon": "storage"})
+        except OSError:
+            pass
+
+    if chips:
+        result["chips"] = chips
 
     # Add thumbnail for images
     ext = Path(path).suffix.lower()

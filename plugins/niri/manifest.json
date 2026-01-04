@@ -3,7 +3,8 @@
   "description": "Window management and Niri actions",
   "icon": "desktop_windows",
   "supportedCompositors": ["niri"],
-  "index": {
-    "enabled": true
+  "daemon": {
+    "enabled": true,
+    "background": true
   }
 }

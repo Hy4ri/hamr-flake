@@ -3,7 +3,9 @@
   "description": "Jump to frequently used directories",
   "icon": "folder_special",
   "supportedCompositors": ["*"],
-  "index": {
-    "enabled": true
+  "indexOnly": true,
+  "daemon": {
+    "enabled": true,
+    "background": true
   }
 }

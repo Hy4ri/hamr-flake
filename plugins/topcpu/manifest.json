@@ -3,5 +3,8 @@
   "description": "Processes sorted by CPU usage",
   "icon": "speed",
   "supportedCompositors": ["*"],
-  "poll": 2000
+  "daemon": {
+    "enabled": true,
+    "background": false
+  }
 }

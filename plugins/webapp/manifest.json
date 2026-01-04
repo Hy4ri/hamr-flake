@@ -3,8 +3,8 @@
   "description": "Install and manage web apps",
   "icon": "web",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "watchFiles": ["~/.config/hamr/webapps.json"]
+    "background": true
   }
 }

@@ -3,12 +3,8 @@
   "description": "Run commands and search shell history",
   "icon": "terminal",
   "supportedCompositors": ["*"],
-  "index": {
+  "daemon": {
     "enabled": true,
-    "watchFiles": [
-      "~/.zsh_history",
-      "~/.bash_history",
-      "~/.local/share/fish/fish_history"
-    ]
+    "background": true
   }
 }

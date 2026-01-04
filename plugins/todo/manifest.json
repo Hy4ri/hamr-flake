@@ -3,8 +3,8 @@
     "description": "Manage your todo list",
     "icon": "checklist",
     "supportedCompositors": ["*"],
-    "index": {
+    "daemon": {
         "enabled": true,
-        "reindex": "never"
+        "background": true
     }
 }

@@ -9,18 +9,29 @@ Features:
 - Add new snippets (key + value)
 - Edit existing snippets
 - Delete snippets
+- Daemon mode with inotify file watching for live index updates
 
 Note: Uses a delay before typing to allow focus to return to previous window
 """
 
+import ctypes
+import ctypes.util
 import json
 import os
-import re
+import select
+import signal
+import struct
 import subprocess
 import sys
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
+
+# inotify constants
+IN_CLOSE_WRITE = 0x00000008
+IN_MOVED_TO = 0x00000080
+IN_CREATE = 0x00000100
 
 # Test mode - mock external tool availability
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
@@ -334,20 +345,84 @@ def snippet_to_index_item(snippet: dict) -> dict:
     }
 
 
-def main():
-    input_data = json.load(sys.stdin)
-    step = input_data.get("step", "initial")
-    query = input_data.get("query", "").strip()
-    selected = input_data.get("selected", {})
-    action = input_data.get("action", "")
-    context = input_data.get("context", "")
+def get_file_mtime() -> float:
+    """Get the modification time of snippets file"""
+    if not SNIPPETS_PATH.exists():
+        return 0
+    try:
+        return SNIPPETS_PATH.stat().st_mtime
+    except OSError:
+        return 0
 
-    snippets = load_snippets()
+
+def create_inotify_fd() -> int | None:
+    """Create inotify fd watching the snippets directory. Returns fd or None."""
+    try:
+        libc_name = ctypes.util.find_library("c")
+        if not libc_name:
+            return None
+        libc = ctypes.CDLL(libc_name, use_errno=True)
+
+        inotify_init = libc.inotify_init
+        inotify_init.argtypes = []
+        inotify_init.restype = ctypes.c_int
+
+        inotify_add_watch = libc.inotify_add_watch
+        inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
+        inotify_add_watch.restype = ctypes.c_int
+
+        fd = inotify_init()
+        if fd < 0:
+            return None
+
+        SNIPPETS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        watch_dir = str(SNIPPETS_PATH.parent).encode()
+        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
+        wd = inotify_add_watch(fd, watch_dir, mask)
+        if wd < 0:
+            os.close(fd)
+            return None
+
+        return fd
+    except Exception:
+        return None
+
+
+def read_inotify_events(fd: int) -> list[str]:
+    """Read inotify events and return list of filenames that changed."""
+    filenames = []
+    try:
+        buf = os.read(fd, 4096)
+        offset = 0
+        while offset < len(buf):
+            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
+            offset += 16
+            if length > 0:
+                name = buf[offset : offset + length].rstrip(b"\x00").decode()
+                filenames.append(name)
+                offset += length
+    except (OSError, struct.error):
+        pass
+    return filenames
+
+
+def emit(data: dict) -> None:
+    """Emit JSON response to stdout (line-buffered)."""
+    print(json.dumps(data), flush=True)
+
+
+def handle_request(request: dict, snippets: list[dict]) -> list[dict]:
+    """Process a request and return updated snippets (may be modified by form/action)"""
+    step = request.get("step", "initial")
+    query = request.get("query", "").strip()
+    selected = request.get("selected", {})
+    action = request.get("action", "")
+    context = request.get("context", "")
     selected_id = selected.get("id", "")
 
     if step == "index":
-        mode = input_data.get("mode", "full")
-        indexed_ids = set(input_data.get("indexedIds", []))
+        mode = request.get("mode", "full")
+        indexed_ids = set(request.get("indexedIds", []))
 
         # Build current ID set
         current_ids = {f"snippet:{s['key']}" for s in snippets}
@@ -364,39 +439,35 @@ def main():
             # Find removed items
             removed_ids = list(indexed_ids - current_ids)
 
-            print(
-                json.dumps(
-                    {
-                        "type": "index",
-                        "mode": "incremental",
-                        "items": new_items,
-                        "remove": removed_ids,
-                    }
-                )
+            emit(
+                {
+                    "type": "index",
+                    "mode": "incremental",
+                    "items": new_items,
+                    "remove": removed_ids,
+                }
             )
         else:
             # Full reindex
             items = [snippet_to_index_item(s) for s in snippets]
-            print(json.dumps({"type": "index", "items": items}))
-        return
+            emit({"type": "index", "items": items})
+        return snippets
 
     if step == "initial":
         results = get_main_menu(snippets)
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "results": results,
-                    "inputMode": "realtime",
-                    "placeholder": "Search snippets...",
-                    "pluginActions": get_plugin_actions(),
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "results": results,
+                "inputMode": "realtime",
+                "placeholder": "Search snippets...",
+                "pluginActions": get_plugin_actions(),
+            }
         )
-        return
+        return snippets
 
     if step == "form":
-        form_data = input_data.get("formData", {})
+        form_data = request.get("formData", {})
 
         # Adding new snippet
         if context == "__add__":
@@ -404,44 +475,36 @@ def main():
             value = form_data.get("value", "")
 
             if not key:
-                print(json.dumps({"type": "error", "message": "Key is required"}))
-                return
+                emit({"type": "error", "message": "Key is required"})
+                return snippets
 
             if any(s["key"] == key for s in snippets):
-                print(
-                    json.dumps(
-                        {"type": "error", "message": f"Key '{key}' already exists"}
-                    )
-                )
-                return
+                emit({"type": "error", "message": f"Key '{key}' already exists"})
+                return snippets
 
             if not value:
-                print(json.dumps({"type": "error", "message": "Value is required"}))
-                return
+                emit({"type": "error", "message": "Value is required"})
+                return snippets
 
             new_snippet = {"key": key, "value": value}
             snippets.append(new_snippet)
 
             if save_snippets(snippets):
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_main_menu(snippets),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search snippets...",
-                            "pluginActions": get_plugin_actions(),
-                            "navigateBack": True,
-                        }
-                    )
+                emit(
+                    {
+                        "type": "results",
+                        "results": get_main_menu(snippets),
+                        "inputMode": "realtime",
+                        "clearInput": True,
+                        "context": "",
+                        "placeholder": "Search snippets...",
+                        "pluginActions": get_plugin_actions(),
+                        "navigateBack": True,
+                    }
                 )
             else:
-                print(
-                    json.dumps({"type": "error", "message": "Failed to save snippet"})
-                )
-            return
+                emit({"type": "error", "message": "Failed to save snippet"})
+            return snippets
 
         # Editing existing snippet
         if context.startswith("__edit__:"):
@@ -449,8 +512,8 @@ def main():
             value = form_data.get("value", "")
 
             if not value:
-                print(json.dumps({"type": "error", "message": "Value is required"}))
-                return
+                emit({"type": "error", "message": "Value is required"})
+                return snippets
 
             for s in snippets:
                 if s["key"] == key:
@@ -458,193 +521,270 @@ def main():
                     break
 
             if save_snippets(snippets):
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_main_menu(snippets),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "context": "",
-                            "placeholder": "Search snippets...",
-                            "pluginActions": get_plugin_actions(),
-                            "navigateBack": True,
-                        }
-                    )
+                emit(
+                    {
+                        "type": "results",
+                        "results": get_main_menu(snippets),
+                        "inputMode": "realtime",
+                        "clearInput": True,
+                        "context": "",
+                        "placeholder": "Search snippets...",
+                        "pluginActions": get_plugin_actions(),
+                        "navigateBack": True,
+                    }
                 )
             else:
-                print(
-                    json.dumps({"type": "error", "message": "Failed to save snippet"})
-                )
-            return
+                emit({"type": "error", "message": "Failed to save snippet"})
+            return snippets
 
     if step == "search":
         # Normal snippet filtering (realtime mode)
         results = get_main_menu(snippets, query)
-        print(
-            json.dumps(
-                {
-                    "type": "results",
-                    "inputMode": "realtime",
-                    "results": results,
-                    "placeholder": "Search snippets...",
-                    "pluginActions": get_plugin_actions(),
-                }
-            )
+        emit(
+            {
+                "type": "results",
+                "inputMode": "realtime",
+                "results": results,
+                "placeholder": "Search snippets...",
+                "pluginActions": get_plugin_actions(),
+            }
         )
-        return
+        return snippets
 
     if step == "action":
         # Plugin-level action: add (from action bar)
         if selected_id == "__plugin__" and action == "add":
             show_add_form()
-            return
+            return snippets
 
         # Form cancelled - return to list
         if selected_id == "__form_cancel__":
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": get_main_menu(snippets),
-                        "inputMode": "realtime",
-                        "clearInput": True,
-                        "context": "",
-                        "placeholder": "Search snippets...",
-                        "pluginActions": get_plugin_actions(),
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": get_main_menu(snippets),
+                    "inputMode": "realtime",
+                    "clearInput": True,
+                    "context": "",
+                    "placeholder": "Search snippets...",
+                    "pluginActions": get_plugin_actions(),
+                }
             )
-            return
+            return snippets
 
         # Back button (legacy support)
         if selected_id == "__back__":
-            print(
-                json.dumps(
-                    {
-                        "type": "results",
-                        "results": get_main_menu(snippets),
-                        "inputMode": "realtime",
-                        "clearInput": True,
-                        "context": "",
-                        "placeholder": "Search snippets...",
-                        "pluginActions": get_plugin_actions(),
-                    }
-                )
+            emit(
+                {
+                    "type": "results",
+                    "results": get_main_menu(snippets),
+                    "inputMode": "realtime",
+                    "clearInput": True,
+                    "context": "",
+                    "placeholder": "Search snippets...",
+                    "pluginActions": get_plugin_actions(),
+                }
             )
-            return
+            return snippets
 
         # Non-actionable items
         if selected_id in ("__error__", "__current_value__", "__tip__", "__empty__"):
-            return
+            return snippets
 
         # Copy action
         if action == "copy":
             snippet = next((s for s in snippets if s["key"] == selected_id), None)
             if snippet:
                 expanded_value = expand_variables(snippet["value"])
-                print(
-                    json.dumps(
-                        {
-                            "type": "execute",
-                            "execute": {
-                                "command": ["wl-copy", expanded_value],
-                                "name": f"Copy snippet: {selected_id}",
-                                "icon": "content_copy",
-                                "notify": f"Copied '{selected_id}' to clipboard",
-                                "close": True,
-                            },
-                        }
-                    )
-                )
-            return
-
-        # Edit action - show edit form
-        if action == "edit":
-            snippet = next((s for s in snippets if s["key"] == selected_id), None)
-            if snippet:
-                show_edit_form(selected_id, snippet.get("value", ""))
-            return
-
-        # Delete action
-        if action == "delete":
-            snippets = [s for s in snippets if s["key"] != selected_id]
-            if save_snippets(snippets):
-                print(
-                    json.dumps(
-                        {
-                            "type": "results",
-                            "results": get_main_menu(snippets),
-                            "inputMode": "realtime",
-                            "clearInput": True,
-                            "placeholder": "Search snippets...",
-                            "pluginActions": get_plugin_actions(),
-                        }
-                    )
-                )
-            else:
-                print(
-                    json.dumps({"type": "error", "message": "Failed to save snippets"})
-                )
-            return
-
-        # Start adding new snippet (legacy item click support)
-        if selected_id == "__add__":
-            show_add_form()
-            return
-
-        # Direct snippet selection - insert using ydotool
-        snippet = next((s for s in snippets if s["key"] == selected_id), None)
-        if not snippet:
-            print(
-                json.dumps(
-                    {"type": "error", "message": f"Snippet not found: {selected_id}"}
-                )
-            )
-            return
-
-        # Check ydotool availability
-        if not check_ydotool():
-            # Fallback to clipboard
-            expanded_value = expand_variables(snippet["value"])
-            print(
-                json.dumps(
+                emit(
                     {
                         "type": "execute",
                         "execute": {
                             "command": ["wl-copy", expanded_value],
                             "name": f"Copy snippet: {selected_id}",
                             "icon": "content_copy",
-                            "notify": f"ydotool not found. Copied '{selected_id}' to clipboard instead.",
+                            "notify": f"Copied '{selected_id}' to clipboard",
                             "close": True,
                         },
                     }
                 )
-            )
-            return
+            return snippets
 
-        # Use ydotool to type the snippet value
-        # Add delay to allow launcher to close and focus to return
-        # Using bash to chain sleep + ydotool
-        raw_value = snippet["value"]
-        expanded_value = expand_variables(raw_value)
-        print(
-            json.dumps(
+        # Edit action - show edit form
+        if action == "edit":
+            snippet = next((s for s in snippets if s["key"] == selected_id), None)
+            if snippet:
+                show_edit_form(selected_id, snippet.get("value", ""))
+            return snippets
+
+        # Delete action
+        if action == "delete":
+            snippets = [s for s in snippets if s["key"] != selected_id]
+            if save_snippets(snippets):
+                emit(
+                    {
+                        "type": "results",
+                        "results": get_main_menu(snippets),
+                        "inputMode": "realtime",
+                        "clearInput": True,
+                        "context": "",
+                        "placeholder": "Search snippets...",
+                        "pluginActions": get_plugin_actions(),
+                        "navigateBack": True,
+                    }
+                )
+            else:
+                emit({"type": "error", "message": "Failed to save snippet"})
+            return snippets
+
+        # Start adding new snippet (legacy item click support)
+        if selected_id == "__add__":
+            show_add_form()
+            return snippets
+
+        # Direct snippet selection - insert using ydotool
+        snippet = next((s for s in snippets if s["key"] == selected_id), None)
+        if not snippet:
+            emit({"type": "error", "message": f"Snippet not found: {selected_id}"})
+            return snippets
+
+        # Check ydotool availability
+        if not check_ydotool():
+            # Fallback to clipboard
+            expanded_value = expand_variables(snippet["value"])
+            emit(
                 {
                     "type": "execute",
                     "execute": {
-                        "command": [
-                            "bash",
-                            "-c",
-                            f"sleep 0.{TYPE_DELAY_MS} && ydotool type --key-delay 0 -- {repr(expanded_value)}",
-                        ],
-                        "name": f"Insert snippet: {selected_id}",
-                        "icon": "content_paste",
+                        "command": ["wl-copy", expanded_value],
+                        "name": f"Copy snippet: {selected_id}",
+                        "icon": "content_copy",
+                        "notify": f"ydotool not found. Copied '{selected_id}' to clipboard instead.",
                         "close": True,
                     },
                 }
             )
+            return snippets
+
+        # Use ydotool to type the snippet value
+        # Add delay to allow launcher to close and focus to return
+        raw_value = snippet["value"]
+        expanded_value = expand_variables(raw_value)
+        emit(
+            {
+                "type": "execute",
+                "execute": {
+                    "command": [
+                        "bash",
+                        "-c",
+                        f"sleep 0.{TYPE_DELAY_MS} && ydotool type --key-delay 0 -- {repr(expanded_value)}",
+                    ],
+                    "name": f"Insert snippet: {selected_id}",
+                    "icon": "content_paste",
+                    "close": True,
+                },
+            }
         )
+        return snippets
+
+    return snippets
+
+
+def main():
+    """Main daemon loop with inotify file watching"""
+
+    def shutdown_handler(signum, frame):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
+
+    snippets = load_snippets()
+    current_query = ""
+    # Disable inotify in test mode to avoid race conditions
+    inotify_fd = None if TEST_MODE else create_inotify_fd()
+
+    # Emit full index on startup
+    if not TEST_MODE:
+        items = [snippet_to_index_item(s) for s in snippets]
+        emit({"type": "index", "mode": "full", "items": items})
+
+    if inotify_fd is not None:
+        snippets_filename = SNIPPETS_PATH.name
+
+        while True:
+            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
+
+            stdin_ready = any(
+                (f if isinstance(f, int) else f.fileno()) == sys.stdin.fileno()
+                for f in readable
+            )
+            if stdin_ready:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        break
+                    request = json.loads(line.strip())
+                    snippets = handle_request(request, snippets)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+            if inotify_fd in readable:
+                changed_files = read_inotify_events(inotify_fd)
+                if snippets_filename in changed_files:
+                    snippets = load_snippets()
+                    # Emit updated index and results
+                    items = [snippet_to_index_item(s) for s in snippets]
+                    emit({"type": "index", "items": items})
+                    results = get_main_menu(snippets, current_query)
+                    emit(
+                        {
+                            "type": "results",
+                            "results": results,
+                            "inputMode": "realtime",
+                            "placeholder": "Search snippets...",
+                            "pluginActions": get_plugin_actions(),
+                        }
+                    )
+    else:
+        # Fallback to mtime polling if inotify unavailable
+        last_mtime = get_file_mtime()
+        last_check = time.time()
+        check_interval = 2.0
+
+        while True:
+            readable, _, _ = select.select([sys.stdin], [], [], 0.5)
+
+            if readable:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        break
+                    request = json.loads(line.strip())
+                    snippets = handle_request(request, snippets)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+            now = time.time()
+            if now - last_check >= check_interval:
+                new_mtime = get_file_mtime()
+                if new_mtime != last_mtime and new_mtime != 0:
+                    last_mtime = new_mtime
+                    snippets = load_snippets()
+                    # Emit updated index and results
+                    items = [snippet_to_index_item(s) for s in snippets]
+                    emit({"type": "index", "items": items})
+                    results = get_main_menu(snippets, current_query)
+                    emit(
+                        {
+                            "type": "results",
+                            "results": results,
+                            "inputMode": "realtime",
+                            "placeholder": "Search snippets...",
+                            "pluginActions": get_plugin_actions(),
+                        }
+                    )
+                last_check = now
 
 
 if __name__ == "__main__":

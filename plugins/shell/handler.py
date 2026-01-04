@@ -6,14 +6,67 @@ Indexes:
 - Binaries from $PATH that appear in shell history (commands actually used)
 """
 
+import ctypes
 import hashlib
 import json
 import os
+import select
+import struct
 import subprocess
 import sys
 from pathlib import Path
 
 IS_NIRI = bool(os.environ.get("NIRI_SOCKET"))
+
+IN_CLOSE_WRITE = 0x00000008
+IN_MOVED_TO = 0x00000080
+IN_CREATE = 0x00000100
+
+
+def create_inotify_fd(watch_paths: list[Path]) -> tuple[int | None, dict[int, Path]]:
+    """Create inotify fd watching multiple directories.
+    Returns (fd, {wd: path}) or (None, {}) if unavailable.
+    """
+    try:
+        libc = ctypes.CDLL("libc.so.6", use_errno=True)
+        fd = libc.inotify_init()
+        if fd < 0:
+            return None, {}
+
+        wd_to_path = {}
+        mask = IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE
+
+        for path in watch_paths:
+            if path.exists():
+                wd = libc.inotify_add_watch(fd, str(path).encode(), mask)
+                if wd >= 0:
+                    wd_to_path[wd] = path
+
+        if not wd_to_path:
+            os.close(fd)
+            return None, {}
+
+        return fd, wd_to_path
+    except (OSError, AttributeError):
+        return None, {}
+
+
+def read_inotify_events(fd: int) -> list[str]:
+    """Read pending inotify events, return list of changed filenames."""
+    filenames = []
+    try:
+        buf = os.read(fd, 4096)
+        offset = 0
+        while offset < len(buf):
+            wd, mask, cookie, length = struct.unpack_from("iIII", buf, offset)
+            offset += 16
+            if length:
+                name = buf[offset : offset + length].rstrip(b"\x00").decode()
+                filenames.append(name)
+                offset += length
+    except (OSError, struct.error):
+        pass
+    return filenames
 
 
 def get_path_binaries(filter_set: set[str] | None = None) -> list[str]:
@@ -246,8 +299,22 @@ def history_to_index_item(cmd: str) -> dict:
     }
 
 
-def main():
-    input_data = json.load(sys.stdin)
+def get_index_items() -> list[dict]:
+    """Get all indexable items (binaries and history commands)."""
+    history_cmd_names = get_history_command_names()
+    binaries = get_path_binaries(filter_set=history_cmd_names)
+    commands = get_shell_history()[:50]
+
+    items = []
+    for binary in binaries:
+        items.append(binary_to_index_item(binary))
+    for cmd in commands:
+        items.append(history_to_index_item(cmd))
+    return items
+
+
+def handle_request(input_data: dict):
+    """Handle a single request (initial, search, action, index)."""
     step = input_data.get("step", "initial")
     query = input_data.get("query", "").strip()
     selected = input_data.get("selected", {})
@@ -296,11 +363,7 @@ def main():
             )
         else:
             # Full reindex
-            items = []
-            for binary in binaries:
-                items.append(binary_to_index_item(binary))
-            for cmd in commands:
-                items.append(history_to_index_item(cmd))
+            items = get_index_items()
             print(json.dumps({"type": "index", "items": items}))
         return
 
@@ -450,6 +513,80 @@ def main():
                     }
                 )
             )
+
+
+TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
+
+
+def main():
+    """Main entry point - daemon mode with inotify file watching."""
+    shell = os.environ.get("SHELL", "/bin/bash")
+    home = Path.home()
+
+    history_files = []
+    if "zsh" in shell:
+        history_files.append(home / ".zsh_history")
+    elif "fish" in shell:
+        history_files.append(home / ".local/share/fish/fish_history")
+    else:
+        history_files.append(home / ".bash_history")
+
+    watch_dirs = list({f.parent for f in history_files if f.parent.exists()})
+    history_names = {f.name for f in history_files}
+
+    # Emit full index on startup (skip in test mode - tests use explicit index step)
+    if not TEST_MODE:
+        items = get_index_items()
+        print(json.dumps({"type": "index", "mode": "full", "items": items}), flush=True)
+
+    inotify_fd, wd_to_path = create_inotify_fd(watch_dirs)
+
+    if inotify_fd is not None:
+        while True:
+            readable, _, _ = select.select([sys.stdin, inotify_fd], [], [], 1.0)
+
+            for r in readable:
+                if r == sys.stdin:
+                    try:
+                        line = sys.stdin.readline()
+                        if not line:
+                            return
+                        input_data = json.loads(line)
+                        handle_request(input_data)
+                        sys.stdout.flush()
+                    except json.JSONDecodeError:
+                        continue
+
+                elif r == inotify_fd:
+                    changed = read_inotify_events(inotify_fd)
+                    if any(name in history_names for name in changed):
+                        print(json.dumps({"type": "index"}))
+                        sys.stdout.flush()
+    else:
+        last_mtime = {f: f.stat().st_mtime if f.exists() else 0 for f in history_files}
+
+        while True:
+            readable, _, _ = select.select([sys.stdin], [], [], 2.0)
+
+            if readable:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        return
+                    input_data = json.loads(line)
+                    handle_request(input_data)
+                    sys.stdout.flush()
+                except json.JSONDecodeError:
+                    continue
+
+            for f in history_files:
+                if f.exists():
+                    current = f.stat().st_mtime
+                    if current != last_mtime.get(f, 0):
+                        last_mtime[f] = current
+                        print(json.dumps({"type": "index"}))
+                        sys.stdout.flush()
+                        break
 
 
 if __name__ == "__main__":
