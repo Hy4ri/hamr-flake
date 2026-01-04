@@ -255,6 +255,11 @@ RippleButton {
 
     onPressed: {
         // Immediately update selection to clicked item to prevent scroll jump
+        // Skip for items that navigate to a new view (plugin entry/result)
+        const isPluginEntry = entry?.resultType === LauncherSearchResult.ResultType.PluginEntry;
+        const isPluginResult = entry?.resultType === LauncherSearchResult.ResultType.PluginResult;
+        if (isPluginEntry || isPluginResult) return;
+        
         const listView = root.ListView.view;
         if (listView && entry?.key) {
             const idx = LauncherSearch.results.findIndex(r => r.key === entry.key);
@@ -265,12 +270,18 @@ RippleButton {
     }
 
     onClicked: {
-        const isPlugin = entry?.resultType === LauncherSearchResult.ResultType.PluginEntry ||
-                          entry?.resultType === LauncherSearchResult.ResultType.PluginResult;
+        const isPluginEntry = entry?.resultType === LauncherSearchResult.ResultType.PluginEntry;
+        const isPluginResult = entry?.resultType === LauncherSearchResult.ResultType.PluginResult;
         const shouldKeepOpen = entry?.keepOpen === true;
 
-        if (isPlugin || shouldKeepOpen) {
-            // Capture selection before action executes (for restoration after results update)
+        if (isPluginEntry || isPluginResult) {
+            // Navigating to new view - just execute, selection will reset
+            root.itemExecute()
+            return
+        }
+
+        if (shouldKeepOpen) {
+            // Action that keeps current view - capture selection for restoration
             const listView = root.ListView.view;
             if (listView && typeof listView.captureSelection === "function") {
                 listView.captureSelection();

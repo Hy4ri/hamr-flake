@@ -680,13 +680,8 @@ Item {
                         values: LauncherSearch.results
                         onValuesChanged: {
                             const hasPendingRestore = appResults.pendingItemKey !== "" || appResults.pendingCurrentIndex >= 0;
-                            const isPoll = PluginRunner.isPollUpdate;
-                            
-                            if (isPoll) {
-                                 PluginRunner.isPollUpdate = false;
-                             }
                              
-                             const shouldTryRestore = LauncherSearch.skipNextAutoFocus || hasPendingRestore || isPoll;
+                            const shouldTryRestore = LauncherSearch.skipNextAutoFocus || hasPendingRestore;
                             
                             if (shouldTryRestore && appResults.count > 0) {
                                 // Clear the one-shot flag if it was set
@@ -736,9 +731,12 @@ Item {
                             }
 
                             appResults.clearPendingSelection();
-                             appResults.currentIndex = -1;
-                             appResults.selectedActionIndex = -1;
-                             root.focusFirstItem();
+                            appResults.selectedActionIndex = -1;
+                            // Use callLater to ensure index reset happens after all bindings update
+                            Qt.callLater(() => {
+                                appResults.currentIndex = 0;
+                                appResults.positionViewAtBeginning();
+                            });
                         }
                     }
 

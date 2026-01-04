@@ -58,14 +58,6 @@ Singleton {
     // Handler controls this via response - allows different modes per step
     property string inputMode: "realtime"
     
-    // Polling: interval in ms (0 = disabled)
-    // Can be set via manifest.json "poll" field or response "pollInterval" field
-    property int pollInterval: 0
-    property string lastPollQuery: ""  // Last query sent to plugin (for poll context)
-    
-    // Flag to indicate the next result update is from a poll (not user action)
-    // This is set before sending poll request and cleared after results are processed
-    property bool isPollUpdate: false
     
     // Version counter - increments on any result item update to trigger UI re-evaluation
     // SearchItem depends on this to re-evaluate visual properties (gauge, progress, badges, etc.)
@@ -470,15 +462,13 @@ Singleton {
                case "gridBrowser":
                case "update":
                    // Only process UI responses if plugin is active
-                   if (isActive) {
-                       // Update status if provided (before handlePluginResponse)
-                       if (response.status) {
-                           root.updatePluginStatus(pluginId, response.status);
+                       if (isActive) {
+                           // Update status if provided (before handlePluginResponse)
+                           if (response.status) {
+                               root.updatePluginStatus(pluginId, response.status);
+                           }
+                           root.handlePluginResponse(response);
                        }
-                       // Preserve selection for daemon responses (same as poll updates)
-                       root.isPollUpdate = true;
-                       root.handlePluginResponse(response);
-                   }
                    break;
               
               case "status":
@@ -769,8 +759,6 @@ Singleton {
           root.pluginPlaceholder = "";  // Reset placeholder on plugin start
           root.pluginError = "";
           root.inputMode = "realtime";  // Default to realtime, handler can change
-          root.pollInterval = plugin.manifest.poll ?? 0;  // Poll interval from manifest
-          root.lastPollQuery = "";
           
           // For daemon plugins, start daemon if not already running
           const daemonConfig = plugin.manifest.daemon;
@@ -792,9 +780,6 @@ Singleton {
               console.log("[PluginRunner] sendToPlugin: No active plugin");
               return;
           }
-          
-          // Track last query for poll context
-          root.lastPollQuery = query;
           
           // Don't clear card here - it should persist until new response arrives
           
@@ -1025,8 +1010,6 @@ Singleton {
            root.pluginError = "";
            root.pluginBusy = false;
            root.inputMode = "realtime";
-           root.pollInterval = 0;
-           root.lastPollQuery = "";
            root.pluginActions = [];
            root.navigationDepth = 0;
            root.pendingNavigation = false;
@@ -1062,73 +1045,6 @@ Singleton {
             
             // Increment version counter for additional reactivity
             root.resultsVersion++;
-        }
-        
-        // Smart update plugin results - patches in place when structure matches
-        // Returns true if a partial update was performed, false if full replacement needed
-        function smartUpdatePluginResults(newResults) {
-            if (!newResults || !Array.isArray(newResults)) {
-                root.pluginResults = [];
-                return false;
-            }
-            
-            const oldResults = root.pluginResults;
-            
-            // Fast path: if lengths differ, structure changed - full replace
-            if (oldResults.length !== newResults.length) {
-                root.pluginResults = newResults;
-                root.resultsVersion++;
-                return false;
-            }
-            
-            // Check if all IDs match in same order (structure unchanged)
-            let structureMatches = true;
-            for (let i = 0; i < newResults.length; i++) {
-                if (oldResults[i]?.id !== newResults[i]?.id) {
-                    structureMatches = false;
-                    break;
-                }
-            }
-            
-            if (!structureMatches) {
-                // Structure changed - need full replacement
-                root.pluginResults = newResults;
-                root.resultsVersion++;
-                return false;
-            }
-            
-            // Structure matches - patch items in place
-            // Merge new properties into existing items to preserve object identity
-            let hasChanges = false;
-            const updated = oldResults.map((oldItem, i) => {
-                const newItem = newResults[i];
-                
-                // Check if item actually changed (compare relevant properties)
-                const propsToCheck = ['name', 'description', 'icon', 'iconType', 'thumbnail',
-                    'value', 'gauge', 'graph', 'progress', 'badges', 'chips', 'actions',
-                    'displayValue', 'min', 'max', 'step', 'verb', 'type', 'keepOpen', 'preview'];
-                
-                let itemChanged = false;
-                for (const prop of propsToCheck) {
-                    if (JSON.stringify(oldItem[prop]) !== JSON.stringify(newItem[prop])) {
-                        itemChanged = true;
-                        break;
-                    }
-                }
-                
-                if (itemChanged) {
-                    hasChanges = true;
-                    return Object.assign({}, oldItem, newItem);
-                }
-                return oldItem;
-            });
-            
-            if (hasChanges) {
-                root.pluginResults = updated;
-                root.resultsVersion++;
-            }
-            
-            return true;
         }
      
       // Go back one step in plugin navigation
@@ -1416,14 +1332,8 @@ Singleton {
                     break;
                     
                case "results":
-                    // Use smart update for daemon responses (preserves selection, reduces redraw)
-                    // isPollUpdate is set before daemon requests to indicate incremental update
-                    if (root.isPollUpdate) {
-                        root.smartUpdatePluginResults(response.results ?? []);
-                    } else {
-                        root.pluginResults = response.results ?? [];
-                        root.resultsVersion++;
-                    }
+                    root.pluginResults = response.results ?? [];
+                    root.resultsVersion++;
                     root.pluginCard = null;
                     root.pluginForm = null;
                     if (response.placeholder !== undefined) {
@@ -1433,9 +1343,6 @@ Singleton {
                         root.pluginContext = response.context ?? "";
                     }
                     root.inputMode = response.inputMode ?? "realtime";
-                    if (response.pollInterval !== undefined) {
-                        root.pollInterval = response.pollInterval ?? 0;
-                    }
                     if (response.pluginActions !== undefined) {
                         root.pluginActions = response.pluginActions ?? [];
                     }
@@ -1648,31 +1555,6 @@ Singleton {
                  if (root.activePlugin) root.goBack();
              } else {
                  root.closePlugin();
-             }
-         }
-     }
-     
-     // Polling timer - periodically refreshes plugin results
-     Timer {
-         id: pollTimer
-         interval: root.pollInterval
-         running: root.activePlugin !== null && root.pollInterval > 0 && !root.pluginBusy
-         repeat: true
-         onTriggered: {
-             if (root.activePlugin && !root.pluginBusy) {
-                 root.isPollUpdate = true;
-                 const input = {
-                     step: "poll",
-                     query: root.lastPollQuery,
-                     session: root.activePlugin.session
-                 };
-                 if (root.lastSelectedItem) {
-                     input.selected = { id: root.lastSelectedItem };
-                 }
-                 if (root.pluginContext) {
-                     input.context = root.pluginContext;
-                 }
-                 sendToPlugin(input);
              }
          }
      }
