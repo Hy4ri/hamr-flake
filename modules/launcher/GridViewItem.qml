@@ -57,7 +57,7 @@ MouseArea {
                 Component {
                     id: textIconComponent
                     StyledText {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         text: root.itemData?.icon ?? ""
                         font.pixelSize: parent.height * 0.8
                         horizontalAlignment: Text.AlignHCenter
@@ -68,17 +68,19 @@ MouseArea {
                 Component {
                     id: materialIconComponent
                     MaterialSymbol {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         text: root.itemData?.icon ?? "help"
                         iconSize: parent.height * 0.6
                         color: root.colText
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
 
                 Component {
                     id: imageIconComponent
                     Image {
-                        anchors.centerIn: parent
+                        anchors.fill: parent
                         source: root.itemData?.icon ?? ""
                         sourceSize.width: parent.width
                         sourceSize.height: parent.height

@@ -38,37 +38,52 @@ RippleButton {
     property string thumbnail: entry?.thumbnail ?? ""
     property bool isPluginEntry: entry?.resultType === LauncherSearchResult.ResultType.PluginEntry
     property string entryPluginId: entry?.pluginId ?? ""
-    // For plugin entries, get badges/chips from live status; otherwise use entry values
-    // Depends on statusVersion to trigger re-evaluation when status updates
-    property var badges: {
-        const _version = PluginRunner.statusVersion; // Reactive dependency
-        if (isPluginEntry && entryPluginId) {
-            const status = PluginRunner.getPluginStatus(entryPluginId);
-            if (status?.badges) return status.badges;
-        }
-        return entry?.badges ?? [];
-    }
-    property var chips: {
-        const _version = PluginRunner.statusVersion; // Reactive dependency
-        if (isPluginEntry && entryPluginId) {
-            const status = PluginRunner.getPluginStatus(entryPluginId);
-            if (status?.chips) return status.chips;
-        }
-        return entry?.chips ?? [];
-    }
-    property var graphData: entry?.graph ?? null
-    property var gaugeData: entry?.gauge ?? null
-    // Progress bar properties
-    property var progressData: entry?.progress ?? null
-    property bool hasProgress: progressData !== null
-    // Slider item properties
-    property bool isSliderItem: entry?.resultType === "slider" || entry?.type === "slider"
-    property real sliderValue: entry?.value ?? 0
-    property real sliderMin: entry?.min ?? 0
-    property real sliderMax: entry?.max ?? 100
-    property real sliderStep: entry?.step ?? 1
-    property string sliderDisplayValue: entry?.displayValue ?? ""
-    property string sliderUnit: entry?.unit ?? ""
+     // For plugin entries, get badges/chips from live status; otherwise use entry values
+     // Depends on statusVersion to trigger re-evaluation when status updates (plugin entries)
+     // Depends on resultsVersion for non-plugin entries (item updates)
+     property var badges: {
+         const _statusVersion = PluginRunner.statusVersion; // Reactive for plugin entries
+         const _resultsVersion = PluginRunner.resultsVersion; // Reactive for item updates
+         if (isPluginEntry && entryPluginId) {
+             const status = PluginRunner.getPluginStatus(entryPluginId);
+             if (status?.badges) return status.badges;
+         }
+         return entry?.badges ?? [];
+     }
+     property var chips: {
+         const _statusVersion = PluginRunner.statusVersion; // Reactive for plugin entries
+         const _resultsVersion = PluginRunner.resultsVersion; // Reactive for item updates
+         if (isPluginEntry && entryPluginId) {
+             const status = PluginRunner.getPluginStatus(entryPluginId);
+             if (status?.chips) return status.chips;
+         }
+         return entry?.chips ?? [];
+     }
+     property var graphData: {
+         const _version = PluginRunner.resultsVersion; // Reactive dependency
+         return entry?.graph ?? null;
+     }
+     property var gaugeData: {
+         const _version = PluginRunner.resultsVersion; // Reactive dependency
+         return entry?.gauge ?? null;
+     }
+     // Progress bar properties
+     property var progressData: {
+         const _version = PluginRunner.resultsVersion; // Reactive dependency
+         return entry?.progress ?? null;
+     }
+     property bool hasProgress: progressData !== null
+     // Slider item properties
+     property bool isSliderItem: entry?.resultType === "slider" || entry?.type === "slider"
+     property real sliderValue: {
+         const _version = PluginRunner.resultsVersion; // Reactive dependency
+         return entry?.value ?? 0;
+     }
+     property real sliderMin: entry?.min ?? 0
+     property real sliderMax: entry?.max ?? 100
+     property real sliderStep: entry?.step ?? 1
+     property string sliderDisplayValue: entry?.displayValue ?? ""
+     property string sliderUnit: entry?.unit ?? ""
     
     function adjustSlider(direction) {
         if (!isSliderItem) return
@@ -541,7 +556,6 @@ RippleButton {
                     text: modelData.text ?? ""
                     image: modelData.image ?? ""
                     icon: modelData.icon ?? ""
-                    backgroundColor: modelData.background ? Qt.color(modelData.background) : Appearance.colors.colSurfaceContainerHighest
                     textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface
                 }
             }
@@ -586,7 +600,6 @@ RippleButton {
                     text: modelData.text ?? ""
                     image: modelData.image ?? ""
                     icon: modelData.icon ?? ""
-                    backgroundColor: modelData.background ? Qt.color(modelData.background) : Appearance.colors.colSurfaceContainerHighest
                     textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface
                 }
             }
