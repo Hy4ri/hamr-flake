@@ -7,6 +7,7 @@ QtObject {
     enum ResultType { Standard, PluginEntry, PluginResult, Card }
 
     // Unique key for ScriptModel identity (prevents flicker on updates)
+    // Can be set explicitly by plugins for stable identity when id changes (e.g., "Add: {query}" items)
     property string key: id || name || ""
     
     // General stuff

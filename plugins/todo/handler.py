@@ -272,6 +272,7 @@ def handle_request(request: dict, current_query: str) -> tuple[str, list[dict]]:
             filtered.append(
                 {
                     "id": f"__add__:{encoded}",
+                    "key": "__add__",
                     "name": f"Add: {query}",
                     "icon": "add_circle",
                     "description": "Press Enter to add as new task",

@@ -313,7 +313,8 @@ Singleton {
         
         const results = pluginResults.map(item => {
              const itemId = item.id;
-             const cached = existingCache[itemId];
+             const itemKey = item.key ?? itemId;
+             const cached = existingCache[itemKey];
              
              const iconName = item.icon ?? PluginRunner.activePlugin?.manifest?.icon ?? 'extension';
              let isSystemIcon;
@@ -331,6 +332,9 @@ Singleton {
              
              if (cached?.result) {
                  const result = cached.result;
+                 const idChanged = result.id !== itemId;
+                 result.id = itemId;
+                 result.pluginItemId = itemId;
                  result.name = item.name;
                  result.comment = item.description ?? "";
                  result.verb = item.verb ?? "Select";
@@ -349,11 +353,37 @@ Singleton {
                  result.gauge = item.gauge ?? null;
                  result.progress = item.progress ?? null;
                  
+                 if (idChanged) {
+                     result.execute = ((capturedItemId, capturedExecuteCommand, capturedExecuteNotify, capturedExecuteName, capturedPluginId, capturedPluginName, capturedIconName) => () => {
+                         if (capturedExecuteCommand) {
+                             Quickshell.execDetached(capturedExecuteCommand);
+                             if (capturedExecuteNotify) {
+                                 Quickshell.execDetached(["notify-send", capturedPluginName, capturedExecuteNotify, "-a", "Shell"]);
+                             }
+                             if (capturedExecuteName) {
+                                 root.recordWorkflowExecution({
+                                     name: capturedExecuteName,
+                                     command: capturedExecuteCommand,
+                                     entryPoint: null,
+                                     icon: capturedIconName,
+                                     iconType: "material",
+                                     thumbnail: "",
+                                     workflowId: capturedPluginId,
+                                     workflowName: capturedPluginName
+                                 }, root.query);
+                             }
+                             GlobalStates.launcherOpen = false;
+                             return;
+                         }
+                         PluginRunner.selectItem(capturedItemId, "");
+                     })(itemId, executeCommand, executeNotify, executeName, pluginId, pluginName, iconName);
+                 }
+                 
                  const newActions = item.actions ?? [];
                  const cachedActionIds = (cached.actions ?? []).map(a => a.name).join(',');
                  const newActionIds = newActions.map(a => a.name).join(',');
                  
-                 if (cachedActionIds !== newActionIds) {
+                 if (cachedActionIds !== newActionIds || idChanged) {
                      for (const action of (cached.actions ?? [])) {
                          action.destroy();
                      }
@@ -376,7 +406,7 @@ Singleton {
                  }
                  result.pluginActions = newActions;
                  
-                 newCache[itemId] = cached;
+                 newCache[itemKey] = cached;
                  return result;
              }
 
@@ -397,6 +427,7 @@ Singleton {
 
              const result = resultComp.createObject(null, {
                  id: itemId,
+                 key: itemKey,
                  name: item.name,
                  comment: item.description ?? "",
                  verb: item.verb ?? "Select",
@@ -445,7 +476,7 @@ Singleton {
                  })(itemId, executeCommand, executeNotify, executeName, pluginId, pluginName, iconName)
              });
              
-             newCache[itemId] = { result, actions: itemActions };
+             newCache[itemKey] = { result, actions: itemActions };
              return result;
          });
          
