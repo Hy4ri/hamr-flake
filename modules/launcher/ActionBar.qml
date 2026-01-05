@@ -3,6 +3,7 @@
  * 
  * Renders contextually based on the current mode:
  * - "hints": Shows search prefix shortcuts (files, clipboard, plugins, etc.)
+ *            When ambient items exist, collapses prefixes and shows ambient items
  * - "search": Shows back button and search-specific actions (e.g., Wipe All for clipboard)
  * - "plugin": Shows home/back buttons, navigation depth, and plugin actions
  * 
@@ -12,6 +13,7 @@
  * - Back button (single Esc) - goes back one level
  * - Up to 6 action buttons with keyboard shortcuts
  * - Confirmation dialog for dangerous actions
+ * - Ambient items display with collapsed prefix indicator
  */
 import QtQuick
 import QtQuick.Layouts
@@ -41,6 +43,14 @@ Item {
     // Currently showing confirmation for this action
     property var pendingConfirmAction: null
     
+    // Ambient items from PluginRunner
+    readonly property var ambientItems: {
+        const _version = PluginRunner.ambientVersion;
+        return PluginRunner.getAmbientItems();
+    }
+    readonly property bool hasAmbientItems: ambientItems.length > 0
+    readonly property bool showAmbientMode: mode === "hints" && hasAmbientItems
+    
     // Signals
     signal actionClicked(string actionId, bool wasConfirmed)
     signal backClicked()
@@ -53,6 +63,70 @@ Item {
         anchors.fill: parent
         spacing: 8
         visible: root.pendingConfirmAction === null
+        
+        // Ambient items row - shown when ambient items exist in hints mode
+        Item {
+            id: ambientContainer
+            visible: root.showAmbientMode
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+            
+            Row {
+                id: ambientRow
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 6
+                
+                // Animate position for marquee effect when overflowing
+                x: ambientMarquee.running ? ambientMarquee.xPos : 0
+                
+                Repeater {
+                    model: root.ambientItems
+                    
+                    delegate: AmbientItem {
+                        id: ambientItemDelegate
+                        required property var modelData
+                        required property int index
+                        
+                        item: modelData
+                        pluginId: modelData.pluginId ?? ""
+                        
+                        onDismissed: {
+                            PluginRunner.handleAmbientAction(pluginId, item.id, "__dismiss__");
+                            PluginRunner.removeAmbientItem(pluginId, item.id);
+                        }
+                        
+                        onActionClicked: (actionId) => {
+                            PluginRunner.handleAmbientAction(pluginId, item.id, actionId);
+                        }
+                    }
+                }
+            }
+            
+            // Marquee animation for overflow - continuous scroll with wrap
+            Timer {
+                id: ambientMarquee
+                property real xPos: 0
+                property real maxScroll: Math.max(0, ambientRow.width - ambientContainer.width + 50)
+                
+                interval: 50
+                repeat: true
+                running: ambientRow.width > ambientContainer.width && ambientContainer.visible
+                
+                onTriggered: {
+                    xPos -= 1;
+                    if (xPos <= -maxScroll) {
+                        xPos = 50;
+                    }
+                }
+                
+                onRunningChanged: {
+                    if (!running) {
+                        xPos = 0;
+                    }
+                }
+            }
+        }
         
         // Home button - only in plugin mode
         RippleButton {
@@ -194,9 +268,9 @@ Item {
             }
         }
         
-        // Action buttons
+        // Action buttons - hidden in hints mode (shortcuts are in popup)
         Repeater {
-            model: root.actions.slice(0, 6)
+            model: root.mode === "hints" ? [] : root.actions.slice(0, 6)
             
             delegate: RippleButton {
                 id: actionBtn
@@ -265,14 +339,179 @@ Item {
             }
         }
         
-        // Spacer
+        // Spacer - hidden when ambient mode is active (ambient container fills width)
         Item {
+            visible: !root.showAmbientMode
             Layout.fillWidth: true
         }
         
-        // Keybinding help button
+        // Shortcuts & help button - minimal icon that shows popup (hidden when ambient items shown)
+        Item {
+            id: shortcutsBtn
+            visible: root.mode === "hints" && !root.hasAmbientItems
+            Layout.alignment: Qt.AlignTop
+            Layout.topMargin: -12
+            implicitWidth: 20
+            implicitHeight: 20
+            
+            MaterialSymbol {
+                id: shortcutsIcon
+                anchors.centerIn: parent
+                text: "more_horiz"
+                iconSize: 16
+                color: shortcutsMouse.containsMouse ? Appearance.m3colors.m3onSurfaceVariant : Appearance.m3colors.m3outline
+                opacity: shortcutsMouse.containsMouse ? 1.0 : 0.6
+                
+                Behavior on color { ColorAnimation { duration: 100 } }
+                Behavior on opacity { NumberAnimation { duration: 100 } }
+            }
+            
+            MouseArea {
+                id: shortcutsMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: shortcutsPopup.open()
+            }
+            
+            StyledToolTip {
+                visible: shortcutsMouse.containsMouse
+                text: "Shortcuts & help"
+            }
+            
+            Popup {
+                id: shortcutsPopup
+                x: parent.width - width
+                y: parent.height + 4
+                padding: 8
+                
+                background: Rectangle {
+                    color: Appearance.colors.colSurfaceContainer
+                    radius: Appearance.rounding.small
+                    border.width: 1
+                    border.color: Appearance.colors.colOutlineVariant
+                }
+                
+                contentItem: Column {
+                    spacing: 8
+                    
+                    // Prefix shortcuts
+                    Row {
+                        spacing: 4
+                        
+                        Repeater {
+                            model: root.actions.slice(0, 6)
+                            
+                            delegate: RippleButton {
+                                id: popupActionBtn
+                                required property var modelData
+                                required property int index
+                                
+                                property string actionId: modelData.id ?? modelData.key ?? ""
+                                property string actionName: modelData.name ?? modelData.label ?? ""
+                                property string actionIcon: modelData.icon ?? ""
+                                property string shortcutKey: modelData.shortcut ?? modelData.key ?? ""
+                                
+                                implicitWidth: popupBtnContent.implicitWidth + 12
+                                implicitHeight: 28
+                                
+                                buttonRadius: 4
+                                colBackground: "transparent"
+                                colBackgroundHover: Appearance.colors.colSurfaceContainerHighest
+                                colRipple: Appearance.colors.colSurfaceContainerHighest
+                                
+                                onClicked: {
+                                    shortcutsPopup.close();
+                                    root.actionClicked(popupActionBtn.actionId, false);
+                                }
+                                
+                                StyledToolTip {
+                                    text: popupActionBtn.actionName
+                                }
+                                
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 4
+                                    color: "transparent"
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+                                }
+                                
+                                contentItem: RowLayout {
+                                    id: popupBtnContent
+                                    spacing: 4
+                                    
+                                    MaterialSymbol {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        text: popupActionBtn.actionIcon
+                                        iconSize: 14
+                                        color: Appearance.m3colors.m3onSurfaceVariant
+                                        visible: popupActionBtn.actionIcon !== ""
+                                    }
+                                    
+                                    Kbd {
+                                        Layout.alignment: Qt.AlignVCenter
+                                        keys: popupActionBtn.shortcutKey
+                                        visible: popupActionBtn.shortcutKey !== ""
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Separator
+                    Rectangle {
+                        width: parent.width
+                        height: 1
+                        color: Appearance.colors.colOutlineVariant
+                    }
+                    
+                    // Keymap help button
+                    RippleButton {
+                        implicitWidth: keymapContent.implicitWidth + 12
+                        implicitHeight: 28
+                        
+                        buttonRadius: 4
+                        colBackground: "transparent"
+                        colBackgroundHover: Appearance.colors.colSurfaceContainerHighest
+                        colRipple: Appearance.colors.colSurfaceContainerHighest
+                        
+                        onClicked: {
+                            shortcutsPopup.close();
+                            root.keybindingHelpRequested();
+                        }
+                        
+                        contentItem: RowLayout {
+                            id: keymapContent
+                            spacing: 6
+                            
+                            MaterialSymbol {
+                                Layout.alignment: Qt.AlignVCenter
+                                text: "keyboard"
+                                iconSize: 14
+                                color: Appearance.m3colors.m3onSurfaceVariant
+                            }
+                            
+                            Text {
+                                text: "Keyboard shortcuts"
+                                font.pixelSize: Appearance.font.pixelSize.smaller
+                                color: Appearance.m3colors.m3onSurfaceVariant
+                            }
+                            
+                            Kbd {
+                                Layout.alignment: Qt.AlignVCenter
+                                keys: "?"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Keybinding help button - only in search/plugin modes
         RippleButton {
             id: keybindingBtn
+            visible: root.mode !== "hints"
             Layout.fillHeight: true
             implicitWidth: keybindingContent.implicitWidth + 12
             

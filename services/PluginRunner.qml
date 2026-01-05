@@ -122,6 +122,101 @@ Singleton {
         if (status.fab !== undefined) {
             GlobalStates.updateFabOverride(pluginId, status.fab);
         }
+        
+        // Handle ambient items
+        if (status.ambient !== undefined) {
+            root.updateAmbientItems(pluginId, status.ambient);
+        }
+    }
+    
+    // ==================== AMBIENT ITEMS ====================
+    // Persistent items shown above search bar in main view
+    // Each plugin can have multiple ambient items
+    
+    property var _ambientItemsInternal: ({})
+    property int ambientVersion: 0
+    
+    function getAmbientItems() {
+        const allItems = [];
+        for (const pluginId in root._ambientItemsInternal) {
+            const items = root._ambientItemsInternal[pluginId] ?? [];
+            for (const item of items) {
+                allItems.push(Object.assign({}, item, { pluginId: pluginId }));
+            }
+        }
+        return allItems;
+    }
+    
+    function updateAmbientItems(pluginId, items) {
+        if (items === null || items === undefined) {
+            if (root._ambientItemsInternal[pluginId]) {
+                delete root._ambientItemsInternal[pluginId];
+                root._ambientItemsInternal = Object.assign({}, root._ambientItemsInternal);
+                root.ambientVersion++;
+            }
+            return;
+        }
+        
+        if (!Array.isArray(items)) {
+            items = [items];
+        }
+        
+        // Set up auto-remove timers for items with duration
+        const processedItems = items.map(item => {
+            if (item.duration && item.duration > 0) {
+                Qt.callLater(() => {
+                    root._scheduleAmbientRemoval(pluginId, item.id, item.duration);
+                });
+            }
+            return item;
+        });
+        
+        root._ambientItemsInternal[pluginId] = processedItems;
+        root._ambientItemsInternal = Object.assign({}, root._ambientItemsInternal);
+        root.ambientVersion++;
+    }
+    
+    function removeAmbientItem(pluginId, itemId) {
+        const items = root._ambientItemsInternal[pluginId];
+        if (!items) return;
+        
+        const filtered = items.filter(item => item.id !== itemId);
+        if (filtered.length === 0) {
+            delete root._ambientItemsInternal[pluginId];
+        } else {
+            root._ambientItemsInternal[pluginId] = filtered;
+        }
+        root._ambientItemsInternal = Object.assign({}, root._ambientItemsInternal);
+        root.ambientVersion++;
+    }
+    
+    property var _ambientTimers: ({})
+    
+    function _scheduleAmbientRemoval(pluginId, itemId, duration) {
+        const key = `${pluginId}:${itemId}`;
+        if (root._ambientTimers[key]) {
+            root._ambientTimers[key].destroy();
+        }
+        
+        const timer = Qt.createQmlObject(
+            `import QtQuick; Timer { interval: ${duration}; repeat: false; running: true }`,
+            root
+        );
+        timer.triggered.connect(() => {
+            root.removeAmbientItem(pluginId, itemId);
+            timer.destroy();
+            delete root._ambientTimers[key];
+        });
+        root._ambientTimers[key] = timer;
+    }
+    
+    function handleAmbientAction(pluginId, itemId, actionId) {
+        root.writeToDaemonStdin(pluginId, {
+            step: "action",
+            selected: { id: itemId },
+            action: actionId,
+            source: "ambient"
+        });
     }
 
     // ==================== PLUGIN INDEXING ====================

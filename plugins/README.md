@@ -1840,6 +1840,124 @@ emit({
 
 ---
 
+## Ambient Items (Persistent Status Bar)
+
+Ambient items are persistent status displays shown in the action bar below the search input. They replace the shortcut hints when active and remain visible regardless of search query. Useful for showing ongoing activities like timers, downloads, or background tasks. When items overflow, they marquee/scroll automatically.
+
+### Setting Ambient Items
+
+Include an `ambient` array in your status update:
+
+```python
+emit({
+    "type": "status",
+    "status": {
+        "ambient": [
+            {
+                "id": "timer-1",
+                "name": "Focus Timer",
+                "description": "24:32 remaining",
+                "icon": "timer",
+                "chips": [{"text": "Pomodoro"}],
+                "badges": [{"icon": "pause"}],
+                "actions": [
+                    {"id": "pause", "icon": "pause", "name": "Pause"},
+                    {"id": "stop", "icon": "stop", "name": "Stop"}
+                ],
+                "duration": 0
+            }
+        ]
+    }
+})
+```
+
+### Ambient Item Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier for the item |
+| `name` | string | Primary text label |
+| `description` | string | Secondary text (subtitle) |
+| `icon` | string | Material icon name |
+| `chips` | array | Chip widgets (same format as result chips) |
+| `badges` | array | Badge widgets (same format as result badges) |
+| `actions` | array | Action buttons (up to 3) |
+| `duration` | number | Auto-remove after ms (0 = permanent until cleared) |
+
+### Action Handling
+
+When user clicks an action button on an ambient item:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "timer-1"},
+    "action": "pause",
+    "source": "ambient"
+}
+```
+
+When user clicks the dismiss (X) button:
+
+```python
+{
+    "step": "action",
+    "selected": {"id": "timer-1"},
+    "action": "__dismiss__",
+    "source": "ambient"
+}
+```
+
+### Clearing Ambient Items
+
+```python
+# Clear all ambient items for this plugin
+emit({"type": "status", "status": {"ambient": null}})
+```
+
+### Multiple Ambient Items
+
+Plugins can display multiple ambient items:
+
+```python
+emit({
+    "type": "status",
+    "status": {
+        "ambient": [
+            {"id": "timer-1", "name": "Focus", "description": "24:32", "icon": "timer"},
+            {"id": "timer-2", "name": "Break", "description": "4:59", "icon": "coffee"}
+        ]
+    }
+})
+```
+
+### Behavior
+
+- **Visibility**: Only shown in main search view (hidden when inside a plugin)
+- **Searchable**: No - ambient items are status displays, not search results
+- **Dismissable**: Yes - user can click X to dismiss, plugin receives `__dismiss__` action
+- **Auto-expire**: Set `duration` > 0 to auto-remove after specified milliseconds
+- **Layout**: Compact single-line items in action bar, auto-scroll when overflowing
+- **Replaces shortcuts**: When ambient items are shown, the shortcut hints are hidden
+
+### Use Cases
+
+| Use Case | Example |
+|----------|---------|
+| Active timer | `{"name": "Focus", "description": "24:32", "icon": "timer", "actions": [{"id": "pause", "icon": "pause"}]}` |
+| Download progress | `{"name": "Downloading", "description": "45%", "icon": "download", "duration": 0}` |
+| Background sync | `{"name": "Syncing", "description": "3 items", "icon": "sync", "duration": 0}` |
+| Notification | `{"name": "Reminder", "description": "Meeting in 5 min", "icon": "event", "duration": 30000}` |
+
+**Best practices:**
+- Use `duration` for temporary notifications that should auto-dismiss
+- Keep content concise (single line layout)
+- Provide relevant actions (pause, stop, cancel)
+- Handle `__dismiss__` to clean up resources (stop timers, cancel tasks)
+- Clear ambient items when activity completes
+
+---
+
 ## Sound Effects
 
 Hamr provides an audio service for playing sound effects. Sounds are useful for timer completions, notifications, errors, and other feedback.

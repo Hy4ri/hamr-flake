@@ -177,7 +177,10 @@ Item {
                 id: searchBarContainer
                 implicitWidth: searchBar.fixedWidth + 12
                 implicitHeight: searchBar.implicitHeight + 12
-                Layout.margins: 6
+                Layout.topMargin: 6
+                Layout.leftMargin: 6
+                Layout.rightMargin: 6
+                Layout.bottomMargin: actionBar.mode === "hints" && !actionBar.hasAmbientItems ? 0 : 6
                 Layout.fillWidth: true
                 radius: Appearance.rounding.small
                 color: "transparent"
@@ -400,10 +403,18 @@ Item {
                 id: actionBar
                 visible: Persistent.states.launcher.viewMode === 0
                 Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
-                Layout.bottomMargin: 8
-                Layout.preferredHeight: 34
+                Layout.leftMargin: hasAmbientItems ? 6 : 12
+                Layout.rightMargin: hasAmbientItems ? 6 : 12
+                Layout.bottomMargin: mode === "hints" && !hasAmbientItems ? 0 : 4
+                Layout.preferredHeight: mode === "hints" ? (hasAmbientItems ? 26 : 8) : 34
+                
+                Behavior on Layout.preferredHeight {
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                }
+                
+                Behavior on Layout.bottomMargin {
+                    NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                }
                 
                 readonly property bool inSearchMode: {
                     const q = root.searchingText;
