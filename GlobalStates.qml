@@ -220,4 +220,63 @@ Singleton {
             return p;
         });
     }
+
+    // FAB override from plugins
+    // Structure: { pluginId: string, chips: [], badges: [], priority: number }
+    // Higher priority wins when multiple plugins compete
+    property var fabOverride: null
+    
+    // Internal storage for all plugin FAB overrides: { pluginId: { chips, badges, priority } }
+    property var _fabOverrides: ({})
+    
+    function updateFabOverride(pluginId, fabData) {
+        if (!fabData || typeof fabData !== "object") {
+            // Clear this plugin's override
+            if (_fabOverrides[pluginId]) {
+                delete _fabOverrides[pluginId];
+                _fabOverrides = Object.assign({}, _fabOverrides);
+                _resolveFabOverride();
+            }
+            return;
+        }
+        
+        _fabOverrides[pluginId] = {
+            pluginId: pluginId,
+            chips: fabData.chips ?? [],
+            badges: fabData.badges ?? [],
+            priority: fabData.priority ?? 0
+        };
+        _fabOverrides = Object.assign({}, _fabOverrides);
+        _resolveFabOverride();
+        
+        // If showFab is true and launcher is closed, show the FAB
+        if (fabData.showFab && !root.launcherOpen && !root.launcherMinimized) {
+            root.launcherMinimized = true;
+        }
+    }
+    
+    function clearFabOverride(pluginId) {
+        if (_fabOverrides[pluginId]) {
+            delete _fabOverrides[pluginId];
+            _fabOverrides = Object.assign({}, _fabOverrides);
+            _resolveFabOverride();
+        }
+    }
+    
+    function _resolveFabOverride() {
+        const overrides = Object.values(_fabOverrides);
+        if (overrides.length === 0) {
+            fabOverride = null;
+            return;
+        }
+        
+        // Find highest priority override
+        let best = overrides[0];
+        for (const o of overrides) {
+            if (o.priority > best.priority) {
+                best = o;
+            }
+        }
+        fabOverride = best;
+    }
 }

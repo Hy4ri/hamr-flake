@@ -810,19 +810,85 @@ Scope {
                         anchors.centerIn: parent
                         spacing: 8
 
+                        readonly property var fabOverride: GlobalStates.fabOverride
+                        readonly property bool hasOverride: fabOverride && (fabOverride.chips?.length > 0 || fabOverride.badges?.length > 0)
+
                         MaterialSymbol {
                             text: "gavel"
                             iconSize: Appearance.font.pixelSize.large
                             color: Appearance.colors.colPrimary
                         }
 
+                        Row {
+                            id: fabBadgesRow
+                            visible: fabRow.hasOverride && fabRow.fabOverride.badges?.length > 0
+                            spacing: 4
+                            Layout.preferredWidth: fabContent.showCloseButton ? 0 : (visible ? implicitWidth : 0)
+                            Layout.rightMargin: fabContent.showCloseButton ? -fabRow.spacing : 0
+                            opacity: fabContent.showCloseButton ? 0 : 1
+                            clip: true
+
+                            Behavior on Layout.preferredWidth {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            }
+                            Behavior on Layout.rightMargin {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            }
+                            Behavior on opacity {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            }
+
+                            Repeater {
+                                model: fabRow.fabOverride?.badges ?? []
+                                Badge {
+                                    required property var modelData
+                                    text: modelData.text ?? ""
+                                    icon: modelData.icon ?? ""
+                                    image: modelData.image ?? ""
+                                    textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface
+                                }
+                            }
+                        }
+
+                        Row {
+                            id: fabChipsRow
+                            visible: fabRow.hasOverride && fabRow.fabOverride.chips?.length > 0
+                            spacing: 4
+                            Layout.preferredWidth: fabContent.showCloseButton ? 0 : (visible ? implicitWidth : 0)
+                            Layout.rightMargin: fabContent.showCloseButton ? -fabRow.spacing : 0
+                            opacity: fabContent.showCloseButton ? 0 : 1
+                            clip: true
+
+                            Behavior on Layout.preferredWidth {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            }
+                            Behavior on Layout.rightMargin {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            }
+                            Behavior on opacity {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutCubic }
+                            }
+
+                            Repeater {
+                                model: fabRow.fabOverride?.chips ?? []
+                                Chip {
+                                    required property var modelData
+                                    text: modelData.text ?? ""
+                                    icon: modelData.icon ?? ""
+                                    backgroundColor: modelData.background ? Qt.color(modelData.background) : Appearance.colors.colSurfaceContainerHighest
+                                    textColor: modelData.color ? Qt.color(modelData.color) : Appearance.m3colors.m3onSurface
+                                }
+                            }
+                        }
+
                         StyledText {
                             id: fabHamrText
+                            visible: !fabRow.hasOverride
                             text: "hamr"
                             font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.Medium
                             color: Appearance.m3colors.m3onSurface
-                            Layout.preferredWidth: fabContent.showCloseButton ? 0 : implicitWidth
+                            Layout.preferredWidth: fabContent.showCloseButton ? 0 : (visible ? implicitWidth : 0)
                             Layout.rightMargin: fabContent.showCloseButton ? -fabRow.spacing : 0
                             opacity: fabContent.showCloseButton ? 0 : 1
                             clip: true

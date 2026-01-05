@@ -117,6 +117,11 @@ Singleton {
             description: status.description ?? null
         };
         root.statusVersion++;
+        
+        // Handle FAB override
+        if (status.fab !== undefined) {
+            GlobalStates.updateFabOverride(pluginId, status.fab);
+        }
     }
 
     // ==================== PLUGIN INDEXING ====================

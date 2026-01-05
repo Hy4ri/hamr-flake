@@ -1711,6 +1711,135 @@ Chips are pill-shaped tags for longer text (a few words):
 
 ---
 
+## FAB Override (Minimized Launcher Display)
+
+When the launcher is minimized, it shows a floating action button (FAB) with the hamr icon and "hamr" text. Plugins can override this display to show dynamic content like timer countdowns, active task counts, or status indicators.
+
+### Setting FAB Override via Status
+
+Include a `fab` field in your status update:
+
+```python
+# In results/index response
+print(json.dumps({
+    "type": "results",
+    "results": [...],
+    "status": {
+        "badges": [...],
+        "fab": {
+            "chips": [{"text": "04:32", "icon": "timer"}],
+            "priority": 10
+        }
+    }
+}))
+
+# Daemon push update
+emit({
+    "type": "status",
+    "status": {
+        "fab": {
+            "badges": [{"text": "3", "icon": "task_alt"}],
+            "priority": 5
+        }
+    }
+})
+```
+
+### FAB Override Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `chips` | array | Chip widgets to display (same format as result chips) |
+| `badges` | array | Badge widgets to display (same format as result badges) |
+| `priority` | number | Priority for conflict resolution (higher wins, default: 0) |
+| `showFab` | bool | If true and launcher is closed, force FAB visible (default: false) |
+
+### Chip/Badge Format
+
+Uses the same format as result items:
+
+```python
+# Chips - for text labels
+{"text": "04:32", "icon": "timer", "color": "#4caf50"}
+
+# Badges - for compact indicators
+{"text": "3", "color": "#f44336"}
+{"icon": "sync"}
+```
+
+### Priority Resolution
+
+When multiple plugins set FAB overrides, the highest priority wins:
+
+| Plugin | Priority | Shown |
+|--------|----------|-------|
+| Timer (active countdown) | 10 | Yes |
+| Todo (pending count) | 5 | No |
+| Media player (now playing) | 3 | No |
+
+### Clearing FAB Override
+
+To remove your plugin's FAB override, set `fab` to `null`:
+
+```python
+emit({
+    "type": "status",
+    "status": {
+        "fab": null  # Clears this plugin's override
+    }
+})
+```
+
+### Showing FAB Automatically
+
+Use `showFab: true` to make the FAB appear when the launcher is completely closed:
+
+```python
+# Timer starts - show FAB immediately
+emit({
+    "type": "status",
+    "status": {
+        "fab": {
+            "chips": [{"text": "25:00", "icon": "timer"}],
+            "priority": 10,
+            "showFab": true  # Force FAB visible
+        }
+    }
+})
+
+# Timer tick - just update, don't force show
+emit({
+    "type": "status",
+    "status": {
+        "fab": {
+            "chips": [{"text": "24:59", "icon": "timer"}],
+            "priority": 10
+            # No showFab - user may have closed it
+        }
+    }
+})
+```
+
+### Use Cases
+
+| Use Case | Content | Priority | showFab |
+|----------|---------|----------|---------|
+| Timer starts | `{"chips": [{"text": "25:00", "icon": "timer"}]}` | 10 | true |
+| Timer tick | `{"chips": [{"text": "24:59", "icon": "timer"}]}` | 10 | false |
+| Pomodoro session | `{"chips": [{"text": "Focus", "icon": "psychology"}]}` | 10 | true |
+| Pending tasks | `{"badges": [{"text": "5"}]}` | 5 | false |
+| Media now playing | `{"chips": [{"text": "Song Title"}]}` | 3 | false |
+| Sync in progress | `{"badges": [{"icon": "sync"}]}` | 8 | false |
+
+**Best practices:**
+- Use `showFab: true` only on initial activation (timer start, not every tick)
+- Use higher priority for time-sensitive content (timers, alarms)
+- Clear override when activity completes
+- Keep content concise (FAB has limited space)
+- Use chips for text, badges for counts/icons
+
+---
+
 ## Sound Effects
 
 Hamr provides an audio service for playing sound effects. Sounds are useful for timer completions, notifications, errors, and other feedback.
