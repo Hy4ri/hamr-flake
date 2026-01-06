@@ -366,24 +366,25 @@ Singleton {
         if (item.badges?.length > 0) props.badges = item.badges;
         if (item.chips?.length > 0) props.chips = item.chips;
         
-        props.execute = ((capturedItem, capturedAppId, capturedIsApp, capturedPluginId) => () => {
+        const launchFromEmpty = !query || query === "";
+        props.execute = ((capturedItem, capturedAppId, capturedIsApp, capturedPluginId, capturedLaunchFromEmpty) => () => {
                     if (capturedIsApp) {
                         const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                         const currentWindowCount = currentWindows.length;
 
                         if (currentWindowCount === 0) {
-                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id);
+                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, "", capturedLaunchFromEmpty);
                             ContextTracker.recordLaunch(capturedAppId);
                             if (capturedItem.execute?.command) {
                                 Quickshell.execDetached(capturedItem.execute.command);
                             }
                         } else if (currentWindowCount === 1) {
-                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id);
+                            PluginRunner.recordExecution(capturedPluginId, capturedItem.id, "", capturedLaunchFromEmpty);
                             ContextTracker.recordLaunch(capturedAppId);
                             WindowManager.focusWindow(currentWindows[0]);
                             GlobalStates.launcherOpen = false;
                         } else {
-                            GlobalStates.openWindowPicker(capturedAppId, currentWindows, capturedItem.id);
+                            GlobalStates.openWindowPicker(capturedAppId, currentWindows, capturedItem.id, capturedLaunchFromEmpty);
                         }
                     } else {
                         if (capturedItem.entryPoint) {
@@ -413,7 +414,7 @@ Singleton {
                             GlobalStates.launcherOpen = false;
                         }
                     }
-                })(item, appId, isAppItem, item._pluginId);
+                })(item, appId, isAppItem, item._pluginId, launchFromEmpty);
         
         const resultObj = dependencies.resultComponent.createObject(null, props);
         

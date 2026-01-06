@@ -16,10 +16,6 @@ Singleton {
     property string query: ""
     property bool skipNextAutoFocus: false
 
-    // Delegate to HistoryManager service
-    readonly property bool historyLoaded: HistoryManager.historyLoaded
-    readonly property var searchHistoryData: HistoryManager.searchHistoryData
-
     property string exclusiveMode: ""
     property bool exclusiveModeStarting: false
 
@@ -90,7 +86,7 @@ Singleton {
     function launchNewInstance(appId) {
         const entry = DesktopEntries.byId(appId);
         if (entry) {
-            PluginRunner.recordExecution("apps", appId);
+            PluginRunner.recordExecution("apps", appId, root.query, root.query === "");
             ContextTracker.recordLaunch(appId);
             entry.execute();
         }
@@ -104,21 +100,7 @@ Singleton {
         }
     }
 
-    function removeHistoryItem(historyType, identifier) {
-        HistoryManager.removeHistoryItem(historyType, identifier);
-    }
 
-    // Delegate frecency functions to FrecencyScorer
-    function getFrecencyScore(historyItem) {
-        return FrecencyScorer.getFrecencyScore(historyItem);
-    }
-
-    function getHistoryBoost(searchType, searchName) {
-        const historyItem = searchHistoryData.find(
-            h => h.type === searchType && h.name === searchName
-        );
-        return FrecencyScorer.getFrecencyScore(historyItem);
-    }
 
     // https://specifications.freedesktop.org/menu/latest/category-registry.html
     property list<string> mainRegisteredCategories: ["AudioVideo", "Development", "Education", "Game", "Graphics", "Network", "Office", "Science", "Settings", "System", "Utility"]
@@ -530,7 +512,6 @@ Singleton {
     property var preppedHistorySearchables: []
 
     // Build history searchables from index items that have frecency data
-    // This replaces the old HistoryManager-based approach
     function rebuildHistorySearchables() {
         const items = [];
         const pluginMap = new Map(PluginRunner.plugins.map(p => [p.id, p]));
@@ -801,18 +782,18 @@ Singleton {
                 execute: ((capturedAppItem, capturedAppId, capturedItemId) => () => {
                     const currentWindows = WindowManager.getWindowsForApp(capturedAppId);
                     if (currentWindows.length === 0) {
-                        PluginRunner.recordExecution("apps", capturedItemId);
+                        PluginRunner.recordExecution("apps", capturedItemId, "", true);
                         ContextTracker.recordLaunch(capturedAppId);
                         if (capturedAppItem.execute?.command) {
                             Quickshell.execDetached(capturedAppItem.execute.command);
                         }
                     } else if (currentWindows.length === 1) {
-                        PluginRunner.recordExecution("apps", capturedItemId);
+                        PluginRunner.recordExecution("apps", capturedItemId, "", true);
                         ContextTracker.recordLaunch(capturedAppId);
                         WindowManager.focusWindow(currentWindows[0]);
                         GlobalStates.launcherOpen = false;
                     } else {
-                        GlobalStates.openWindowPicker(capturedAppId, currentWindows, capturedItemId);
+                        GlobalStates.openWindowPicker(capturedAppId, currentWindows, capturedItemId, true);
                     }
                 })(appItem, appId, appItem.id)
             });
@@ -1023,8 +1004,8 @@ Singleton {
                       }
                       
                       props.execute = ((capturedItem, capturedPluginId, capturedIsApp) => () => {
-                          // Record execution
-                          PluginRunner.recordExecution(capturedPluginId, capturedItem.id);
+                          // Record execution (launchFromEmpty=true since this is from Recent/empty query)
+                          PluginRunner.recordExecution(capturedPluginId, capturedItem.id, "", true);
                           if (capturedIsApp) {
                               ContextTracker.recordLaunch(capturedItem.appId);
                           }
@@ -1040,7 +1021,7 @@ Singleton {
                                   WindowManager.focusWindow(currentWindows[0]);
                                   GlobalStates.launcherOpen = false;
                               } else {
-                                  GlobalStates.openWindowPicker(capturedItem.appId, currentWindows, capturedItem.id);
+                                  GlobalStates.openWindowPicker(capturedItem.appId, currentWindows, capturedItem.id, true);
                               }
                           } else if (capturedItem.entryPoint) {
                               PluginRunner.replayAction(capturedPluginId, capturedItem.entryPoint);

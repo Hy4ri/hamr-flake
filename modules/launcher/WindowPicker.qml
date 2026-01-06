@@ -13,6 +13,7 @@ Scope {
     readonly property bool isOpen: GlobalStates.windowPickerOpen
     readonly property string appId: GlobalStates.windowPickerAppId
     readonly property string itemId: GlobalStates.windowPickerItemId
+    readonly property bool launchFromEmpty: GlobalStates.windowPickerLaunchFromEmpty
     readonly property var windows: GlobalStates.windowPickerWindows
 
     Loader {
@@ -67,7 +68,7 @@ Scope {
                 onWindowSelected: toplevel => {
                     // Record execution for frecency (use itemId which is the full path)
                     if (root.itemId) {
-                        PluginRunner.recordExecution("apps", root.itemId);
+                        PluginRunner.recordExecution("apps", root.itemId, "", root.launchFromEmpty);
                     }
                     ContextTracker.recordLaunch(root.appId);
                     

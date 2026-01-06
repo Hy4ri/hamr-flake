@@ -39,7 +39,6 @@ Singleton {
     // Hamr data paths
     property string userPlugins: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/plugins`)
     property string quicklinksConfig: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/quicklinks.json`)
-    property string searchHistory: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/search-history.json`)
     property string shellConfigPath: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/config.json`)
     property string pluginIndexCache: FileUtils.trimFileProtocol(`${Directories.hamrConfig}/plugin-indexes.json`)
     property string favicons: FileUtils.trimFileProtocol(`${Directories.cache}/favicons`)

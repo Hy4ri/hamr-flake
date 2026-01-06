@@ -122,15 +122,17 @@ Singleton {
     property bool windowPickerOpen: false
     property string windowPickerAppId: ""
     property string windowPickerItemId: ""  // Full item ID for frecency recording
+    property bool windowPickerLaunchFromEmpty: false  // For smart suggestion tracking
     property var windowPickerWindows: []
 
     // Signal emitted when user selects a window
     signal windowPickerSelected(var toplevel)
 
     // Open window picker for an app with multiple windows
-    function openWindowPicker(appId, windows, itemId) {
+    function openWindowPicker(appId, windows, itemId, launchFromEmpty) {
         windowPickerAppId = appId;
         windowPickerItemId = itemId ?? "";
+        windowPickerLaunchFromEmpty = launchFromEmpty ?? false;
         windowPickerWindows = windows;
         windowPickerOpen = true;
     }
@@ -140,6 +142,7 @@ Singleton {
         windowPickerOpen = false;
         windowPickerAppId = "";
         windowPickerItemId = "";
+        windowPickerLaunchFromEmpty = false;
         windowPickerWindows = [];
     }
 

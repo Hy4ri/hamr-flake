@@ -401,7 +401,8 @@ Singleton {
     //   "item" (default) - Track individual item usage (apps, sound sliders)
     //   "plugin" - Track plugin usage only, not individual items (todo, notes)
     //   "none" - Don't track frecency at all
-    function recordExecution(pluginId, itemId, searchTerm, context) {
+    // launchFromEmpty: boolean - true if launched without search query (for smart suggestions)
+    function recordExecution(pluginId, itemId, searchTerm, launchFromEmpty) {
         const plugin = root.plugins.find(p => p.id === pluginId);
         const frecencyMode = plugin?.manifest?.frecency ?? "item";
         
@@ -461,8 +462,10 @@ Singleton {
                 item._recentSearchTerms = terms.slice(0, 10);
             }
             
-            // Update smart fields if context provided
-            if (context) {
+            // Update smart fields for apps plugin (contextual tracking)
+            if (pluginId === "apps") {
+                const context = ContextTracker.getContext();
+                context.launchFromEmpty = launchFromEmpty ?? false;
                 root.updateItemSmartFields(item, context);
             }
         }
@@ -481,9 +484,10 @@ Singleton {
         if (!item._hourSlotCounts) item._hourSlotCounts = new Array(24).fill(0);
         item._hourSlotCounts[hour] = (item._hourSlotCounts[hour] ?? 0) + 1;
         
-        // Day of week counts
+        // Day of week counts (Monday=0, Sunday=6 to match ContextTracker)
+        const adjustedDay = day === 0 ? 6 : day - 1;
         if (!item._dayOfWeekCounts) item._dayOfWeekCounts = new Array(7).fill(0);
-        item._dayOfWeekCounts[day] = (item._dayOfWeekCounts[day] ?? 0) + 1;
+        item._dayOfWeekCounts[adjustedDay] = (item._dayOfWeekCounts[adjustedDay] ?? 0) + 1;
         
         // Workspace counts
         if (context.workspace) {
@@ -501,12 +505,40 @@ Singleton {
         if (context.lastApp) {
             if (!item._launchedAfter) item._launchedAfter = {};
             item._launchedAfter[context.lastApp] = (item._launchedAfter[context.lastApp] ?? 0) + 1;
-            // Prune to top 5
             const entries = Object.entries(item._launchedAfter);
             if (entries.length > 5) {
                 entries.sort((a, b) => b[1] - a[1]);
                 item._launchedAfter = Object.fromEntries(entries.slice(0, 5));
             }
+        }
+        
+        // Session start tracking
+        if (context.isSessionStart) {
+            item._sessionStartCount = (item._sessionStartCount ?? 0) + 1;
+        }
+        
+        // Resume from idle tracking
+        if (context.isResumeFromIdle) {
+            item._resumeFromIdleCount = (item._resumeFromIdleCount ?? 0) + 1;
+        }
+        
+        // Launch from empty (no search query) tracking
+        if (context.launchFromEmpty) {
+            item._launchFromEmptyCount = (item._launchFromEmptyCount ?? 0) + 1;
+        }
+        
+        // Display count tracking
+        if (context.displayCount) {
+            if (!item._displayCountCounts) item._displayCountCounts = {};
+            const key = String(context.displayCount);
+            item._displayCountCounts[key] = (item._displayCountCounts[key] ?? 0) + 1;
+        }
+        
+        // Session duration bucket tracking
+        if (context.sessionDurationBucket >= 0) {
+            if (!item._sessionDurationCounts) item._sessionDurationCounts = new Array(5).fill(0);
+            item._sessionDurationCounts[context.sessionDurationBucket] = 
+                (item._sessionDurationCounts[context.sessionDurationBucket] ?? 0) + 1;
         }
         
         // Consecutive days tracking
