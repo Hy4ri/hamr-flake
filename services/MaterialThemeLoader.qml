@@ -25,6 +25,8 @@ Singleton {
                 // Convert snake_case to CamelCase
                 const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase())
                 const m3Key = `m3${camelCaseKey}`
+                // Skip non-color keys that don't exist in m3colors
+                if (!(m3Key in Appearance.m3colors)) continue
                 Appearance.m3colors[m3Key] = json[key]
             }
         }

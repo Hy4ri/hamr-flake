@@ -2238,7 +2238,7 @@ Singleton {
              case "startPlugin":
                  // Start another plugin (used by plugins browser)
                  if (response.pluginId) {
-                     root.stop();  // Stop current plugin first
+                     root.closePlugin();  // Stop current plugin first
                      root.startPlugin(response.pluginId);
                  }
                  break;
