@@ -708,62 +708,40 @@ Item {
                         objectProp: "key"
                         values: LauncherSearch.results
                         onValuesChanged: {
-                            const hasPendingRestore = appResults.pendingItemKey !== "" || appResults.pendingCurrentIndex >= 0;
-
-                            // Always try to restore selection when plugin is active (for live updates like timer ticks)
-                            const isPluginActive = PluginRunner.isActive();
-                            const shouldTryRestore = LauncherSearch.skipNextAutoFocus || hasPendingRestore || isPluginActive;
-
-                            if (shouldTryRestore && appResults.count > 0) {
-                                // Clear the one-shot flag if it was set
-                                if (LauncherSearch.skipNextAutoFocus) {
-                                    LauncherSearch.skipNextAutoFocus = false;
-                                }
-
-                                const savedKey = hasPendingRestore ? appResults.pendingItemKey : appResults.selectedItemKey;
-                                const savedActionIndex = hasPendingRestore ? appResults.pendingActionIndex : appResults.selectedActionIndex;
-                                const savedIndex = appResults.pendingCurrentIndex;
-
-                                if (savedKey) {
-                                    const newIndex = LauncherSearch.results.findIndex(r => r.key === savedKey);
-                                    if (newIndex >= 0) {
-                                        appResults.currentIndex = newIndex;
-                                        if (hasPendingRestore) {
-                                            appResults.clearPendingSelection();
-                                        }
-                                        if (savedActionIndex >= 0) {
-                                            Qt.callLater(() => {
-                                                const currentItem = appResults.itemAtIndex(appResults.currentIndex);
-                                                if (currentItem) {
-                                                    currentItem.focusedActionIndex = savedActionIndex;
-                                                }
-                                            });
-                                        }
-                                        return;
+                            // Try to restore selection if explicitly requested
+                            if (appResults.pendingItemKey && appResults.count > 0) {
+                                const newIndex = LauncherSearch.results.findIndex(r => r.key === appResults.pendingItemKey);
+                                if (newIndex >= 0) {
+                                    appResults.currentIndex = newIndex;
+                                    const savedActionIndex = appResults.pendingActionIndex;
+                                    appResults.clearPendingSelection();
+                                    if (savedActionIndex >= 0) {
+                                        Qt.callLater(() => {
+                                            const currentItem = appResults.itemAtIndex(appResults.currentIndex);
+                                            if (currentItem) {
+                                                currentItem.focusedActionIndex = savedActionIndex;
+                                            }
+                                        });
                                     }
-                                }
-
-                                if (savedIndex >= 0) {
-                                    const clampedIndex = Math.min(savedIndex, appResults.count - 1);
-                                    appResults.currentIndex = Math.max(0, clampedIndex);
-                                    if (hasPendingRestore) {
-                                        appResults.clearPendingSelection();
-                                    }
-                                    return;
-                                }
-
-                                if (appResults.currentIndex >= 0 && appResults.currentIndex < appResults.count) {
                                     return;
                                 }
                             }
-
-                            if (appResults.count === 0 && hasPendingRestore) {
+                            
+                            // Fall back to pending index if key not found
+                            if (appResults.pendingCurrentIndex >= 0 && appResults.count > 0) {
+                                appResults.currentIndex = Math.min(appResults.pendingCurrentIndex, appResults.count - 1);
+                                appResults.clearPendingSelection();
                                 return;
                             }
-
+                            
+                            // Wait for results if we have pending restore but no items yet
+                            if (appResults.count === 0 && (appResults.pendingItemKey || appResults.pendingCurrentIndex >= 0)) {
+                                return;
+                            }
+                            
+                            // Default: reset to first item
                             appResults.clearPendingSelection();
                             appResults.selectedActionIndex = -1;
-                            // Use callLater to ensure index reset happens after all bindings update
                             Qt.callLater(() => {
                                 appResults.currentIndex = 0;
                                 appResults.positionViewAtBeginning();

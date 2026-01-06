@@ -623,6 +623,92 @@ Singleton {
         return items;
     }
     
+    // ==================== BUILTIN SEARCH ====================
+    // Automatically use hamr's search algorithm for plugins with indexed items.
+    // Provides fuzzy matching + frecency + learned shortcuts.
+    
+    function doBuiltinSearch(pluginId, query) {
+        const indexData = root.pluginIndexes[pluginId];
+        if (!indexData?.items) {
+            root.pluginResults = [];
+            return;
+        }
+        
+        // Build searchables with history terms
+        const searchables = [];
+        for (const item of indexData.items) {
+            // Skip special entries
+            if (item.id === "__plugin__" || item._isPluginEntry) continue;
+            
+            // Add main item searchable
+            searchables.push({
+                name: Fuzzy.prepare(item.name),
+                keywords: item.keywords?.length > 0 ? Fuzzy.prepare(item.keywords.join(" ")) : null,
+                item: item,
+                isHistoryTerm: false
+            });
+            
+            // Add history term entries (learned shortcuts)
+            const recentTerms = item._recentSearchTerms ?? [];
+            for (const term of recentTerms) {
+                searchables.push({
+                    name: Fuzzy.prepare(term),
+                    item: item,
+                    isHistoryTerm: true,
+                    matchedTerm: term
+                });
+            }
+        }
+        
+        if (searchables.length === 0) {
+            root.pluginResults = [];
+            return;
+        }
+        
+        // Fuzzy search with frecency scoring
+        const fuzzyResults = Fuzzy.go(query, searchables, {
+            keys: ["name", "keywords"],
+            limit: 100,
+            threshold: 0.25,
+            scoreFn: (result) => {
+                const searchable = result.obj;
+                
+                // Multi-field scoring
+                const nameScore = result[0]?.score ?? 0;
+                const keywordsScore = result[1]?.score ?? 0;
+                const baseScore = nameScore * 1.0 + keywordsScore * 0.3;
+                
+                // Frecency boost
+                const frecency = root.getItemFrecency(pluginId, searchable.item.id);
+                const frecencyBoost = Math.min(frecency * 0.02, 0.3);
+                
+                // History term boost (learned shortcuts)
+                const historyBoost = searchable.isHistoryTerm ? 0.2 : 0;
+                
+                return baseScore + frecencyBoost + historyBoost;
+            }
+        });
+        
+        // Deduplicate (same item may match via name and history term)
+        const seen = new Set();
+        const results = [];
+        for (const match of fuzzyResults) {
+            const item = match.obj.item;
+            if (seen.has(item.id)) continue;
+            seen.add(item.id);
+            results.push(item);
+        }
+        
+        root.pluginResults = results;
+    }
+    
+    // Check if plugin has indexed items (for builtin search decision)
+    function hasIndexedItems(pluginId) {
+        const indexData = root.pluginIndexes[pluginId];
+        if (!indexData?.items) return false;
+        // Check for actual items (not just __plugin__ entry)
+        return indexData.items.some(item => item.id !== "__plugin__" && !item._isPluginEntry);
+    }
     
     // ==================== INDEX PERSISTENCE ====================
     // Cache indexes to disk for faster startup.
@@ -1177,8 +1263,16 @@ Singleton {
               return;
           }
           
-          // Don't clear card here - it should persist until new response arrives
+          const pluginId = root.activePlugin.id;
           
+          // Use builtin search if plugin has indexed items and query is not empty
+          // This provides fuzzy matching + frecency + learned shortcuts automatically
+          if (query.trim() !== "" && root.hasIndexedItems(pluginId)) {
+              root.doBuiltinSearch(pluginId, query);
+              return;
+          }
+          
+          // Fall back to handler for empty query or plugins without index
           const input = {
               step: "search",
               query: query,

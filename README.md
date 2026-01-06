@@ -991,7 +991,7 @@ You can reorder, remove, or add hints. For example, to replace emoji with notes:
 ├── plugins/                     # User plugins (override built-in)
 ├── config.json                  # User configuration
 ├── quicklinks.json              # Custom quicklinks
-└── search-history.json          # Search history (auto-generated)
+└── plugin-indexes.json          # Plugin data and frecency (auto-generated)
 ```
 
 </details>
@@ -1045,9 +1045,8 @@ Hamr is fully local and offline. **No data ever leaves your machine.**
 
 | Data | Location | Purpose |
 |------|----------|---------|
-| Search history | `~/.config/hamr/search-history.json` | Frecency ranking, smart suggestions |
+| Plugin data | `~/.config/hamr/plugin-indexes.json` | Frecency, search terms, smart suggestions |
 | Configuration | `~/.config/hamr/config.json` | User preferences |
-| Plugin cache | `~/.config/hamr/plugin-indexes.json` | Faster plugin loading |
 | Clipboard history | Via `cliphist` (system) | Clipboard search |
 
 **What's tracked for smart suggestions:**
@@ -1062,7 +1061,7 @@ Hamr is fully local and offline. **No data ever leaves your machine.**
 - No keystrokes or input outside Hamr
 - No data shared with plugins (they only receive search queries)
 
-To clear all history: `rm ~/.config/hamr/search-history.json`
+To clear all history: `rm ~/.config/hamr/plugin-indexes.json`
 
 ## Credits
 
