@@ -310,6 +310,12 @@ Singleton {
                 root.mergeItemPreservingFrecency(existingMap.get(item.id), item)
             );
             
+            // Preserve __plugin__ entry if it exists (for plugin-level frecency)
+            const pluginEntry = existingMap.get("__plugin__");
+            if (pluginEntry) {
+                newItems.push(pluginEntry);
+            }
+            
             root.pluginIndexes[pluginId] = {
                 items: newItems,
                 lastIndexed: now
