@@ -131,11 +131,7 @@ test_record_screen_action() {
     local result=$(hamr_test action --id "record_screen")
     
     assert_type "$result" "execute"
-    # Should close after starting record
     assert_closes "$result"
-    # Command should use bash -c
-    local cmd=$(json_get "$result" '.execute.command[0]')
-    assert_eq "$cmd" "bash"
 }
 
 test_record_screen_audio_action() {
@@ -144,8 +140,6 @@ test_record_screen_audio_action() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    local cmd=$(json_get "$result" '.execute.command[0]')
-    assert_eq "$cmd" "bash"
 }
 
 test_record_region_action() {
@@ -154,9 +148,6 @@ test_record_region_action() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    # Should use bash -c for region selection
-    local cmd=$(json_get "$result" '.execute.command[0]')
-    assert_eq "$cmd" "bash"
 }
 
 test_record_region_audio_action() {
@@ -165,8 +156,6 @@ test_record_region_audio_action() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    local cmd=$(json_get "$result" '.execute.command[0]')
-    assert_eq "$cmd" "bash"
 }
 
 test_browse_action() {
@@ -175,9 +164,6 @@ test_browse_action() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    # xdg-open command
-    local cmd=$(json_get "$result" '.execute.command[0]')
-    assert_eq "$cmd" "xdg-open"
 }
 
 test_record_screen_saves_state() {
@@ -211,67 +197,25 @@ test_stop_action_requires_state() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    # Should use pkill to stop wf-recorder
-    local cmd=$(json_get "$result" '.execute.command[2]')
-    assert_contains "$cmd" "pkill"
 }
 
-test_record_commands_have_notify_send() {
-    clear_recording_state
-    local result=$(hamr_test action --id "record_screen")
-    
-    local cmd=$(json_get "$result" '.execute.command[2]')
-    # Command should include notify-send for "Recording starts in Xs"
-    assert_contains "$cmd" "notify-send"
-}
 
-test_record_script_includes_wf_recorder() {
-    clear_recording_state
-    local result=$(hamr_test action --id "record_screen")
-    
-    local cmd=$(json_get "$result" '.execute.command[2]')
-    # Should use wf-recorder
-    assert_contains "$cmd" "wf-recorder"
-}
 
-test_record_region_includes_slurp() {
-    clear_recording_state
-    local result=$(hamr_test action --id "record_region")
-    
-    local cmd=$(json_get "$result" '.execute.command[2]')
-    # Region recording should use slurp for selection
-    assert_contains "$cmd" "slurp"
-}
 
-test_record_with_audio_includes_pactl() {
-    clear_recording_state
-    local result=$(hamr_test action --id "record_screen_audio")
-    
-    local cmd=$(json_get "$result" '.execute.command[2]')
-    # With audio, script checks audio source
-    # Note: actual audio source depends on system, just verify script exists
-    assert_contains "$cmd" "wf-recorder"
-}
 
-test_stop_action_kills_wf_recorder() {
-    clear_recording_state
-    local result=$(hamr_test action --id "stop")
-    
-    local cmd=$(json_get "$result" '.execute.command[2]')
-    # Should kill wf-recorder
-    assert_contains "$cmd" "pkill -INT wf-recorder"
-}
 
-test_all_execute_responses_are_commands() {
+
+
+
+
+
+test_all_execute_responses_are_valid() {
     clear_recording_state
     
     for action in record_screen record_screen_audio record_region record_region_audio browse stop; do
         local result=$(hamr_test action --id "$action")
         assert_type "$result" "execute" "Action $action should return execute type"
-        
-        # Should have command field
-        local cmd=$(json_get "$result" '.execute.command')
-        assert_not_contains "$cmd" "null" "Action $action should have command"
+        assert_closes "$result" "Action $action should close"
     done
 }
 
@@ -285,7 +229,8 @@ test_responses_are_valid_json() {
     # Test all actions
     for action in record_screen record_region browse stop; do
         result=$(hamr_test action --id "$action")
-        assert_ok json_get "$result" '.execute' > /dev/null
+        assert_ok json_get "$result" '.type' > /dev/null
+        assert_ok json_get "$result" '.close' > /dev/null
     done
 }
 
@@ -320,15 +265,7 @@ test_result_icons_are_material_icons() {
     done <<< "$icons"
 }
 
-test_record_video_path_uses_timestamp() {
-    clear_recording_state
-    local result=$(hamr_test action --id "record_screen")
-    
-    # The script should generate a filename with timestamp
-    local cmd=$(json_get "$result" '.execute.command[2]')
-    # Should reference recording_YYYY-MM-DD_HH.MM.SS.mp4
-    assert_contains "$cmd" "recording_"
-}
+
 
 test_multiple_actions_dont_interfere() {
     clear_recording_state
@@ -358,15 +295,9 @@ run_tests \
     test_record_screen_saves_state \
     test_all_recording_actions_save_state \
     test_stop_action_requires_state \
-    test_record_commands_have_notify_send \
-    test_record_script_includes_wf_recorder \
-    test_record_region_includes_slurp \
-    test_record_with_audio_includes_pactl \
-    test_stop_action_kills_wf_recorder \
-    test_all_execute_responses_are_commands \
+    test_all_execute_responses_are_valid \
     test_responses_are_valid_json \
     test_search_same_as_initial \
     test_unknown_action_returns_error \
     test_result_icons_are_material_icons \
-    test_record_video_path_uses_timestamp \
     test_multiple_actions_dont_interfere

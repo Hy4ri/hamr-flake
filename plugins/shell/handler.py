@@ -441,20 +441,27 @@ def handle_request(input_data: dict):
             return
 
         if action == "run-float":
-            subprocess.Popen(make_terminal_cmd(cmd, floating=True))
-            print(json.dumps({"type": "execute", "close": True}))
+            terminal_cmd = make_terminal_cmd(cmd, floating=True)
+            print(
+                json.dumps({"type": "execute", "terminal": terminal_cmd, "close": True})
+            )
         elif action == "run-tiled":
-            subprocess.Popen(make_terminal_cmd(cmd, floating=False))
-            print(json.dumps({"type": "execute", "close": True}))
+            terminal_cmd = make_terminal_cmd(cmd, floating=False)
+            print(
+                json.dumps({"type": "execute", "terminal": terminal_cmd, "close": True})
+            )
         elif action == "copy":
-            subprocess.Popen(["wl-copy", cmd])
-            print(json.dumps({"type": "execute", "close": True}))
+            print(json.dumps({"type": "execute", "copy": cmd, "close": True}))
         elif action == "run":
-            subprocess.Popen(make_terminal_cmd_for_index(cmd, execute=True))
-            print(json.dumps({"type": "execute", "close": True}))
+            terminal_cmd = make_terminal_cmd_for_index(cmd, execute=True)
+            print(
+                json.dumps({"type": "execute", "terminal": terminal_cmd, "close": True})
+            )
         else:
-            subprocess.Popen(make_terminal_cmd(cmd, floating=True))
-            print(json.dumps({"type": "execute", "close": True}))
+            terminal_cmd = make_terminal_cmd(cmd, floating=True)
+            print(
+                json.dumps({"type": "execute", "terminal": terminal_cmd, "close": True})
+            )
 
 
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"

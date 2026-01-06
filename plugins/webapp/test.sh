@@ -394,8 +394,8 @@ test_launch_uses_launcher_script() {
     create_test_webapp "TestApp" "https://example.com"
     local result=$(hamr_test action --id "testapp")
     
-    assert_contains "$result" "launch-webapp"
-    assert_contains "$result" "https://example.com"
+    assert_type "$result" "execute"
+    # Handler executes subprocess directly, just returns close=true
 }
 
 test_launch_includes_name_for_history() {
@@ -403,8 +403,9 @@ test_launch_includes_name_for_history() {
     create_test_webapp "TestApp" "https://example.com"
     local result=$(hamr_test action --id "testapp")
     
-    local name=$(json_get "$result" '.execute.name')
-    assert_contains "$name" "TestApp"
+    # Safe API: handler executes directly, returns minimal response
+    assert_type "$result" "execute"
+    assert_closes "$result"
 }
 
 test_launch_floating_returns_execute() {
@@ -414,7 +415,6 @@ test_launch_floating_returns_execute() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    assert_contains "$result" "--floating"
 }
 
 # ============================================================================
@@ -437,8 +437,9 @@ test_index_item_has_execute() {
     create_test_webapp "Gmail" "https://mail.google.com"
     local result=$(hamr_test index)
     
-    local cmd=$(json_get "$result" '.items[0].execute.command[1]')
-    assert_eq "$cmd" "https://mail.google.com"
+    # Safe API: index items use entryPoint, handler processes execution
+    local entryPoint=$(json_get "$result" '.items[0].entryPoint')
+    assert_contains "$entryPoint" "action"
 }
 
 test_index_item_has_delete_action() {

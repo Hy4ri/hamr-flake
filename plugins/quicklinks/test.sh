@@ -580,19 +580,18 @@ test_execute_search_has_close_flag() {
     assert_closes "$result"
 }
 
-test_execute_includes_name() {
+test_execute_includes_url() {
     set_quicklinks '{"quicklinks": [{"name": "GitHub", "url": "https://github.com", "icon": "code"}]}'
     local result=$(hamr_test action --id "GitHub")
     
-    assert_contains "$result" "Open GitHub"
+    assert_contains "$result" "https://github.com"
 }
 
-test_execute_includes_icon() {
+test_execute_uses_safe_api() {
     set_quicklinks '{"quicklinks": [{"name": "GitHub", "url": "https://github.com", "icon": "github"}]}'
     local result=$(hamr_test action --id "GitHub")
     
-    local icon=$(json_get "$result" '.execute.icon')
-    assert_eq "$icon" "github"
+    assert_json "$result" '.openUrl' "https://github.com"
 }
 
 # ============================================================================
@@ -638,8 +637,8 @@ test_index_item_without_query_has_execute_name() {
     set_quicklinks '{"quicklinks": [{"name": "GitHub", "url": "https://github.com", "icon": "code"}]}'
     local result=$(hamr_test index)
     
-    local name=$(json_get "$result" '.items[0].execute.name')
-    assert_contains "$name" "GitHub"
+    local url=$(json_get "$result" '.items[0].execute.openUrl')
+    assert_contains "$url" "github.com"
 }
 
 test_index_item_with_query_uses_entrypoint() {
@@ -706,8 +705,8 @@ run_tests \
     test_default_icon_when_missing \
     test_execute_has_close_flag \
     test_execute_search_has_close_flag \
-    test_execute_includes_name \
-    test_execute_includes_icon \
+    test_execute_includes_url \
+    test_execute_uses_safe_api \
     test_all_responses_valid \
     test_index_returns_items \
     test_index_item_without_query_has_execute_name \

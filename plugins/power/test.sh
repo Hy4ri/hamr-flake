@@ -21,13 +21,13 @@ test_index_returns_items() {
 test_index_item_has_power_id() {
     local result=$(hamr_test index)
     local id=$(json_get "$result" '.items[0].id')
-    assert_contains "$id" "power:"
+    assert_eq "$id" "shutdown"
 }
 
-test_index_item_has_execute() {
+test_index_item_has_entrypoint() {
     local result=$(hamr_test index)
-    local cmd=$(json_get "$result" '.items[0].execute.command[0]')
-    assert_eq "$cmd" "systemctl"
+    local step=$(json_get "$result" '.items[0].entryPoint.step')
+    assert_eq "$step" "action"
 }
 
 test_initial_returns_results() {
@@ -83,7 +83,7 @@ test_action_empty_closes() {
 run_tests \
     test_index_returns_items \
     test_index_item_has_power_id \
-    test_index_item_has_execute \
+    test_index_item_has_entrypoint \
     test_initial_returns_results \
     test_initial_has_placeholder \
     test_initial_has_all_actions \

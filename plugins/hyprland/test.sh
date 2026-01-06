@@ -25,9 +25,9 @@ test_index_item_has_window_id() {
     assert_contains "$id" "window:"
 }
 
-test_index_item_has_execute() {
+test_index_item_has_entrypoint() {
     local result=$(hamr_test index)
-    local cmd=$(json_get "$result" '.items[0].execute.command[0]')
+    local cmd=$(json_get "$result" '.items[0].entryPoint.command[0]')
     assert_eq "$cmd" "hyprctl"
 }
 
@@ -237,7 +237,7 @@ test_search_scratchpad() {
 run_tests \
     test_index_returns_items \
     test_index_item_has_window_id \
-    test_index_item_has_execute \
+    test_index_item_has_entrypoint \
     test_index_item_has_focus_verb \
     test_index_item_has_icon \
     test_index_has_dispatchers \

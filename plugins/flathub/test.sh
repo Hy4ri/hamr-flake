@@ -159,8 +159,6 @@ test_action_default_install_returns_execute() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    assert_contains "$result" "flatpak install"
-    assert_contains "$result" "notify-send"
 }
 
 test_action_install_returns_execute() {
@@ -168,8 +166,6 @@ test_action_install_returns_execute() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    assert_contains "$result" "flatpak install"
-    assert_contains "$result" "notify-send"
 }
 
 test_action_uninstall_returns_execute() {
@@ -177,8 +173,6 @@ test_action_uninstall_returns_execute() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    assert_contains "$result" "flatpak uninstall"
-    assert_contains "$result" "notify-send"
 }
 
 test_action_open_web_returns_execute() {
@@ -186,7 +180,7 @@ test_action_open_web_returns_execute() {
     
     assert_type "$result" "execute"
     assert_closes "$result"
-    assert_contains "$result" "xdg-open"
+    assert_contains "$result" "openUrl"
     assert_contains "$result" "flathub.org/apps/org.example.App"
 }
 

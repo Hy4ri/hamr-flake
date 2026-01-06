@@ -265,55 +265,67 @@ test_back_from_detail_view() {
 }
 
 test_open_action_from_list() {
-    local initial=$(hamr_test initial)
-    local image_id=$(json_get "$initial" '.results[0].id')
-    
-    local result=$(hamr_test action --id "$image_id" --action "open")
-    
-    assert_type "$result" "execute"
-    assert_closes "$result"
-    assert_contains "$result" "xdg-open"
+     local initial=$(hamr_test initial)
+     local image_id=$(json_get "$initial" '.results[0].id')
+     
+     local result=$(hamr_test action --id "$image_id" --action "open")
+     
+     assert_type "$result" "execute"
+     assert_closes "$result"
+    local open_field=$(json_get "$result" '.open')
+    if [[ -z "$open_field" || "$open_field" == "null" ]]; then
+        echo "Expected .open field for open action"
+        return 1
+    fi
 }
 
 test_copy_path_action_from_list() {
-    local initial=$(hamr_test initial)
-    local image_id=$(json_get "$initial" '.results[0].id')
-    
-    local result=$(hamr_test action --id "$image_id" --action "copy-path")
-    
-    assert_type "$result" "execute"
-    assert_closes "$result"
-    assert_contains "$result" "wl-copy"
-    assert_contains "$result" "$image_id"
+     local initial=$(hamr_test initial)
+     local image_id=$(json_get "$initial" '.results[0].id')
+     
+     local result=$(hamr_test action --id "$image_id" --action "copy-path")
+     
+     assert_type "$result" "execute"
+     assert_closes "$result"
+     local copy_field=$(json_get "$result" '.copy')
+     if [[ -z "$copy_field" || "$copy_field" == "null" ]]; then
+        echo "Expected .copy field for copy action"
+        return 1
+    fi
 }
 
 test_open_from_detail_view() {
-    local initial=$(hamr_test initial)
-    local image_id=$(json_get "$initial" '.results[0].id')
-    
-    hamr_test action --id "$image_id" > /dev/null
-    local detail=$(hamr_test action --id "$image_id" | jq -r '.results[] | select(.id | startswith("open:")) | .id')
-    
-    local result=$(hamr_test action --id "$detail")
-    
-    assert_type "$result" "execute"
-    assert_closes "$result"
-    assert_contains "$result" "xdg-open"
+     local initial=$(hamr_test initial)
+     local image_id=$(json_get "$initial" '.results[0].id')
+     
+     hamr_test action --id "$image_id" > /dev/null
+     local detail=$(hamr_test action --id "$image_id" | jq -r '.results[] | select(.id | startswith("open:")) | .id')
+     
+     local result=$(hamr_test action --id "$detail")
+     
+     assert_type "$result" "execute"
+     assert_closes "$result"
+     local open_field=$(json_get "$result" '.open')
+     if [[ -z "$open_field" || "$open_field" == "null" ]]; then
+        echo "Expected .open field for open action"
+        return 1
+    fi
 }
 
 test_copy_image_to_clipboard() {
-    local initial=$(hamr_test initial)
-    local image_id=$(json_get "$initial" '.results[0].id')
-    
-    hamr_test action --id "$image_id" > /dev/null
-    local detail=$(hamr_test action --id "$image_id" | jq -r '.results[] | select(.id | startswith("copy-image:")) | .id')
-    
-    local result=$(hamr_test action --id "$detail")
-    
-    assert_type "$result" "execute"
-    assert_closes "$result"
-    assert_contains "$result" "wl-copy"
-    assert_contains "$result" "image/png"
+     local initial=$(hamr_test initial)
+     local image_id=$(json_get "$initial" '.results[0].id')
+     
+     hamr_test action --id "$image_id" > /dev/null
+     local detail=$(hamr_test action --id "$image_id" | jq -r '.results[] | select(.id | startswith("copy-image:")) | .id')
+     
+     local result=$(hamr_test action --id "$detail")
+     
+     # Copy image uses subprocess internally and returns notify
+     assert_type "$result" "execute"
+     assert_closes "$result"
+     local notify=$(json_get "$result" '.notify')
+     assert_contains "$notify" "copied"
 }
 
 test_delete_moves_to_trash() {
@@ -331,43 +343,17 @@ test_delete_moves_to_trash() {
     assert_contains "$result" "trash"
 }
 
-test_execute_responses_have_names() {
+test_open_action_returns_execute() {
     local initial=$(hamr_test initial)
     local image_id=$(json_get "$initial" '.results[0].id')
     
     local result=$(hamr_test action --id "$image_id" --action "open")
     
-    local name=$(json_get "$result" '.execute.name')
-    if [[ -z "$name" || "$name" == "null" ]]; then
-        echo "Execute response should have a name"
-        return 1
-    fi
-}
-
-test_execute_responses_have_icons() {
-    local initial=$(hamr_test initial)
-    local image_id=$(json_get "$initial" '.results[0].id')
-    
-    local result=$(hamr_test action --id "$image_id" --action "open")
-    
-    local icon=$(json_get "$result" '.execute.icon')
-    if [[ -z "$icon" || "$icon" == "null" ]]; then
-        echo "Execute response should have an icon"
-        return 1
-    fi
-}
-
-test_open_action_has_thumbnail() {
-    local initial=$(hamr_test initial)
-    local image_id=$(json_get "$initial" '.results[0].id')
-    
-    local result=$(hamr_test action --id "$image_id" --action "open")
-    
-    local thumbnail=$(json_get "$result" '.execute.thumbnail')
-    if [[ -z "$thumbnail" || "$thumbnail" == "null" ]]; then
-        echo "Open action should have thumbnail in execute response"
-        return 1
-    fi
+    # Verify the response is an execute with open field
+    assert_type "$result" "execute"
+    assert_closes "$result"
+    local open_field=$(json_get "$result" '.open')
+    assert_contains "$open_field" "$image_id"
 }
 
 test_copy_path_shows_notification() {
@@ -376,7 +362,8 @@ test_copy_path_shows_notification() {
     
     local result=$(hamr_test action --id "$image_id" --action "copy-path")
     
-    local notify=$(json_get "$result" '.execute.notify')
+    # New safe API uses .notify at top level
+    local notify=$(json_get "$result" '.notify')
     assert_contains "$notify" "Copied"
 }
 
@@ -449,9 +436,7 @@ run_tests \
     test_open_from_detail_view \
     test_copy_image_to_clipboard \
     test_delete_moves_to_trash \
-    test_execute_responses_have_names \
-    test_execute_responses_have_icons \
-    test_open_action_has_thumbnail \
+    test_open_action_returns_execute \
     test_copy_path_shows_notification \
     test_all_responses_valid_json \
     test_handles_missing_pictures_gracefully \

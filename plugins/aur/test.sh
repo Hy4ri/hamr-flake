@@ -37,22 +37,21 @@ test_search_has_paru() {
 test_action_install() {
     local result=$(hamr_test action --id "pacseek" --action "install")
     assert_type "$result" "execute"
-    assert_contains "$result" "yay"
-    assert_contains "$result" "pacseek"
+    assert_closes "$result"
 }
 
 test_action_uninstall() {
     local result=$(hamr_test action --id "yay" --action "uninstall")
     assert_type "$result" "execute"
-    assert_contains "$result" "Rns"
-    assert_contains "$result" "yay"
+    assert_closes "$result"
 }
 
 test_action_open_web() {
     local result=$(hamr_test action --id "paru" --action "open_web")
     assert_type "$result" "execute"
-    assert_contains "$result" "xdg-open"
-    assert_contains "$result" "aur.archlinux.org/packages/paru"
+    local url=$(json_get "$result" '.openUrl')
+    assert_contains "$url" "aur.archlinux.org/packages/paru"
+    assert_closes "$result"
 }
 
 run_tests \

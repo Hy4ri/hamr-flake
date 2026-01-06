@@ -250,7 +250,8 @@ def main():
                 mode = "dark"
                 command = build_wallpaper_command(random_path, mode)
                 save_wallpaper_to_history(random_path)
-                subprocess.Popen(command)
+                if not TEST_MODE:
+                    subprocess.Popen(command)
                 print(
                     json.dumps(
                         {
@@ -332,7 +333,8 @@ def main():
         mode = "dark"
         command = build_wallpaper_command(file_path, mode)
         save_wallpaper_to_history(file_path)
-        subprocess.Popen(command)
+        if not TEST_MODE:
+            subprocess.Popen(command)
 
         print(
             json.dumps(
@@ -397,7 +399,8 @@ def main():
 
         # Save to history
         save_wallpaper_to_history(file_path)
-        subprocess.Popen(command)
+        if not TEST_MODE:
+            subprocess.Popen(command)
 
         print(
             json.dumps(

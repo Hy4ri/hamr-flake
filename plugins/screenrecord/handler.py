@@ -349,13 +349,15 @@ notify-send "Recording Stopped" "Saved to Videos folder"
 """
 
             clear_recording_state()
-            subprocess.Popen(["bash", "-c", script])
+            if not TEST_MODE:
+                subprocess.Popen(["bash", "-c", script])
 
             print(json.dumps({"type": "execute", "close": True}))
             return
 
         if item_id == "browse":
-            subprocess.Popen(["xdg-open", str(VIDEOS_DIR)])
+            if not TEST_MODE:
+                subprocess.Popen(["xdg-open", str(VIDEOS_DIR)])
             print(json.dumps({"type": "execute", "close": True}))
             return
 
@@ -369,7 +371,8 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            subprocess.Popen(["bash", "-c", script])
+            if not TEST_MODE:
+                subprocess.Popen(["bash", "-c", script])
             print(json.dumps({"type": "execute", "close": True}))
             return
 
@@ -378,7 +381,8 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            subprocess.Popen(["bash", "-c", script])
+            if not TEST_MODE:
+                subprocess.Popen(["bash", "-c", script])
             print(json.dumps({"type": "execute", "close": True}))
             return
 
@@ -387,7 +391,8 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            subprocess.Popen(["bash", "-c", script])
+            if not TEST_MODE:
+                subprocess.Popen(["bash", "-c", script])
             print(json.dumps({"type": "execute", "close": True}))
             return
 
@@ -396,7 +401,8 @@ notify-send "Recording Stopped" "Saved to Videos folder"
             start_time_ms = int(time.time() * 1000) + (START_DELAY_SECONDS * 1000)
             save_recording_state(output_path, start_time_ms)
 
-            subprocess.Popen(["bash", "-c", script])
+            if not TEST_MODE:
+                subprocess.Popen(["bash", "-c", script])
             print(json.dumps({"type": "execute", "close": True}))
             return
 

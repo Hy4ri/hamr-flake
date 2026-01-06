@@ -251,7 +251,8 @@ def main():
 
         if item_id.startswith("copy-image:"):
             path = item_id.split(":", 1)[1]
-            subprocess.Popen(["wl-copy", "-t", "image/png", path])
+            if not TEST_MODE:
+                subprocess.Popen(["wl-copy", "-t", "image/png", path])
             print(
                 json.dumps(
                     {

@@ -117,20 +117,19 @@ test_action_not_found_returns_gracefully() {
 
 test_copy_action() {
     hamr_test search --query "hello" > /dev/null
-    # Note: Copy action re-fetches definition which adds latency
-    # This test verifies the handler structure supports the copy action
-    # (actual clipboard copy depends on wl-copy availability)
-    local result=$(timeout 15 hamr_test action --id "copy" --context "hello" 2>&1 || echo '{"type":"execute","execute":{"notify":"timeout"}}')
+    local result=$(hamr_test action --id "copy" --context "hello")
     
-    # Verify handler completes (either with success or timeout, which is expected in test env)
-    assert_contains "$result" "type"
+    # Verify execute response with new safe API format
+    assert_type "$result" "execute"
+    # Should have notify message (new API)
+    assert_contains "$result" "notify"
 }
 
 test_copy_preserves_word_context() {
     hamr_test search --query "hello" > /dev/null
     local result=$(hamr_test action --id "copy" --context "hello")
     
-    # Notification should mention the word
+    # Verify new safe API format - notify message should contain the word
     assert_contains "$result" "hello"
 }
 

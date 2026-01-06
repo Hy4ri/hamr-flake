@@ -186,45 +186,44 @@ test_action_run_float_closes() {
     fi
 }
 
-test_action_run_float_has_name() {
-    local initial=$(hamr_test initial)
-    local count=$(get_result_count "$initial")
-    
-    if [[ $count -gt 0 ]]; then
-        local cmd=$(json_get "$initial" '.results[0].id')
-        local result=$(hamr_test action --id "$cmd" --action "run-float")
-        
-        local name=$(json_get "$result" '.execute.name')
-        assert_ok test -n "$name"
-        assert_contains "$name" "Run:"
-    fi
-}
+test_action_run_float_has_terminal() {
+     local initial=$(hamr_test initial)
+     local count=$(get_result_count "$initial")
+     
+     if [[ $count -gt 0 ]]; then
+         local cmd=$(json_get "$initial" '.results[0].id')
+         local result=$(hamr_test action --id "$cmd" --action "run-float")
+         
+         local terminal=$(json_get "$result" '.terminal')
+         assert_ok test -n "$terminal"
+     fi
+ }
 
-test_action_run_float_has_icon() {
-    local initial=$(hamr_test initial)
-    local count=$(get_result_count "$initial")
-    
-    if [[ $count -gt 0 ]]; then
-        local cmd=$(json_get "$initial" '.results[0].id')
-        local result=$(hamr_test action --id "$cmd" --action "run-float")
-        
-        local icon=$(json_get "$result" '.execute.icon')
-        assert_eq "$icon" "terminal"
-    fi
-}
+test_action_run_float_has_command_array() {
+     local initial=$(hamr_test initial)
+     local count=$(get_result_count "$initial")
+     
+     if [[ $count -gt 0 ]]; then
+         local cmd=$(json_get "$initial" '.results[0].id')
+         local result=$(hamr_test action --id "$cmd" --action "run-float")
+         
+         local cmd_type=$(json_get "$result" '.terminal | type')
+         assert_eq "$cmd_type" "array" "terminal should be an array"
+     fi
+ }
 
-test_action_run_float_has_command() {
-    local initial=$(hamr_test initial)
-    local count=$(get_result_count "$initial")
-    
-    if [[ $count -gt 0 ]]; then
-        local cmd=$(json_get "$initial" '.results[0].id')
-        local result=$(hamr_test action --id "$cmd" --action "run-float")
-        
-        local command=$(json_get "$result" '.execute.command')
-        assert_ok test -n "$command"
-    fi
-}
+test_action_run_float_has_bash_command() {
+     local initial=$(hamr_test initial)
+     local count=$(get_result_count "$initial")
+     
+     if [[ $count -gt 0 ]]; then
+         local cmd=$(json_get "$initial" '.results[0].id')
+         local result=$(hamr_test action --id "$cmd" --action "run-float")
+         
+         local terminal=$(json_get "$result" '.terminal[0]')
+         assert_eq "$terminal" "bash" "terminal command should start with bash"
+     fi
+ }
 
 test_action_run_tiled_structure() {
     local initial=$(hamr_test initial)
@@ -239,18 +238,18 @@ test_action_run_tiled_structure() {
     fi
 }
 
-test_action_run_tiled_has_name() {
-    local initial=$(hamr_test initial)
-    local count=$(get_result_count "$initial")
-    
-    if [[ $count -gt 0 ]]; then
-        local cmd=$(json_get "$initial" '.results[0].id')
-        local result=$(hamr_test action --id "$cmd" --action "run-tiled")
-        
-        local name=$(json_get "$result" '.execute.name')
-        assert_contains "$name" "Run:"
-    fi
-}
+test_action_run_tiled_has_terminal() {
+     local initial=$(hamr_test initial)
+     local count=$(get_result_count "$initial")
+     
+     if [[ $count -gt 0 ]]; then
+         local cmd=$(json_get "$initial" '.results[0].id')
+         local result=$(hamr_test action --id "$cmd" --action "run-tiled")
+         
+         local terminal=$(json_get "$result" '.terminal')
+         assert_ok test -n "$terminal"
+     fi
+ }
 
 test_action_copy_has_icon_in_action() {
     # Verify copy action exists in initial results with proper icon
@@ -295,23 +294,20 @@ test_action_default_action() {
     fi
 }
 
-test_action_long_command_truncated() {
-    # Create a long command string by searching
-    local result=$(hamr_test search --query "a")
-    local count=$(get_result_count "$result")
-    
-    if [[ $count -gt 0 ]]; then
-        local cmd=$(json_get "$result" '.results[0].id')
-        local action_result=$(hamr_test action --id "$cmd" --action "copy")
-        
-        local name=$(json_get "$action_result" '.execute.name')
-        # If command > 50 chars, should be truncated with "..."
-        local cmd_len=${#cmd}
-        if [[ $cmd_len -gt 50 ]]; then
-            assert_contains "$name" "..."
-        fi
-    fi
-}
+test_action_copy_has_copy_field() {
+     # Create a test by searching
+     local result=$(hamr_test search --query "a")
+     local count=$(get_result_count "$result")
+     
+     if [[ $count -gt 0 ]]; then
+         local cmd=$(json_get "$result" '.results[0].id')
+         local action_result=$(hamr_test action --id "$cmd" --action "copy")
+         
+         local copy=$(json_get "$action_result" '.copy')
+         # Should have the command in the copy field
+         assert_ok test -n "$copy"
+     fi
+ }
 
 test_action_empty_id_error() {
     local result=$(hamr_test action --id "")
@@ -330,29 +326,29 @@ test_all_responses_valid() {
 # ============================================================================
 
 run_tests \
-    test_initial_returns_results \
-    test_initial_realtime_mode \
-    test_initial_has_results \
-    test_initial_result_structure \
-    test_initial_result_has_actions \
-    test_initial_action_ids \
-    test_initial_limits_results_to_50 \
-    test_search_returns_results \
-    test_search_realtime_mode \
-    test_search_empty_query_returns_results \
-    test_search_fuzzy_filter \
-    test_search_filters_results \
-    test_search_result_structure \
-    test_action_run_float_structure \
-    test_action_run_float_closes \
-    test_action_run_float_has_name \
-    test_action_run_float_has_icon \
-    test_action_run_float_has_command \
-    test_action_run_tiled_structure \
-    test_action_run_tiled_has_name \
-    test_action_copy_has_icon_in_action \
-    test_action_copy_action_exists \
-    test_action_default_action \
-    test_action_long_command_truncated \
-    test_action_empty_id_error \
-    test_all_responses_valid
+     test_initial_returns_results \
+     test_initial_realtime_mode \
+     test_initial_has_results \
+     test_initial_result_structure \
+     test_initial_result_has_actions \
+     test_initial_action_ids \
+     test_initial_limits_results_to_50 \
+     test_search_returns_results \
+     test_search_realtime_mode \
+     test_search_empty_query_returns_results \
+     test_search_fuzzy_filter \
+     test_search_filters_results \
+     test_search_result_structure \
+     test_action_run_float_structure \
+     test_action_run_float_closes \
+     test_action_run_float_has_terminal \
+     test_action_run_float_has_command_array \
+     test_action_run_float_has_bash_command \
+     test_action_run_tiled_structure \
+     test_action_run_tiled_has_terminal \
+     test_action_copy_has_icon_in_action \
+     test_action_copy_action_exists \
+     test_action_default_action \
+     test_action_copy_has_copy_field \
+     test_action_empty_id_error \
+     test_all_responses_valid

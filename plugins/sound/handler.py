@@ -185,7 +185,17 @@ def handle_request(request: dict) -> None:
     vol_info = get_volume_info()
     mic_info = get_mic_info()
 
-    if step in ("initial", "search"):
+    if step == "initial":
+        emit(
+            {
+                "type": "index",
+                "mode": "full",
+                "items": get_results(),
+            }
+        )
+        return
+
+    if step == "search":
         emit(
             {
                 "type": "results",
@@ -283,9 +293,6 @@ def main():
 
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
-
-    # Emit initial index on startup
-    emit_index()
 
     # Track last known values to detect external changes
     last_vol = get_volume_info()

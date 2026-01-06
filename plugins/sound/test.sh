@@ -8,20 +8,23 @@ HANDLER="$(dirname "$0")/handler.py"
 
 test_initial_shows_sliders() {
     local result=$(hamr_test initial)
-    assert_type "$result" "results"
-    assert_has_result "$result" "volume"
-    assert_has_result "$result" "mic"
+    assert_type "$result" "index"
+    # Check that volume and mic items exist in index
+    assert_contains "$result" '"id": "volume"'
+    assert_contains "$result" '"id": "mic"'
 }
 
 test_initial_shows_volume_gauge() {
     local result=$(hamr_test initial)
+    assert_type "$result" "index"
     assert_contains "$result" "gauge"
     assert_contains "$result" "50%"
 }
 
 test_initial_shows_muted_badge() {
     local result=$(hamr_test initial)
-    # Muted info badge should be in the response
+    assert_type "$result" "index"
+    # Badges array should be in the response
     assert_contains "$result" "badges"
 }
 
@@ -50,8 +53,8 @@ test_plugin_action_mute_toggle() {
 
 test_volume_slider_type() {
     local result=$(hamr_test initial)
-    local slider_type=$(echo "$result" | jq -r '.results[0].type')
-    assert_eq "$slider_type" "slider" "First result should be a slider"
+    local slider_type=$(echo "$result" | jq -r '.items[0].type')
+    assert_eq "$slider_type" "slider" "First item should be a slider"
 }
 
 run_tests \

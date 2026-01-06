@@ -333,27 +333,33 @@ assert_realtime_mode() {
 
 # Assert execute response closes launcher
 # Usage: assert_closes "$response"
+# Supports both old API (.execute.close) and new safe API (.close)
 assert_closes() {
     local response="$1"
     assert_type "$response" "execute" || return 1
-    local close=$(json_get "$response" '.execute.close')
+    # Check new API first (.close), then old API (.execute.close)
+    # Use 'select' to handle boolean false correctly (// operator treats false as falsy)
+    local close=$(echo "$response" | jq -r 'if .close != null then .close elif .execute.close != null then .execute.close else null end')
     if [[ "$close" == "true" ]]; then
         return 0
     fi
-    echo "Expected execute.close to be true"
+    echo "Expected close to be true"
     return 1
 }
 
 # Assert execute response stays open
 # Usage: assert_stays_open "$response"
+# Supports both old API (.execute.close) and new safe API (.close)
 assert_stays_open() {
     local response="$1"
     assert_type "$response" "execute" || return 1
-    local close=$(json_get "$response" '.execute.close')
+    # Check new API first (.close), then old API (.execute.close)
+    # Use 'if-then-else' to handle boolean false correctly (// operator treats false as falsy)
+    local close=$(echo "$response" | jq -r 'if .close != null then .close elif .execute.close != null then .execute.close else null end')
     if [[ "$close" == "false" ]]; then
         return 0
     fi
-    echo "Expected execute.close to be false"
+    echo "Expected close to be false"
     return 1
 }
 

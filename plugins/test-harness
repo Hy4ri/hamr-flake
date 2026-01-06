@@ -193,6 +193,8 @@ class ExecuteCommand:
     command: list[str] = field(default_factory=list)
     close: bool = True
     notify: str = ""
+    copy: str = ""
+    type_text: str = ""
     name: str = ""
     icon: str = ""
     entry_point: dict | None = None
@@ -203,6 +205,8 @@ class ExecuteCommand:
             command=data.get("command", []),
             close=data.get("close", True),
             notify=data.get("notify", ""),
+            copy=data.get("copy", ""),
+            type_text=data.get("typeText", ""),
             name=data.get("name", ""),
             icon=data.get("icon", ""),
             entry_point=data.get("entryPoint"),
@@ -399,13 +403,13 @@ class HamrResponse:
             response.card = CardContent.from_dict(data["card"])
 
         elif resp_type == "execute":
-            if "execute" not in data:
-                raise SchemaValidationError(
-                    "'execute' response missing 'execute' object",
-                    response_type="execute",
-                    field_name="execute",
-                )
-            response.execute = ExecuteCommand.from_dict(data["execute"])
+            # Support both old API (.execute.command) and new safe API (.copy, .typeText, .notify)
+            if "execute" in data:
+                # Old API format: nested execute object
+                response.execute = ExecuteCommand.from_dict(data["execute"])
+            else:
+                # New safe API format: fields at top level
+                response.execute = ExecuteCommand.from_dict(data)
 
         elif resp_type == "imageBrowser":
             if "imageBrowser" not in data:

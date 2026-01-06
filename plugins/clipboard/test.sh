@@ -263,12 +263,13 @@ test_image_entry_shows_image_description() {
 # ============================================================================
 
 test_entry_has_copy_action() {
-    set_clipboard_entries "1	Copy me"
-    local result=$(hamr_test initial)
-    
-    local actions=$(json_get "$result" '.results[] | select(.name == "Copy me") | .actions[].id' | tr '\n' ',')
-    assert_contains "$actions" "copy"
-}
+     set_clipboard_entries "1	Copy me"
+     local result=$(hamr_test initial)
+     
+     # Copy is now the default verb, with copy action in preview
+     local verb=$(json_get "$result" '.results[] | select(.name == "Copy me") | .verb')
+     assert_eq "$verb" "Copy" "Entry should have Copy as verb"
+ }
 
 test_entry_has_delete_action() {
     set_clipboard_entries "1	Delete me"
@@ -365,12 +366,12 @@ test_wipe_action_closes() {
 }
 
 test_wipe_action_notifies() {
-    set_clipboard_entries "1	Entry"
-    local result=$(hamr_test action --id "__plugin__" --action "wipe")
-    
-    # Should notify user via notify-send command
-    assert_contains "$result" "notify-send"
-}
+     set_clipboard_entries "1	Entry"
+     local result=$(hamr_test action --id "__plugin__" --action "wipe")
+     
+     # Should notify user via .notify field in safe API
+     assert_json "$result" '.notify' "Clipboard history cleared"
+ }
 
 # ============================================================================
 # Tests: Empty State

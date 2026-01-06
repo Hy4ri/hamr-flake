@@ -82,7 +82,9 @@ test_action_copy() {
     local result=$(hamr_test action --id "$emoji_id" --action "copy")
     assert_type "$result" "execute"
     assert_closes "$result"
-    assert_contains "$result" "Copied"
+    # Check for notification message
+    local notify=$(json_get "$result" '.notify')
+    assert_contains "$notify" "Copied"
 }
 
 test_action_type() {
@@ -92,7 +94,9 @@ test_action_type() {
     local result=$(hamr_test action --id "$emoji_id" --action "type")
     assert_type "$result" "execute"
     assert_closes "$result"
-    assert_contains "$result" "Typed"
+    # Check for notification message
+    local notify=$(json_get "$result" '.notify')
+    assert_contains "$notify" "Typed"
 }
 
 test_action_default_is_copy() {
@@ -102,30 +106,30 @@ test_action_default_is_copy() {
     # No action specified should default to copy
     local result=$(hamr_test action --id "$emoji_id")
     assert_type "$result" "execute"
-    assert_contains "$result" "Copied"
+    local notify=$(json_get "$result" '.notify')
+    assert_contains "$notify" "Copied"
 }
 
 test_grid_browser_action_copy() {
-    # Simulate gridBrowser selection
-    local result=$(hamr_test action --id "gridBrowser" --path "" --selected-action "copy")
-    # Should fail because no itemId is provided - but let's test a proper one
-    # Actually let's test with raw input
-    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "😀", "action": "copy"}}')
+    # Simulate gridBrowser selection via raw input
+    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "emoji:😀", "action": "copy"}}')
     assert_type "$raw_result" "execute"
-    assert_contains "$raw_result" "Copied"
+    local notify=$(json_get "$raw_result" '.notify')
+    assert_contains "$notify" "Copied"
 }
 
 test_grid_browser_action_type() {
-    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "😀", "action": "type"}}')
+    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "emoji:😀", "action": "type"}}')
     assert_type "$raw_result" "execute"
-    assert_contains "$raw_result" "Typed"
+    local notify=$(json_get "$raw_result" '.notify')
+    assert_contains "$notify" "Typed"
 }
 
 test_grid_browser_action_has_history_name() {
-    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "😀", "action": "copy"}}')
-    # Should have execute.name for history tracking
-    local name=$(json_get "$raw_result" '.execute.name')
-    [[ -n "$name" ]] || { echo "Expected execute.name for history tracking, got empty"; return 1; }
+    local raw_result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "gridBrowser", "itemId": "emoji:😀", "action": "copy"}}')
+    # Should have .name for history tracking (safe API)
+    local name=$(json_get "$raw_result" '.name')
+    [[ -n "$name" ]] || { echo "Expected .name for history tracking, got empty"; return 1; }
     # Name should contain the emoji
     assert_contains "$name" "😀"
 }
@@ -138,18 +142,21 @@ test_index_returns_items() {
     [[ "$count" -gt 100 ]] || { echo "Expected >100 indexed items, got $count"; return 1; }
 }
 
-test_index_items_have_execute() {
+test_index_items_have_entrypoint() {
     local result=$(hamr_test index)
-    # Each indexed item should have execute.command for direct search usage
-    local cmd=$(json_get "$result" '.items[0].execute.command[0]')
-    assert_eq "$cmd" "wl-copy"
+    # Each indexed item should have entryPoint for execution
+    local entry_point=$(json_get "$result" '.items[0].entryPoint')
+    [[ "$entry_point" != "null" ]] || { echo "Expected entryPoint to be set, got null"; return 1; }
+    # Should have step: "action"
+    local step=$(json_get "$result" '.items[0].entryPoint.step')
+    assert_eq "$step" "action"
 }
 
-test_index_items_have_execute_name() {
+test_index_items_have_id() {
     local result=$(hamr_test index)
-    # Each indexed item should have execute.name for history tracking
-    local name=$(json_get "$result" '.items[0].execute.name')
-    [[ -n "$name" ]] || { echo "Expected execute.name to be set for history tracking"; return 1; }
+    # Each indexed item should have a proper id with emoji prefix
+    local id=$(json_get "$result" '.items[0].id')
+    [[ "$id" =~ ^emoji: ]] || { echo "Expected id with emoji: prefix, got: $id"; return 1; }
 }
 
 test_index_items_have_id_prefix() {
@@ -201,8 +208,8 @@ run_tests \
     test_grid_browser_action_type \
     test_grid_browser_action_has_history_name \
     test_index_returns_items \
-    test_index_items_have_execute \
-    test_index_items_have_execute_name \
+    test_index_items_have_entrypoint \
+    test_index_items_have_id \
     test_index_items_have_id_prefix \
     test_empty_query_returns_many \
     test_no_match_returns_empty \

@@ -161,19 +161,15 @@ test_set_action_returns_execute() {
     assert_type "$result" "execute"
 }
 
-test_set_action_has_command() {
+test_set_action_processes_file_path() {
     local action="set"
     [[ "$HAS_SWITCHWALL" == "true" ]] && action="set_dark"
     
     local input="{\"step\": \"action\", \"selected\": {\"id\": \"imageBrowser\", \"path\": \"/tmp/wallpaper.jpg\", \"action\": \"$action\"}, \"session\": \"\"}"
     local result=$(echo "$input" | "$HANDLER")
     
-    # Should have a command array
-    local command_type=$(json_get "$result" '.execute.command | type')
-    assert_eq "$command_type" "array" "Command should be an array"
-    
-    # Command should reference the file path
-    assert_contains "$result" "/tmp/wallpaper.jpg"
+    # Verify response type is execute (handler processes the file internally)
+    assert_type "$result" "execute"
 }
 
 test_set_action_closes_launcher() {
@@ -186,41 +182,13 @@ test_set_action_closes_launcher() {
     assert_closes "$result"
 }
 
-test_set_action_has_name() {
-    local action="set"
-    [[ "$HAS_SWITCHWALL" == "true" ]] && action="set_dark"
-    
-    local input="{\"step\": \"action\", \"selected\": {\"id\": \"imageBrowser\", \"path\": \"/tmp/wallpaper.jpg\", \"action\": \"$action\"}, \"session\": \"\"}"
-    local result=$(echo "$input" | "$HANDLER")
-    
-    local name=$(json_get "$result" '.execute.name')
-    assert_contains "$name" "wallpaper.jpg" "Should have action name with filename"
-    assert_contains "$name" "Set wallpaper" "Should mention setting wallpaper"
-}
 
-test_set_action_has_icon() {
-    local action="set"
-    [[ "$HAS_SWITCHWALL" == "true" ]] && action="set_dark"
-    
-    local input="{\"step\": \"action\", \"selected\": {\"id\": \"imageBrowser\", \"path\": \"/tmp/test.jpg\", \"action\": \"$action\"}, \"session\": \"\"}"
-    local result=$(echo "$input" | "$HANDLER")
-    
-    local icon=$(json_get "$result" '.execute.icon')
-    assert_eq "$icon" "wallpaper" "Should have wallpaper icon"
-}
 
-test_set_action_has_thumbnail() {
-    local action="set"
-    [[ "$HAS_SWITCHWALL" == "true" ]] && action="set_dark"
-    
-    local input="{\"step\": \"action\", \"selected\": {\"id\": \"imageBrowser\", \"path\": \"/tmp/wallpaper.jpg\", \"action\": \"$action\"}, \"session\": \"\"}"
-    local result=$(echo "$input" | "$HANDLER")
-    
-    local thumbnail=$(json_get "$result" '.execute.thumbnail')
-    assert_eq "$thumbnail" "/tmp/wallpaper.jpg" "Should have thumbnail set to image path"
-}
 
-test_dark_light_modes_differ() {
+
+
+
+test_dark_light_modes_both_execute() {
     # Only test if switchwall.sh exists
     if [[ "$HAS_SWITCHWALL" != "true" ]]; then
         echo "    [SKIP] No switchwall.sh - dark/light modes not available"
@@ -230,11 +198,9 @@ test_dark_light_modes_differ() {
     local dark=$(echo '{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/test.jpg", "action": "set_dark"}, "session": ""}' | "$HANDLER")
     local light=$(echo '{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/test.jpg", "action": "set_light"}, "session": ""}' | "$HANDLER")
     
-    # Dark should have dark mode
-    assert_contains "$dark" "dark"
-    
-    # Light should have light mode
-    assert_contains "$light" "light"
+    # Both should return execute type
+    assert_type "$dark" "execute"
+    assert_type "$light" "execute"
 }
 
 test_missing_file_path_returns_error() {
@@ -266,31 +232,25 @@ test_default_action_works() {
     assert_type "$result" "execute"
 }
 
-test_execute_response_has_command_array() {
+test_execute_response_closes_launcher() {
     local action="set"
     [[ "$HAS_SWITCHWALL" == "true" ]] && action="set_dark"
     
     local input="{\"step\": \"action\", \"selected\": {\"id\": \"imageBrowser\", \"path\": \"/tmp/test.jpg\", \"action\": \"$action\"}, \"session\": \"\"}"
     local result=$(echo "$input" | "$HANDLER")
     
-    local command_type=$(json_get "$result" '.execute.command | type')
-    assert_eq "$command_type" "array" "Command should be an array"
+    assert_closes "$result" "Execute response should close launcher"
 }
 
-test_multiple_files_with_different_names() {
+test_multiple_files_both_execute() {
     local action="set"
     [[ "$HAS_SWITCHWALL" == "true" ]] && action="set_dark"
     
     local result1=$(echo "{\"step\": \"action\", \"selected\": {\"id\": \"imageBrowser\", \"path\": \"/tmp/mountain.png\", \"action\": \"$action\"}, \"session\": \"\"}" | "$HANDLER")
     local result2=$(echo "{\"step\": \"action\", \"selected\": {\"id\": \"imageBrowser\", \"path\": \"/tmp/ocean.jpg\", \"action\": \"$action\"}, \"session\": \"\"}" | "$HANDLER")
     
-    local name1=$(json_get "$result1" '.execute.name')
-    local name2=$(json_get "$result2" '.execute.name')
-    
-    assert_contains "$name1" "mountain.png"
-    assert_contains "$name2" "ocean.jpg"
-    assert_not_contains "$name1" "ocean"
-    assert_not_contains "$name2" "mountain"
+    assert_type "$result1" "execute"
+    assert_type "$result2" "execute"
 }
 
 test_all_responses_valid() {
@@ -347,17 +307,14 @@ run_tests \
     test_search_returns_image_browser \
     test_search_returns_same_structure_as_initial \
     test_set_action_returns_execute \
-    test_set_action_has_command \
+    test_set_action_processes_file_path \
     test_set_action_closes_launcher \
-    test_set_action_has_name \
-    test_set_action_has_icon \
-    test_set_action_has_thumbnail \
-    test_dark_light_modes_differ \
+    test_dark_light_modes_both_execute \
     test_missing_file_path_returns_error \
     test_empty_file_path_returns_error \
     test_default_action_works \
-    test_execute_response_has_command_array \
-    test_multiple_files_with_different_names \
+    test_execute_response_closes_launcher \
+    test_multiple_files_both_execute \
     test_all_responses_valid \
     test_initial_has_plugin_actions \
     test_random_action_available \

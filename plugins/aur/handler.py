@@ -383,7 +383,8 @@ def main():
                 f'notify-send "AUR" "{pkg_name} uninstalled" -a "Hamr" || '
                 f'notify-send "AUR" "Failed to uninstall {pkg_name}" -a "Hamr"'
             )
-            subprocess.Popen(["bash", "-c", cmd])
+            if not TEST_MODE:
+                subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
@@ -401,7 +402,8 @@ def main():
                 f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
                 f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
             )
-            subprocess.Popen(["bash", "-c", cmd])
+            if not TEST_MODE:
+                subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {
@@ -432,7 +434,8 @@ def main():
                 f'notify-send "AUR" "{pkg_name} installed" -a "Hamr" || '
                 f'notify-send "AUR" "Failed to install {pkg_name}" -a "Hamr"'
             )
-            subprocess.Popen(["bash", "-c", cmd])
+            if not TEST_MODE:
+                subprocess.Popen(["bash", "-c", cmd])
             print(
                 json.dumps(
                     {

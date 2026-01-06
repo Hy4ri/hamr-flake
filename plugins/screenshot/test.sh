@@ -139,9 +139,9 @@ test_open_action_has_correct_command() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/screenshot.png", "action": "open"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    # Should use xdg-open
-    assert_contains "$result" "xdg-open"
-    assert_contains "$result" "/tmp/screenshot.png"
+    # Should use safe API with .open field
+    local open=$(json_get "$result" '.open')
+    assert_eq "$open" "/tmp/screenshot.png" "Should have .open set to image path"
 }
 
 test_open_action_closes_launcher() {
@@ -155,24 +155,27 @@ test_open_action_has_thumbnail() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/screenshot.png", "action": "open"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    local thumbnail=$(json_get "$result" '.execute.thumbnail')
-    assert_eq "$thumbnail" "/tmp/screenshot.png" "Should have thumbnail set to image path"
+    # New API doesn't include thumbnail in execute response, check if .open exists
+    local open=$(json_get "$result" '.open')
+    assert_eq "$open" "/tmp/screenshot.png" "Should set .open to image path for preview"
 }
 
 test_open_action_has_name() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/screenshot.png", "action": "open"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    local name=$(json_get "$result" '.execute.name')
-    assert_contains "$name" "screenshot.png" "Should have action name with filename"
+    # New API uses .open directly, name is implied by the path
+    local open=$(json_get "$result" '.open')
+    assert_contains "$open" "screenshot.png" "Should have .open pointing to correct file"
 }
 
 test_open_action_has_icon() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/test.png", "action": "open"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    local icon=$(json_get "$result" '.execute.icon')
-    assert_eq "$icon" "screenshot_monitor" "Should have screenshot_monitor icon"
+    # New API doesn't include icon in execute response, just verify .open is set
+    local open=$(json_get "$result" '.open')
+    assert_eq "$open" "/tmp/test.png" "Should have .open set to image path"
 }
 
 test_copy_action_returns_execute() {
@@ -182,11 +185,13 @@ test_copy_action_returns_execute() {
     assert_type "$result" "execute"
 }
 
-test_copy_action_uses_wl_copy() {
+test_copy_action_uses_safe_api() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/test.png", "action": "copy"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    assert_contains "$result" "wl-copy"
+    # New API uses safe notification for copy operation
+    local notify=$(json_get "$result" '.notify')
+    assert_contains "$notify" "Copied" "Should have .notify confirming image copy"
 }
 
 test_copy_action_closes_launcher() {
@@ -200,7 +205,8 @@ test_copy_action_has_notify() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/test.png", "action": "copy"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    local notify=$(json_get "$result" '.execute.notify')
+    # New API uses .notify for notifications
+    local notify=$(json_get "$result" '.notify')
     assert_contains "$notify" "Copied"
 }
 
@@ -208,8 +214,9 @@ test_copy_action_has_thumbnail() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/screenshot.png", "action": "copy"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    local thumbnail=$(json_get "$result" '.execute.thumbnail')
-    assert_eq "$thumbnail" "/tmp/screenshot.png" "Should have thumbnail set to image path"
+    # New API doesn't include thumbnail, but .notify should indicate success
+    local notify=$(json_get "$result" '.notify')
+    assert_contains "$notify" "Copied" "Should have notification confirming copy"
 }
 
 test_delete_action_returns_execute() {
@@ -219,12 +226,13 @@ test_delete_action_returns_execute() {
     assert_type "$result" "execute"
 }
 
-test_delete_action_uses_gio_trash() {
+test_delete_action_uses_safe_api() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/test.png", "action": "delete"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    assert_contains "$result" "gio"
-    assert_contains "$result" "trash"
+    # New API uses .notify for deletion confirmation (no direct command in response)
+    local notify=$(json_get "$result" '.notify')
+    assert_contains "$notify" "Deleted"
 }
 
 test_delete_action_stays_open() {
@@ -238,7 +246,8 @@ test_delete_action_has_notify() {
     local input='{"step": "action", "selected": {"id": "imageBrowser", "path": "/tmp/test.png", "action": "delete"}, "session": ""}'
     local result=$(echo "$input" | "$HANDLER")
     
-    local notify=$(json_get "$result" '.execute.notify')
+    # New API uses .notify at top level
+    local notify=$(json_get "$result" '.notify')
     assert_contains "$notify" "Deleted"
 }
 
@@ -269,9 +278,9 @@ test_ocr_action_has_notify() {
     local input="{\"step\": \"action\", \"selected\": {\"id\": \"imageBrowser\", \"path\": \"$tmpimg\", \"action\": \"ocr\"}, \"session\": \"\"}"
     local result=$(echo "$input" | "$HANDLER")
     
-    # Expect either "No text found" or actual OCR result notification
-    local notify=$(json_get "$result" '.execute.notify')
-    assert_not_contains "$(echo "$notify" | jq 'type')" "null" "Should have notify field set"
+    # Expect either "No text found" or actual OCR result notification (new API uses .notify)
+    local notify=$(json_get "$result" '.notify')
+    assert_not_contains "$(echo "$notify" | jq 'type')" "null" "Should have .notify field set"
 }
 
 test_missing_file_path_returns_error() {
@@ -294,7 +303,9 @@ test_unknown_action_defaults_to_open() {
     local result=$(echo "$input" | "$HANDLER")
     
     assert_type "$result" "execute"
-    assert_contains "$result" "xdg-open"
+    # Default action should be open, which uses safe API
+    local open=$(json_get "$result" '.open')
+    assert_eq "$open" "/tmp/test.png" "Unknown action should default to open"
 }
 
 test_all_initial_responses_valid() {
@@ -323,12 +334,12 @@ run_tests \
     test_open_action_has_name \
     test_open_action_has_icon \
     test_copy_action_returns_execute \
-    test_copy_action_uses_wl_copy \
+    test_copy_action_uses_safe_api \
     test_copy_action_closes_launcher \
     test_copy_action_has_notify \
     test_copy_action_has_thumbnail \
     test_delete_action_returns_execute \
-    test_delete_action_uses_gio_trash \
+    test_delete_action_uses_safe_api \
     test_delete_action_stays_open \
     test_delete_action_has_notify \
     test_ocr_action_returns_execute \

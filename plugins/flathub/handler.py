@@ -567,15 +567,31 @@ def main():
                     f"qs -c hamr ipc call pluginRunner reindex apps || "
                     f'notify-send "Flathub" "Failed to uninstall {app_name}" -a "Hamr"'
                 )
-                subprocess.Popen(["bash", "-c", cmd])
-                print(json.dumps({"type": "close"}))
+                subprocess.Popen(
+                    ["bash", "-c", cmd],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                print(json.dumps({"type": "execute", "close": True}))
             except Exception as e:
-                print(json.dumps({"type": "error", "message": f"Failed to uninstall: {str(e)}"}))
+                print(
+                    json.dumps(
+                        {"type": "error", "message": f"Failed to uninstall: {str(e)}"}
+                    )
+                )
             return
 
         # Open on Flathub website
         if action == "open_web":
-            print(json.dumps({"type": "execute", "openUrl": f"{FLATHUB_WEB}/{selected_id}", "close": True}))
+            print(
+                json.dumps(
+                    {
+                        "type": "execute",
+                        "openUrl": f"{FLATHUB_WEB}/{selected_id}",
+                        "close": True,
+                    }
+                )
+            )
             return
 
         # Install action
@@ -588,20 +604,36 @@ def main():
                     f"qs -c hamr ipc call pluginRunner reindex apps || "
                     f'notify-send "Flathub" "Failed to install {app_name}" -a "Hamr"'
                 )
-                subprocess.Popen(["bash", "-c", cmd])
-                print(json.dumps({"type": "close"}))
+                subprocess.Popen(
+                    ["bash", "-c", cmd],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                print(json.dumps({"type": "execute", "close": True}))
             except Exception as e:
-                print(json.dumps({"type": "error", "message": f"Failed to install: {str(e)}"}))
+                print(
+                    json.dumps(
+                        {"type": "error", "message": f"Failed to install: {str(e)}"}
+                    )
+                )
             return
 
         # Default action: Install or Open
         if is_installed:
             # Open the installed app
             try:
-                subprocess.Popen(["flatpak", "run", selected_id])
-                print(json.dumps({"type": "close"}))
+                subprocess.Popen(
+                    ["flatpak", "run", selected_id],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                print(json.dumps({"type": "execute", "close": True}))
             except Exception as e:
-                print(json.dumps({"type": "error", "message": f"Failed to open app: {str(e)}"}))
+                print(
+                    json.dumps(
+                        {"type": "error", "message": f"Failed to open app: {str(e)}"}
+                    )
+                )
         else:
             # Install the app (non-blocking with notifications)
             # Try user install first, fall back to system install
@@ -613,10 +645,18 @@ def main():
                     f"qs -c hamr ipc call pluginRunner reindex apps || "
                     f'notify-send "Flathub" "Failed to install {app_name}" -a "Hamr"'
                 )
-                subprocess.Popen(["bash", "-c", cmd])
-                print(json.dumps({"type": "close"}))
+                subprocess.Popen(
+                    ["bash", "-c", cmd],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                print(json.dumps({"type": "execute", "close": True}))
             except Exception as e:
-                print(json.dumps({"type": "error", "message": f"Failed to install: {str(e)}"}))
+                print(
+                    json.dumps(
+                        {"type": "error", "message": f"Failed to install: {str(e)}"}
+                    )
+                )
         return
 
 

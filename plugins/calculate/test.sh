@@ -47,7 +47,7 @@ test_search_shows_result() {
 test_action_copies_result() {
     local result=$(hamr_test raw --input '{"step": "action", "query": "2+2", "selected": {"id": "calc_result"}}')
     assert_type "$result" "execute"
-    assert_contains "$result" "wl-copy"
+    assert_json "$result" '.copy' "4"
 }
 
 test_initial_shows_prompt_when_no_history() {
@@ -60,7 +60,7 @@ test_history_item_action() {
     # Test that history items can be copied
     local result=$(hamr_test raw --input '{"step": "action", "selected": {"id": "history:2+2"}}')
     assert_type "$result" "execute"
-    assert_contains "$result" "wl-copy"
+    assert_json "$result" '.copy' "4"
 }
 
 test_clear_history_action() {
