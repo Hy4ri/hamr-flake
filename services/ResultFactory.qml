@@ -334,7 +334,7 @@ Singleton {
         // Build base properties
         const props = {
             type: displayType,
-            id: appId,
+            id: item.appId ?? item.id,
             name: item.name,
             comment: item.description ?? "",
             iconName: item.icon ?? 'extension',
