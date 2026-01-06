@@ -21,10 +21,6 @@ from pathlib import Path
 # Test mode - skip external tool calls
 TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
-# Search history path (same as LauncherSearch.qml)
-HAMR_CONFIG = Path.home() / ".config" / "hamr"
-HISTORY_PATH = HAMR_CONFIG / "search-history.json"
-
 # XDG application directories
 APP_DIRS = [
     Path.home() / ".local/share/applications",
@@ -164,42 +160,6 @@ def load_all_apps() -> list[dict]:
                     apps[app["id"]] = app
 
     return list(apps.values())
-
-
-def load_app_frecency() -> dict[str, float]:
-    """Load frecency scores from search history"""
-    frecency = {}
-    if not HISTORY_PATH.exists():
-        return frecency
-
-    try:
-        with open(HISTORY_PATH) as f:
-            data = json.load(f)
-            history = data.get("history", [])
-            now = __import__("time").time() * 1000
-
-            for h in history:
-                if h.get("type") != "app":
-                    continue
-                name = h.get("name", "")
-                if not name:
-                    continue
-
-                # Calculate frecency
-                hours_since = (now - h.get("lastUsed", 0)) / (1000 * 60 * 60)
-                if hours_since < 1:
-                    mult = 4
-                elif hours_since < 24:
-                    mult = 2
-                elif hours_since < 168:
-                    mult = 1
-                else:
-                    mult = 0.5
-                frecency[name] = h.get("count", 1) * mult
-    except Exception:
-        pass
-
-    return frecency
 
 
 def fuzzy_match(query: str, text: str) -> bool:
@@ -383,9 +343,7 @@ def get_categories(apps: list[dict]) -> list[str]:
     return result
 
 
-def handle_request(
-    request: dict, all_apps: list[dict], frecency: dict[str, float]
-) -> None:
+def handle_request(request: dict, all_apps: list[dict]) -> None:
     """Handle incoming request from hamr."""
     step = request.get("step", "initial")
     query = request.get("query", "").strip()
@@ -708,13 +666,9 @@ def main():
 
     # Load apps once at startup
     all_apps = load_all_apps()
-    frecency = load_app_frecency()
 
-    # Sort apps by frecency then name
-    def sort_key(app):
-        return (-frecency.get(app["name"], 0), app["name"].lower())
-
-    all_apps.sort(key=sort_key)
+    # Sort apps alphabetically (frecency handled by hamr's unified system)
+    all_apps.sort(key=lambda app: app["name"].lower())
 
     # Emit initial full index on startup (for background daemon)
     if not TEST_MODE:
@@ -731,7 +685,7 @@ def main():
                 if not line:
                     break
                 request = json.loads(line.strip())
-                handle_request(request, all_apps, frecency)
+                handle_request(request, all_apps)
             except (json.JSONDecodeError, ValueError):
                 continue
 

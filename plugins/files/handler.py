@@ -16,39 +16,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Search history path (same as LauncherSearch.qml)
-HAMR_CONFIG = Path.home() / ".config" / "hamr"
-HISTORY_PATH = HAMR_CONFIG / "search-history.json"
 HOME = str(Path.home())
-
-
-def load_recent_files() -> list[dict]:
-    """Load recent files from search history"""
-    if not HISTORY_PATH.exists():
-        return []
-    try:
-        with open(HISTORY_PATH) as f:
-            data = json.load(f)
-            history = data.get("history", [])
-            # Filter to file entries and sort by frecency
-            files = [h for h in history if h.get("type") == "file" and h.get("name")]
-            # Simple frecency: count * recency factor
-            now = __import__("time").time() * 1000
-            for f in files:
-                hours_since = (now - f.get("lastUsed", 0)) / (1000 * 60 * 60)
-                if hours_since < 1:
-                    mult = 4
-                elif hours_since < 24:
-                    mult = 2
-                elif hours_since < 168:
-                    mult = 1
-                else:
-                    mult = 0.5
-                f["_frecency"] = f.get("count", 1) * mult
-            files.sort(key=lambda x: x.get("_frecency", 0), reverse=True)
-            return files[:20]
-    except Exception:
-        return []
 
 
 def search_files(query: str, limit: int = 30) -> list[str]:
@@ -465,20 +433,14 @@ def main():
     selected_id = selected.get("id", "")
 
     if step == "initial":
-        recent = load_recent_files()
-        if recent:
-            results = [
-                path_to_result(f["name"]) for f in recent if os.path.exists(f["name"])
-            ]
-        else:
-            results = [
-                {
-                    "id": "__info__",
-                    "name": "Type to search files",
-                    "description": "Using fd + fzf for fast fuzzy search",
-                    "icon": "info",
-                }
-            ]
+        results = [
+            {
+                "id": "__info__",
+                "name": "Type to search files",
+                "description": "Using fd + fzf for fast fuzzy search",
+                "icon": "info",
+            }
+        ]
 
         print(
             json.dumps(
@@ -505,10 +467,13 @@ def main():
                     }
                 ]
         else:
-            # Empty query - show recent
-            recent = load_recent_files()
             results = [
-                path_to_result(f["name"]) for f in recent if os.path.exists(f["name"])
+                {
+                    "id": "__info__",
+                    "name": "Type to search files",
+                    "description": "Using fd + fzf for fast fuzzy search",
+                    "icon": "info",
+                }
             ]
 
         print(

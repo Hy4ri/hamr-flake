@@ -2394,13 +2394,12 @@ Singleton {
          id: typeTextTimer
          interval: 150
          repeat: false
-         onTriggered: {
-             if (root.pendingTypeText) {
-                 console.log("[PluginRunner] Typing text via ydotool");
-                 Quickshell.execDetached(["ydotool", "type", "--clearmodifiers", "--", root.pendingTypeText]);
-                 root.pendingTypeText = "";
-             }
-         }
+        onTriggered: {
+              if (root.pendingTypeText) {
+                  Quickshell.execDetached(["ydotool", "type", "--clearmodifiers", "--", root.pendingTypeText]);
+                  root.pendingTypeText = "";
+              }
+          }
      }
      
      // Prepared plugins for fuzzy search

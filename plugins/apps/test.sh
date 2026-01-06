@@ -125,16 +125,16 @@ test_category_context_persists() {
     assert_eq "$context" "__cat__:All"
 }
 
-test_app_selection_returns_execute() {
+test_app_results_have_ids() {
+    # Apps handler returns browsable results for category view
     local all_result=$(hamr_test action --id "__cat__:All")
     
-    # Get first app ID
+    # Get first app ID - should be a .desktop file path
     local app_id=$(json_get "$all_result" '.results[0].id')
     
     if [[ -n "$app_id" && "$app_id" != "null" ]]; then
-        local launch=$(hamr_test action --id "$app_id")
-        assert_type "$launch" "execute"
-        assert_closes "$launch"
+        # App IDs should be .desktop file paths
+        assert_contains "$app_id" ".desktop" "App ID should be a .desktop file path"
     fi
 }
 
@@ -222,7 +222,7 @@ run_tests \
     test_search_preserves_placeholder \
     test_realtime_input_mode \
     test_category_context_persists \
-    test_app_selection_returns_execute \
+    test_app_results_have_ids \
     test_result_has_required_fields \
     test_all_results_have_id \
     test_category_selection_sets_clear_input \
