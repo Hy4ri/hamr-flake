@@ -526,22 +526,17 @@ def window_to_index_item(window: dict) -> dict:
     if workspace_id:
         description = f"{app_id} (workspace {workspace_id})"
 
+    item_id = f"window:{window_id}"
     return {
-        "id": f"window:{window_id}",
+        "id": item_id,
         "name": title or app_id,
         "description": description,
         "icon": app_id,
         "iconType": "system",
         "verb": "Focus",
         "entryPoint": {
-            "command": [
-                "niri",
-                "msg",
-                "action",
-                "focus-window",
-                "--id",
-                str(window_id),
-            ],
+            "step": "action",
+            "selected": {"id": item_id},
         },
     }
 
@@ -589,8 +584,9 @@ def window_to_result(window: dict, workspaces: list[dict] | None = None) -> dict
 
 
 def action_to_index_item(action: dict) -> dict:
+    action_id = f"action:{action['id']}"
     return {
-        "id": f"action:{action['id']}",
+        "id": action_id,
         "name": action["name"],
         "description": action["description"],
         "icon": action["icon"],
@@ -601,9 +597,8 @@ def action_to_index_item(action: dict) -> dict:
             action["name"].lower(),
         ],
         "entryPoint": {
-            "command": ["niri", "msg", "action", action["action"]],
-            "name": action["name"],
-            "icon": action["icon"],
+            "step": "action",
+            "selected": {"id": action_id},
         },
     }
 
@@ -716,11 +711,13 @@ def generate_workspace_index_items() -> list[dict]:
     items = []
 
     for ws_idx in range(1, 11):
+        goto_id = f"action:goto-workspace:{ws_idx}"
+        move_id = f"action:move-to-workspace:{ws_idx}"
         goto_name = f"Go to Workspace {ws_idx}"
         move_name = f"Move Window to Workspace {ws_idx}"
         items.append(
             {
-                "id": f"action:goto-workspace:{ws_idx}",
+                "id": goto_id,
                 "name": goto_name,
                 "description": f"Switch to workspace {ws_idx}",
                 "icon": "space_dashboard",
@@ -732,21 +729,14 @@ def generate_workspace_index_items() -> list[dict]:
                     f"switch to {ws_idx}",
                 ],
                 "entryPoint": {
-                    "command": [
-                        "niri",
-                        "msg",
-                        "action",
-                        "focus-workspace",
-                        str(ws_idx),
-                    ],
-                    "name": goto_name,
-                    "icon": "space_dashboard",
+                    "step": "action",
+                    "selected": {"id": goto_id},
                 },
             }
         )
         items.append(
             {
-                "id": f"action:move-to-workspace:{ws_idx}",
+                "id": move_id,
                 "name": move_name,
                 "description": f"Move active window to workspace {ws_idx}",
                 "icon": "drive_file_move",
@@ -757,15 +747,8 @@ def generate_workspace_index_items() -> list[dict]:
                     f"move workspace {ws_idx}",
                 ],
                 "entryPoint": {
-                    "command": [
-                        "niri",
-                        "msg",
-                        "action",
-                        "move-window-to-workspace",
-                        str(ws_idx),
-                    ],
-                    "name": move_name,
-                    "icon": "drive_file_move",
+                    "step": "action",
+                    "selected": {"id": move_id},
                 },
             }
         )
@@ -905,9 +888,7 @@ def handle_request(input_data: dict):
         item_id = selected.get("id", "")
 
         if item_id == "__empty__":
-            print(
-                json.dumps({"type": "execute", "close": True}), flush=True
-            )
+            print(json.dumps({"type": "execute", "close": True}), flush=True)
             return
 
         if item_id.startswith("action:"):
