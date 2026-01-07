@@ -26,8 +26,8 @@ test_index_item_has_window_id() {
 
 test_index_item_has_entry_point() {
     local result=$(hamr_test index)
-    local cmd=$(json_get "$result" '.items[0].entryPoint.command[0]')
-    assert_eq "$cmd" "niri"
+    local step=$(json_get "$result" '.items[0].entryPoint.step')
+    assert_eq "$step" "action"
 }
 
 test_index_item_has_focus_verb() {

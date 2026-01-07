@@ -318,6 +318,12 @@ def main():
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
 
+    # In test mode, handle single request and exit
+    if TEST_MODE:
+        input_data = json.load(sys.stdin)
+        handle_request(input_data)
+        return
+
     # Emit initial index on startup so items appear in main search
     emit_index()
 
