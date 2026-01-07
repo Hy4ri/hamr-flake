@@ -107,6 +107,10 @@ Singleton {
     
     // Signal when plugin index is updated (for LauncherSearch to rebuild searchables)
     signal pluginIndexChanged(string pluginId)
+    
+    // Signal when a plugin response validation fails (shows error modal to developer)
+    // Payload: { pluginId, title, message, details }
+    signal validationError(var errorInfo)
 
     // ==================== PLUGIN STATUS ====================
     // Plugins can provide dynamic status (badges, description override) that
@@ -1043,8 +1047,10 @@ Singleton {
          // Only process if this plugin is currently active
          const isActive = root.activePlugin?.id === pluginId;
          
-         if (!response || !response.type) {
-             console.warn(`[PluginRunner] Invalid daemon output from ${pluginId}`);
+         // Validate response structure
+         const validation = root.validateResponse(response, pluginId);
+         if (!validation.valid) {
+             console.warn(`[PluginRunner] Invalid daemon output from ${pluginId}: ${validation.errors.join(", ")}`);
              return;
          }
          
@@ -1295,6 +1301,7 @@ Singleton {
         }
         
         const plugin = root.pendingManifestLoads.shift();
+
         manifestLoader.pluginId = plugin.id;
         manifestLoader.pluginPath = plugin.path;
         manifestLoader.isBuiltin = plugin.isBuiltin;
@@ -1336,9 +1343,21 @@ Singleton {
                     
                     // Skip if plugin already exists (prevents duplicates from race conditions)
                     if (!root.plugins.some(p => p.id === manifestLoader.pluginId)) {
+                        // Require supportedCompositors to be defined
+                        if (!manifest.supportedCompositors) {
+                            root.validationError({
+                                pluginId: manifestLoader.pluginId,
+                                title: "Invalid Plugin Manifest",
+                                message: "Missing required field: 'supportedCompositors'",
+                                details: "Add to manifest.json:\n\"supportedCompositors\": [\"*\"] for all compositors\nor [\"hyprland\"], [\"niri\"], etc."
+                            });
+                            manifestLoader.outputBuffer = "";
+                            root.loadNextManifest();
+                            return;
+                        }
+                        
                         // Check compositor compatibility
-                        // Default to ["hyprland"] if not specified (backward compatibility)
-                        const supportedCompositors = manifest.supportedCompositors ?? ["hyprland"];
+                        const supportedCompositors = manifest.supportedCompositors;
                         const currentCompositor = CompositorService.compositor;
                         
                         // Check if plugin supports current compositor
@@ -2004,6 +2023,111 @@ Singleton {
         return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     }
     
+    // Valid response types that plugins can return
+    readonly property var validResponseTypes: new Set([
+        "results", "card", "form", "prompt", "error", "execute",
+        "imageBrowser", "gridBrowser", "update", "status", "index",
+        "noop", "startPlugin", "match"
+    ])
+    
+    // Validate plugin response and emit validationError signal if invalid
+    // Returns: { valid: bool, errors: string[] }
+    function validateResponse(response, pluginId) {
+        const errors = [];
+        
+        // Helper to emit error and return
+        function emitAndReturn(errs) {
+            root.validationError({
+                pluginId: pluginId,
+                title: "Invalid Plugin Response",
+                message: errs[0],
+                details: errs.length > 1 ? errs.slice(1).join("\n") : ""
+            });
+            return { valid: false, errors: errs };
+        }
+        
+        if (!response || typeof response !== "object") {
+            return emitAndReturn(["Response must be a JSON object"]);
+        }
+        
+        if (!response.type) {
+            return emitAndReturn(["Missing required field: 'type'"]);
+        }
+        
+        if (!root.validResponseTypes.has(response.type)) {
+            return emitAndReturn([
+                `Invalid response type: '${response.type}'`,
+                `Valid types: ${Array.from(root.validResponseTypes).join(", ")}`
+            ]);
+        }
+        
+        // Type-specific validation
+        switch (response.type) {
+            case "results":
+                if (!response.results) {
+                    errors.push("'results' response missing 'results' array");
+                } else if (!Array.isArray(response.results)) {
+                    errors.push("'results' must be an array");
+                } else {
+                    // Validate each result item
+                    response.results.forEach((item, i) => {
+                        if (!item.id) errors.push(`results[${i}]: missing required 'id'`);
+                        if (!item.name) errors.push(`results[${i}]: missing required 'name'`);
+                    });
+                }
+                break;
+                
+            case "card":
+                if (!response.card) {
+                    errors.push("'card' response missing 'card' object");
+                }
+                break;
+                
+            case "form":
+                if (!response.form) {
+                    errors.push("'form' response missing 'form' object");
+                } else if (response.form.fields) {
+                    response.form.fields.forEach((field, i) => {
+                        if (!field.id) errors.push(`form.fields[${i}]: missing required 'id'`);
+                        if (!field.type) errors.push(`form.fields[${i}]: missing required 'type'`);
+                    });
+                }
+                break;
+                
+            case "error":
+                if (!response.message) {
+                    errors.push("'error' response missing 'message'");
+                }
+                break;
+                
+            case "imageBrowser":
+                if (!response.imageBrowser) {
+                    errors.push("'imageBrowser' response missing 'imageBrowser' object");
+                } else if (!response.imageBrowser.directory) {
+                    errors.push("imageBrowser: missing required 'directory'");
+                }
+                break;
+                
+            case "gridBrowser":
+                if (!response.gridBrowser) {
+                    errors.push("'gridBrowser' response missing 'gridBrowser' object");
+                }
+                break;
+                
+            case "index":
+                if (!response.items || !Array.isArray(response.items)) {
+                    errors.push("'index' response missing 'items' array");
+                }
+                break;
+        }
+        
+        if (errors.length > 0) {
+            return emitAndReturn(errors);
+        }
+        
+        return { valid: true, errors: [] };
+    }
+    
      function sendToPlugin(input) {
          if (!root.activePlugin) return;
          
@@ -2026,8 +2150,12 @@ Singleton {
      function handlePluginResponse(response, wasReplayMode = false) {
          root.pluginBusy = false;
          
-         if (!response || !response.type) {
-             root.pluginError = "Invalid response from plugin";
+         const pluginId = root.activePlugin?.id ?? root.replayPluginInfo?.id ?? "unknown";
+         
+         // Validate response structure
+         const validation = root.validateResponse(response, pluginId);
+         if (!validation.valid) {
+             root.pluginError = validation.errors[0] ?? "Invalid response from plugin";
              root.pendingNavigation = false;
              root.pendingBack = false;
              return;

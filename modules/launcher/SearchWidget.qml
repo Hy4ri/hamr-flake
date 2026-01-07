@@ -734,19 +734,19 @@ Item {
                                     return;
                                 }
                             }
-                            
+
                             // Fall back to pending index if key not found
                             if (appResults.pendingCurrentIndex >= 0 && appResults.count > 0) {
                                 appResults.currentIndex = Math.min(appResults.pendingCurrentIndex, appResults.count - 1);
                                 appResults.clearPendingSelection();
                                 return;
                             }
-                            
+
                             // Wait for results if we have pending restore but no items yet
                             if (appResults.count === 0 && (appResults.pendingItemKey || appResults.pendingCurrentIndex >= 0)) {
                                 return;
                             }
-                            
+
                             // Default: reset to first item
                             appResults.clearPendingSelection();
                             appResults.selectedActionIndex = -1;
@@ -960,6 +960,45 @@ Item {
         z: 99
         onClicked: {
             formCancelModal.hide();
+            root.focusSearchInput();
+        }
+    }
+
+    // Plugin validation error modal (for developers)
+    PluginErrorModal {
+        id: pluginErrorModal
+
+        anchors.centerIn: parent
+        z: 100
+
+        onDismissed: {
+            root.focusSearchInput();
+        }
+
+        Connections {
+            target: PluginRunner
+            function onValidationError(errorInfo) {
+                pluginErrorModal.show(errorInfo.pluginId, errorInfo.title, errorInfo.message, errorInfo.details);
+            }
+        }
+
+        Connections {
+            target: GlobalStates
+            function onLauncherOpenChanged() {
+                if (!GlobalStates.launcherOpen) {
+                    pluginErrorModal.hide();
+                }
+            }
+        }
+    }
+
+    // Click outside to close plugin error modal
+    MouseArea {
+        anchors.fill: parent
+        visible: pluginErrorModal.visible
+        z: 99
+        onClicked: {
+            pluginErrorModal.hide();
             root.focusSearchInput();
         }
     }
