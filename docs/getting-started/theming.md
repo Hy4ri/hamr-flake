@@ -9,9 +9,22 @@ Hamr uses Material Design 3 colors for its UI. This guide explains how to set up
 ### Quick Setup
 
 1. **Install matugen:**
-   ```bash
-   paru -S matugen-bin
-   ```
+
+    === "Arch"
+
+        ```bash
+        paru -S matugen
+        ```
+
+    === "Gentoo"
+
+        ```bash
+        sudo emerge x11-misc/matugen
+        ```
+
+    === "Other"
+
+        See [matugen releases](https://github.com/InioX/matugen/releases) for binaries or build from source.
 
 2. **Download the template:**
    ```bash

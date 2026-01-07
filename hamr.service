@@ -6,7 +6,8 @@ After=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/qs -c hamr
+Environment=PATH=/usr/local/bin:/usr/bin:%h/.local/bin
+ExecStart=hamr
 Restart=on-failure
 RestartSec=3
 

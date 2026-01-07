@@ -1,6 +1,8 @@
 __pycache__/
 .pytest_cache/
 .ruff_cache/
+.venv/
+site/
 
 # QML Language Server config (managed by Quickshell at runtime)
 .qmlls.ini

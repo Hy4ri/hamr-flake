@@ -5,6 +5,7 @@ This guide will help you build your first Hamr plugin. Start here, then explore 
 ## What You'll Build
 
 Hamr plugins extend the launcher with custom functionality. When you're done with this guide, you'll have created a working plugin that:
+
 - Shows a list of items when opened
 - Filters items as you type
 - Executes an action when you select an item
@@ -18,6 +19,7 @@ Let's build a "Hello World" plugin in under 5 minutes.
 ### Step 1: Create the Plugin Directory
 
 Hamr loads plugins from two locations:
+
 1. **Built-in plugins:** `~/.local/share/hamr/plugins/` (installed with Hamr)
 2. **User plugins:** `~/.config/hamr/plugins/` (your custom plugins)
 
@@ -43,6 +45,7 @@ EOF
 ```
 
 > **Note:** `supportedCompositors` defines which Wayland compositors your plugin works with:
+>
 > - `["*"]` - Works on all compositors (use this for most plugins)
 > - `["hyprland"]` - Hyprland only (if you use `hyprctl`)
 > - `["niri"]` - Niri only (if you use `niri msg`)
@@ -73,7 +76,7 @@ def main():
     # Read the JSON request from stdin
     # Hamr sends the entire request as a single JSON object
     input_data = json.load(sys.stdin)
-    
+
     # Extract common fields from the request
     step = input_data.get("step", "initial")      # What triggered this call
     query = input_data.get("query", "").strip()   # Search bar text (for search step)
@@ -108,7 +111,7 @@ def main():
     if step == "action":
         item_id = selected.get("id", "")
         message = "Hello, World!" if item_id == "hello" else "Goodbye!"
-        
+
         # Return an execute response to perform an action
         print(json.dumps({
             "type": "execute",
@@ -129,9 +132,10 @@ chmod +x ~/.config/hamr/plugins/hello/handler.py
 
 ### Step 5: Test Your Plugin
 
-Open Hamr and type `/hello` to see your plugin in action.
+Open Hamr and search for "hello" to see your plugin in action.
 
 **Tip:** If your plugin doesn't appear, check:
+
 1. `supportedCompositors` is set in manifest.json
 2. The handler is executable (`chmod +x`)
 3. Check logs: `journalctl --user -u hamr -f`
@@ -148,7 +152,7 @@ Plugins communicate with Hamr via **JSON over stdin/stdout**:
 sequenceDiagram
     participant Hamr
     participant Handler as Your Handler
-    
+
     Hamr->>Handler: Spawn process
     Hamr->>Handler: Write JSON request to stdin
     Handler->>Handler: Process request
@@ -168,11 +172,11 @@ sequenceDiagram
 
 Every request includes a `step` field telling you what happened:
 
-| Step | When | User Action |
-|------|------|-------------|
-| `initial` | Plugin opens | User typed `/pluginname` |
-| `search` | User types | Each keystroke (realtime) or Enter (submit) |
-| `action` | User selects | Clicked item or pressed Enter |
+| Step      | When         | User Action                                 |
+| --------- | ------------ | ------------------------------------------- |
+| `initial` | Plugin opens | User selected the plugin                    |
+| `search`  | User types   | Each keystroke (realtime) or Enter (submit) |
+| `action`  | User selects | Clicked item or pressed Enter               |
 
 ### Plugin Discovery
 
@@ -192,6 +196,7 @@ flowchart LR
 ```
 
 **Key points:**
+
 - Each plugin must have a `manifest.json`
 - `supportedCompositors` must include the current compositor (or `"*"`)
 - Handler must be executable with a valid shebang
@@ -222,14 +227,14 @@ Every plugin needs a `manifest.json`:
 }
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Display name |
-| `description` | Yes | Short description |
-| `icon` | Yes | Material icon name |
-| `supportedCompositors` | Yes | `["*"]`, `["hyprland"]`, `["niri"]`, or combination |
-| `handler` | No | Handler filename (default: `handler.py`) |
-| `frecency` | No | `"item"`, `"plugin"`, or `"none"` (default: `"item"`) |
+| Field                  | Required | Description                                           |
+| ---------------------- | -------- | ----------------------------------------------------- |
+| `name`                 | Yes      | Display name                                          |
+| `description`          | Yes      | Short description                                     |
+| `icon`                 | Yes      | Material icon name                                    |
+| `supportedCompositors` | Yes      | `["*"]`, `["hyprland"]`, `["niri"]`, or combination   |
+| `handler`              | No       | Handler filename (default: `handler.py`)              |
+| `frecency`             | No       | `"item"`, `"plugin"`, or `"none"` (default: `"item"`) |
 
 ### Input (What You Receive)
 
@@ -248,31 +253,35 @@ Every plugin needs a `manifest.json`:
 
 Return **one** JSON object. The `type` field determines what Hamr does:
 
-| Type | Purpose | Example |
-|------|---------|---------|
-| `results` | Show a list | Search results, menu items |
-| `execute` | Run an action | Open file, copy text, close launcher |
-| `card` | Show rich content | Markdown text, definitions |
-| `error` | Show error | Something went wrong |
+| Type      | Purpose           | Example                              |
+| --------- | ----------------- | ------------------------------------ |
+| `results` | Show a list       | Search results, menu items           |
+| `execute` | Run an action     | Open file, copy text, close launcher |
+| `card`    | Show rich content | Markdown text, definitions           |
+| `error`   | Show error        | Something went wrong                 |
 
-See [Response Types](plugins/response-types.md) for complete documentation.
+See [Response Types](response-types.md) for complete documentation.
 
 ---
 
 ## Language Support
 
 Plugins can be written in any language. The handler just needs to:
+
 1. Be executable (`chmod +x`)
+
 2. Have a shebang (`#!/usr/bin/env python3`)
+
 3. Read JSON from stdin
+
 4. Write JSON to stdout
 
-| Language | Use Case |
-|----------|----------|
-| **Python** | Recommended for most plugins |
-| **Bash** | Simple scripts, system commands |
-| **Go/Rust** | Performance-critical plugins |
-| **Node.js** | Web API integrations |
+| Language    | Use Case                        |
+| ----------- | ------------------------------- |
+| **Python**  | Recommended for most plugins    |
+| **Bash**    | Simple scripts, system commands |
+| **Go/Rust** | Performance-critical plugins    |
+| **Node.js** | Web API integrations            |
 
 ### Python (Recommended)
 
@@ -284,7 +293,7 @@ import sys
 def main():
     # Read JSON request from stdin (Hamr sends it all at once)
     input_data = json.load(sys.stdin)
-    
+
     # Process and respond
     print(json.dumps({"type": "results", "results": [...]}))
 
@@ -310,14 +319,16 @@ esac
 
 ```javascript
 #!/usr/bin/env node
-const fs = require('fs');
-const input = JSON.parse(fs.readFileSync(0, 'utf-8'));
+const fs = require("fs");
+const input = JSON.parse(fs.readFileSync(0, "utf-8"));
 
-if (input.step === 'initial') {
-    console.log(JSON.stringify({
-        type: 'results',
-        results: [{id: '1', name: 'Item', icon: 'star'}]
-    }));
+if (input.step === "initial") {
+  console.log(
+    JSON.stringify({
+      type: "results",
+      results: [{ id: "1", name: "Item", icon: "star" }],
+    }),
+  );
 }
 ```
 
@@ -327,13 +338,13 @@ if (input.step === 'initial') {
 
 Now that you understand the basics:
 
-1. **[Response Types](plugins/response-types.md)** - Learn about all response types (`results`, `execute`, `card`, `form`, etc.)
+1. **[Response Types](response-types.md)** - Learn about all response types (`results`, `execute`, `card`, `form`, etc.)
 
-2. **[Visual Elements](plugins/visual-elements.md)** - Add sliders, switches, badges, gauges, and progress bars
+2. **[Visual Elements](visual-elements.md)** - Add sliders, switches, badges, gauges, and progress bars
 
-3. **[Advanced Features](plugins/advanced-features.md)** - Daemon mode, indexing, search ranking, FAB override
+3. **[Advanced Features](advanced-features.md)** - Daemon mode, indexing, search ranking, FAB override
 
-4. **[Cheat Sheet](plugins/CHEATSHEET.md)** - Quick reference for common patterns
+4. **[Cheat Sheet](cheatsheet.md)** - Quick reference for common patterns
 
 ---
 
@@ -341,14 +352,14 @@ Now that you understand the basics:
 
 Study these plugins to learn common patterns:
 
-| Plugin | Features | Good For Learning |
-|--------|----------|-------------------|
-| [`quicklinks/`](../plugins/quicklinks/) | CRUD, context, input modes | State management |
-| [`todo/`](../plugins/todo/) | Daemon, file watching, status | Real-time updates |
-| [`clipboard/`](../plugins/clipboard/) | Thumbnails, filters, actions | Rich UI |
-| [`bitwarden/`](../plugins/bitwarden/) | Forms, caching, entryPoint | Complex workflows |
-| [`sound/`](../plugins/sound/) | Sliders, switches, updates | Interactive controls |
-| [`emoji/`](../plugins/emoji/) | Grid browser | Large item sets |
+| Plugin        | Features                      | Good For Learning    |
+| ------------- | ----------------------------- | -------------------- |
+| `quicklinks/` | CRUD, context, input modes    | State management     |
+| `todo/`       | Daemon, file watching, status | Real-time updates    |
+| `clipboard/`  | Thumbnails, filters, actions  | Rich UI              |
+| `bitwarden/`  | Forms, caching, entryPoint    | Complex workflows    |
+| `sound/`      | Sliders, switches, updates    | Interactive controls |
+| `emoji/`      | Grid browser                  | Large item sets      |
 
 ---
 
@@ -362,11 +373,12 @@ cd ~/path/to/hamr
 ```
 
 Dev mode:
+
 - Auto-reloads when plugin files change
 - Shows logs directly in the terminal
 - Displays errors in the UI
 
-See [Testing Plugins](plugins/testing.md) for more details.
+See [Testing Plugins](testing.md) for more details.
 
 ---
 
@@ -375,16 +387,19 @@ See [Testing Plugins](plugins/testing.md) for more details.
 ### Plugin doesn't appear in Hamr
 
 1. **Check `supportedCompositors`** - Must be set in manifest.json
+
    ```json
    "supportedCompositors": ["*"]
    ```
 
 2. **Check file permissions** - Handler must be executable
+
    ```bash
    chmod +x handler.py
    ```
 
 3. **Check for JSON errors** - Validate your manifest
+
    ```bash
    jq . manifest.json
    ```
@@ -399,11 +414,13 @@ See [Testing Plugins](plugins/testing.md) for more details.
 ### Plugin shows error
 
 1. **Test manually** - Run your handler directly
+
    ```bash
    echo '{"step": "initial"}' | ./handler.py
    ```
 
 2. **Check JSON output** - Must be valid JSON
+
    ```bash
    echo '{"step": "initial"}' | ./handler.py | jq .
    ```

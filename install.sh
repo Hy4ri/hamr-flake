@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # Hamr installation script
 # Usage: ./install.sh [--uninstall]
+# Or: curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
-QUICKSHELL_DIR="$CONFIG_DIR/quickshell"
-HAMR_LINK="$QUICKSHELL_DIR/hamr"
+HAMR_REPO="https://github.com/stewart86/hamr.git"
+HAMR_INSTALL_DIR="$HOME/.local/share/hamr"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18,120 +17,259 @@ info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-get_aur_helper() {
-    for helper in paru yay pikaur trizen aurman; do
-        if command -v "$helper" >/dev/null 2>&1; then
-            echo "$helper"
-            return
+# Detect if running via curl | bash (piped input, no valid SCRIPT_DIR)
+detect_and_clone() {
+    # BASH_SOURCE is empty when script is piped
+    if [[ -z "${BASH_SOURCE[0]}" ]] || [[ ! -f "${BASH_SOURCE[0]}" ]]; then
+        info "Running via curl | bash, cloning repository..."
+        
+        if [[ -d "$HAMR_INSTALL_DIR" ]]; then
+            if [[ -d "$HAMR_INSTALL_DIR/.git" ]]; then
+                info "Existing installation found, updating..."
+                cd "$HAMR_INSTALL_DIR"
+                git pull --rebase
+                exec "$HAMR_INSTALL_DIR/install.sh" "$@"
+            else
+                warn "Directory exists but is not a git repo: $HAMR_INSTALL_DIR"
+                error "Please remove it manually and retry"
+            fi
         fi
-    done
-    echo "pacman"  # fallback, won't work for AUR packages
+        
+        git clone "$HAMR_REPO" "$HAMR_INSTALL_DIR"
+        exec "$HAMR_INSTALL_DIR/install.sh" "$@"
+    fi
 }
 
-get_dependencies_from_pkgbuild() {
-    # Source PKGBUILD to get depends array
-    local pkgbuild="$SCRIPT_DIR/PKGBUILD"
-    if [[ -f "$pkgbuild" ]]; then
+detect_and_clone "$@"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
+QUICKSHELL_DIR="$CONFIG_DIR/quickshell"
+HAMR_LINK="$QUICKSHELL_DIR/hamr"
+
+check_command() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+detect_distro() {
+    if [[ -f /etc/os-release ]]; then
         # shellcheck source=/dev/null
-        source "$pkgbuild"
-        echo "${depends[@]}"
-    fi
-}
-
-get_missing_dependencies() {
-    local all_deps
-    all_deps=$(get_dependencies_from_pkgbuild)
-    local missing=()
-
-    for dep in $all_deps; do
-        # pacman -Qq checks if package is installed (including as a provider)
-        if ! pacman -Qq "$dep" &>/dev/null; then
-            missing+=("$dep")
-        fi
-    done
-
-    echo "${missing[@]}"
-}
-
-install_dependencies() {
-    local helper
-    helper=$(get_aur_helper)
-    local missing
-    missing=$(get_missing_dependencies)
-
-    if [[ -z "$missing" ]]; then
-        info "All dependencies already installed."
-        return 0
-    fi
-
-    info "Installing dependencies with $helper..."
-    echo "Packages: $missing"
-    echo ""
-
-    if [[ "$helper" == "pacman" ]]; then
-        warn "No AUR helper found. Some packages require AUR."
-        warn "Install an AUR helper first: https://wiki.archlinux.org/title/AUR_helpers"
-        exit 1
+        source /etc/os-release
+        case "$ID" in
+            arch|manjaro|endeavouros|artix|parabola)
+                echo "arch"
+                ;;
+            debian|ubuntu|pop|linuxmint|elementary)
+                echo "debian"
+                ;;
+            fedora|rhel|centos|rocky|alma)
+                echo "fedora"
+                ;;
+            opensuse*|suse)
+                echo "suse"
+                ;;
+            nixos)
+                echo "nixos"
+                ;;
+            void)
+                echo "void"
+                ;;
+            gentoo)
+                echo "gentoo"
+                ;;
+            *)
+                echo "unknown"
+                ;;
+        esac
     else
-        $helper -S --needed $missing
+        echo "unknown"
     fi
+}
+
+# Package mappings: command -> arch:debian:fedora:suse:void:gentoo
+# Verified against repology.org
+declare -A PKG_MAP=(
+    ["qs"]="quickshell:BUILD_FROM_SOURCE:quickshell:quickshell:quickshell:gui-apps/quickshell"
+    ["python3"]="python:python3:python3:python3:python3:dev-lang/python"
+    ["jq"]="jq:jq:jq:jq:jq:app-misc/jq"
+    ["wl-copy"]="wl-clipboard:wl-clipboard:wl-clipboard:wl-clipboard:wl-clipboard:gui-apps/wl-clipboard"
+    ["cliphist"]="cliphist:cliphist:cliphist:cliphist:cliphist:app-misc/cliphist"
+    ["slurp"]="slurp:slurp:slurp:slurp:slurp:gui-apps/slurp"
+    ["grim"]="grim:grim:grim:grim:grim:gui-apps/grim"
+    ["hyprpicker"]="hyprpicker:hyprpicker:hyprpicker:hyprpicker:hyprpicker:gui-apps/hyprpicker"
+    ["matugen"]="matugen:BUILD_FROM_SOURCE:BUILD_FROM_SOURCE:BUILD_FROM_SOURCE:BUILD_FROM_SOURCE:x11-misc/matugen"
+)
+
+get_pkg_name() {
+    local cmd="$1"
+    local distro="$2"
+    local mapping="${PKG_MAP[$cmd]}"
+    
+    if [[ -z "$mapping" ]]; then
+        echo "$cmd"
+        return
+    fi
+    
+    local idx
+    case "$distro" in
+        arch) idx=1 ;;
+        debian) idx=2 ;;
+        fedora) idx=3 ;;
+        suse) idx=4 ;;
+        void) idx=5 ;;
+        gentoo) idx=6 ;;
+        *) idx=1 ;;
+    esac
+    
+    echo "$mapping" | cut -d: -f"$idx"
+}
+
+install_packages() {
+    local distro="$1"
+    shift
+    local packages=("$@")
+    
+    case "$distro" in
+        arch)
+            # Try paru, yay, or pacman
+            if check_command paru; then
+                paru -S --needed --noconfirm "${packages[@]}"
+            elif check_command yay; then
+                yay -S --needed --noconfirm "${packages[@]}"
+            else
+                sudo pacman -S --needed --noconfirm "${packages[@]}"
+            fi
+            ;;
+        debian)
+            sudo apt-get update
+            sudo apt-get install -y "${packages[@]}"
+            ;;
+        fedora)
+            sudo dnf install -y "${packages[@]}"
+            ;;
+        suse)
+            sudo zypper install -y "${packages[@]}"
+            ;;
+        void)
+            sudo xbps-install -y "${packages[@]}"
+            ;;
+        gentoo)
+            sudo emerge --ask=n "${packages[@]}"
+            ;;
+        *)
+            error "Cannot auto-install on $distro"
+            ;;
+    esac
+}
+
+setup_fedora_copr() {
+    if ! check_command dnf; then
+        error "dnf not found"
+    fi
+    
+    # Check if COPR is already enabled
+    if dnf repolist | grep -q "avengemedia-dms"; then
+        info "COPR avengemedia/dms already enabled"
+        return
+    fi
+    
+    info "Enabling COPR repository: avengemedia/dms"
+    sudo dnf copr enable -y avengemedia/dms
 }
 
 check_dependencies() {
-    local missing
-    missing=$(get_missing_dependencies)
-
-    if [[ -n "$missing" ]]; then
-        warn "Missing dependencies:"
-        for dep in $missing; do
-            echo "  - $dep"
-        done
-        echo ""
-        local helper
-        helper=$(get_aur_helper)
-        
-        read -p "Install dependencies automatically? [Y/n] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-            install_dependencies
-            # Re-check after install
-            missing=$(get_missing_dependencies)
-            if [[ -n "$missing" ]]; then
-                error "Some dependencies failed to install: $missing"
-            fi
+    local distro
+    distro=$(detect_distro)
+    
+    info "Detected distribution: $distro"
+    echo ""
+    
+    # Required dependencies
+    local required=("qs:Quickshell" "python3:Python 3.9+")
+    local missing_required=()
+    
+    info "Checking required dependencies..."
+    for dep in "${required[@]}"; do
+        local cmd="${dep%%:*}"
+        local desc="${dep#*:}"
+        if check_command "$cmd"; then
+            echo "  [ok] $cmd"
         else
-            echo "Install manually with:"
-            echo "  $helper -S $missing"
-            echo ""
-            read -p "Continue anyway? [y/N] " -n 1 -r
-            echo
-            [[ $REPLY =~ ^[Yy]$ ]] || exit 1
+            echo "  [missing] $cmd - $desc"
+            missing_required+=("$cmd")
         fi
-    else
-        info "All required dependencies installed."
-    fi
-
-    # Show optional dependencies from PKGBUILD
-    local pkgbuild="$SCRIPT_DIR/PKGBUILD"
-    if [[ -f "$pkgbuild" ]]; then
-        # shellcheck source=/dev/null
-        source "$pkgbuild"
-        if [[ ${#optdepends[@]} -gt 0 ]]; then
-            local missing_opt=()
-            for opt in "${optdepends[@]}"; do
-                local pkg="${opt%%:*}"
-                if ! pacman -Qi "$pkg" &>/dev/null; then
-                    missing_opt+=("$opt")
+    done
+    
+    if [[ ${#missing_required[@]} -gt 0 ]]; then
+        echo ""
+        
+        # Check if we can auto-install
+        local can_auto_install=true
+        local packages_to_install=()
+        
+        for cmd in "${missing_required[@]}"; do
+            local pkg
+            pkg=$(get_pkg_name "$cmd" "$distro")
+            if [[ "$pkg" == "BUILD_FROM_SOURCE" ]]; then
+                can_auto_install=false
+            else
+                packages_to_install+=("$pkg")
+            fi
+        done
+        
+        if [[ "$can_auto_install" == "true" && ${#packages_to_install[@]} -gt 0 ]]; then
+            info "Installing required dependencies: ${packages_to_install[*]}"
+            
+            # Fedora needs COPR enabled first for quickshell
+            if [[ "$distro" == "fedora" ]] && [[ " ${missing_required[*]} " == *" qs "* ]]; then
+                setup_fedora_copr
+            fi
+            
+            install_packages "$distro" "${packages_to_install[@]}"
+            
+            # Verify installation
+            for cmd in "${missing_required[@]}"; do
+                if ! check_command "$cmd"; then
+                    error "Failed to install $cmd"
                 fi
             done
-            if [[ ${#missing_opt[@]} -gt 0 ]]; then
-                info "Optional dependencies not installed:"
-                for dep in "${missing_opt[@]}"; do
-                    echo "  - $dep"
-                done
-            fi
+            info "Dependencies installed successfully"
+        else
+            # Can't auto-install
+            warn "Cannot auto-install some dependencies on $distro"
+            echo ""
+            for cmd in "${missing_required[@]}"; do
+                local pkg
+                pkg=$(get_pkg_name "$cmd" "$distro")
+                if [[ "$pkg" == "BUILD_FROM_SOURCE" ]]; then
+                    echo "  $cmd: Build from source required"
+                    if [[ "$cmd" == "qs" ]]; then
+                        echo "         See: https://quickshell.outfoxxed.me/docs/v0.2.1/guide/install-setup/"
+                    fi
+                fi
+            done
+            echo ""
+            error "Please install required dependencies and retry."
         fi
     fi
+    
+    # Optional dependencies (just show info, don't install)
+    local optional=("jq:JSON processor" "wl-copy:Clipboard" "cliphist:Clipboard history" "slurp:Region selector" "grim:Screenshot" "hyprpicker:Color picker" "matugen:Material colors")
+    local missing_optional=()
+    
+    echo ""
+    info "Checking optional dependencies..."
+    for dep in "${optional[@]}"; do
+        local cmd="${dep%%:*}"
+        local desc="${dep#*:}"
+        if check_command "$cmd"; then
+            echo "  [ok] $cmd - $desc"
+        else
+            echo "  [missing] $cmd - $desc"
+            missing_optional+=("$cmd")
+        fi
+    done
+    echo ""
 }
 
 create_default_config() {
@@ -207,11 +345,14 @@ create_default_config() {
   }
 }'
 
+    mkdir -p "$CONFIG_DIR/hamr"
+    
     if [[ -f "$config_file" ]]; then
         # Config exists - merge new keys without overwriting existing values
-        if command -v jq >/dev/null 2>&1; then
+        if check_command jq; then
             info "Updating config with new default keys (preserving existing values)..."
-            local tmp_file=$(mktemp)
+            local tmp_file
+            tmp_file=$(mktemp)
             # Use jq to merge: existing values take priority over defaults
             echo "$default_config" | jq -s '.[0] * .[1]' - "$config_file" > "$tmp_file"
             mv "$tmp_file" "$config_file"
@@ -249,8 +390,6 @@ install_hamr() {
     # Create user plugins directory
     mkdir -p "$CONFIG_DIR/hamr/plugins"
     info "Created user plugins directory: $CONFIG_DIR/hamr/plugins"
-    info "Built-in plugins loaded from: $SCRIPT_DIR/plugins/"
-    info "User plugins loaded from: $CONFIG_DIR/hamr/plugins/"
 
     # Create or update default config
     create_default_config
@@ -303,8 +442,8 @@ install_hamr() {
     else
         echo "Add to your compositor config for autostart."
         echo ""
-        echo "For Hyprland, run: ./install.sh --hyprland-config"
-        echo "For Niri, run: ./install.sh --niri-config"
+        echo "For Hyprland: $0 --hyprland-config"
+        echo "For Niri: $0 --niri-config"
     fi
 }
 
@@ -312,14 +451,14 @@ show_hyprland_instructions() {
     echo "Hyprland detected! Add to ~/.config/hypr/hyprland.conf:"
     echo ""
     echo "  # Autostart hamr"
-    echo "  exec-once = qs -c hamr"
+    echo "  exec-once = hamr"
     echo ""
     echo "  # Toggle hamr with Super key"
     echo "  bind = SUPER, SUPER_L, global, quickshell:hamrToggle"
     echo "  bindr = SUPER, SUPER_L, global, quickshell:hamrToggleRelease"
     echo ""
     echo "  # Or with Ctrl+Space"
-    echo "  bind = CTRL, Space, global, quickshell:hamrToggle"
+    echo "  bind = CTRL, Space, exec, hamr toggle"
     echo ""
 }
 
@@ -327,7 +466,7 @@ show_niri_instructions() {
     echo "Niri detected!"
     echo ""
     echo "1. Enable systemd service (recommended):"
-    echo "   ./install.sh --enable-service"
+    echo "   $0 --enable-service"
     echo ""
     echo "2. Add keybinding to ~/.config/niri/config.kdl:"
     echo ""
@@ -355,8 +494,14 @@ install_systemd_service() {
     
     systemctl --user daemon-reload
     systemctl --user enable hamr.service
-    systemctl --user add-wants niri.service hamr.service
-    info "Enabled hamr.service (will start with niri.service)"
+    
+    # Try to add wants for niri if it exists
+    if systemctl --user list-unit-files niri.service &>/dev/null; then
+        systemctl --user add-wants niri.service hamr.service
+        info "Enabled hamr.service (will start with niri.service)"
+    else
+        info "Enabled hamr.service"
+    fi
     
     echo ""
     echo "To start now: systemctl --user start hamr.service"
@@ -367,7 +512,6 @@ install_systemd_service() {
 disable_systemd_service() {
     systemctl --user stop hamr.service 2>/dev/null || true
     systemctl --user disable hamr.service 2>/dev/null || true
-    # Remove the wants link
     rm -f "$HOME/.config/systemd/user/niri.service.wants/hamr.service" 2>/dev/null || true
     rm -f "$HOME/.config/systemd/user/hamr.service"
     systemctl --user daemon-reload
@@ -389,7 +533,7 @@ update_hamr() {
         git status --short
         echo ""
         echo "Options:"
-        echo "  1. Stash changes:  git stash && ./install.sh -U && git stash pop"
+        echo "  1. Stash changes:  git stash && $0 -U && git stash pop"
         echo "  2. Commit changes: git add -A && git commit -m 'local changes'"
         echo "  3. Discard changes: git checkout -- ."
         echo ""
@@ -400,12 +544,21 @@ update_hamr() {
 
     info "Update complete!"
     echo ""
-    echo "Restart quickshell to apply changes:"
-    echo "  qs -c hamr"
+    echo "Restart hamr to apply changes:"
+    echo "  systemctl --user restart hamr"
+    echo "  # or kill and restart manually"
 }
 
 uninstall_hamr() {
     info "Uninstalling hamr..."
+
+    # Disable service if running
+    if systemctl --user is-active hamr.service &>/dev/null; then
+        systemctl --user stop hamr.service
+    fi
+    if systemctl --user is-enabled hamr.service &>/dev/null; then
+        disable_systemd_service
+    fi
 
     if [[ -L "$HAMR_LINK" ]]; then
         rm "$HAMR_LINK"
@@ -455,21 +608,21 @@ case "${1:-}" in
     --help|-h)
         echo "Usage: $0 [OPTIONS]"
         echo ""
+        echo "Install:"
+        echo "  curl -fsSL https://raw.githubusercontent.com/stewart86/hamr/main/install.sh | bash"
+        echo ""
         echo "Options:"
+        echo "  (none)             Install hamr"
         echo "  --check, -c        Check dependencies only"
         echo "  --update, -U       Update hamr via git pull"
         echo "  --uninstall, -u    Remove hamr installation"
-        echo "  --hyprland-config  Show Hyprland configuration instructions"
-        echo "  --niri-config      Show Niri configuration instructions"
-        echo "  --enable-service   Install and enable systemd user service (for Niri)"
-        echo "  --disable-service  Disable and remove systemd user service"
+        echo "  --hyprland-config  Show Hyprland configuration"
+        echo "  --niri-config      Show Niri configuration"
+        echo "  --enable-service   Enable systemd user service"
+        echo "  --disable-service  Disable systemd user service"
         echo "  --help, -h         Show this help"
         echo ""
-        echo "Without options, installs hamr by creating a symlink in ~/.config/quickshell/"
-        echo ""
-        echo "Supported compositors:"
-        echo "  - Hyprland (full support with global shortcuts)"
-        echo "  - Niri (full support via IPC + systemd)"
+        echo "Supported compositors: Hyprland, Niri"
         ;;
     *)
         check_dependencies

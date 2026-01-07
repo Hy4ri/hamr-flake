@@ -1,16 +1,16 @@
 # Plugin Development Guide
 
-This is a quick reference for AI agents developing Hamr plugins. For complete documentation, see [docs/PLUGINS.md](../docs/PLUGINS.md).
+This is a quick reference for AI agents developing Hamr plugins. For complete documentation, see [docs/plugins/index.md](../docs/plugins/index.md).
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| **[Getting Started](../docs/PLUGINS.md)** | Build your first plugin |
+| **[Getting Started](../docs/plugins/index.md)** | Build your first plugin |
 | [Response Types](../docs/plugins/response-types.md) | `results`, `execute`, `card`, `form`, etc. |
 | [Visual Elements](../docs/plugins/visual-elements.md) | Sliders, switches, badges, gauges |
 | [Advanced Features](../docs/plugins/advanced-features.md) | Daemon mode, indexing, search ranking, CLI |
-| [Cheat Sheet](../docs/plugins/CHEATSHEET.md) | Quick reference |
+| [Cheat Sheet](../docs/plugins/cheatsheet.md) | Quick reference |
 
 ## Quick Start
 
