@@ -518,7 +518,7 @@ Hamr uses Material Design colors for its UI. Colors can come from:
 2. **Custom colors.json** - Set path in config: `"paths": {"colorsJson": "~/.config/hamr/colors.json"}`
 3. **Built-in defaults** - Dark theme fallback when no colors.json found
 
-**Setting up matugen:**
+**Quick setup with matugen:**
 
 ```bash
 # Install matugen (Arch)
@@ -528,9 +528,7 @@ paru -S matugen-bin
 # Type /wallpaper in Hamr
 ```
 
-**Creating a custom colors.json:**
-
-The file should contain Material Design 3 color tokens. See [Material Theme Builder](https://material-foundation.github.io/material-theme-builder/) to generate a theme.
+For detailed setup including matugen templates, integration with DankMaterialShell, and manual theming, see [`docs/THEMING.md`](docs/THEMING.md).
 
 </details>
 
