@@ -1478,7 +1478,12 @@ def main():
                 elif r == hypr_socket:
                     events = read_hyprland_events(hypr_socket)
                     if any(ev in WATCH_EVENTS for ev in events):
-                        print(json.dumps({"type": "index"}))
+                        items = get_index_items()
+                        print(
+                            json.dumps(
+                                {"type": "index", "mode": "full", "items": items}
+                            )
+                        )
                         sys.stdout.flush()
     else:
         # Fallback: no socket, just handle stdin requests (polling mode)

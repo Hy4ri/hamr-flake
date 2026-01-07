@@ -363,7 +363,7 @@ def main():
                 elif r == inotify_fd:
                     changed = read_inotify_events(inotify_fd)
                     if watch_filename in changed:
-                        print(json.dumps({"type": "index"}), flush=True)
+                        emit_full_index()
     else:
         # Fallback: mtime polling
         last_mtime = ZOXIDE_DB.stat().st_mtime if ZOXIDE_DB.exists() else 0
@@ -387,7 +387,7 @@ def main():
                 current = ZOXIDE_DB.stat().st_mtime
                 if current != last_mtime:
                     last_mtime = current
-                    print(json.dumps({"type": "index"}), flush=True)
+                    emit_full_index()
 
 
 if __name__ == "__main__":

@@ -716,7 +716,12 @@ def main():
                 elif r == inotify_fd:
                     changed = read_inotify_events(inotify_fd)
                     if watch_filename in changed:
-                        print(json.dumps({"type": "index"}))
+                        items = get_index_items()
+                        print(
+                            json.dumps(
+                                {"type": "index", "mode": "full", "items": items}
+                            )
+                        )
                         sys.stdout.flush()
     else:
         # Fallback: mtime polling
@@ -741,7 +746,8 @@ def main():
                 current = WEBAPPS_FILE.stat().st_mtime
                 if current != last_mtime:
                     last_mtime = current
-                    print(json.dumps({"type": "index"}))
+                    items = get_index_items()
+                    print(json.dumps({"type": "index", "mode": "full", "items": items}))
                     sys.stdout.flush()
 
 

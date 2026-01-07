@@ -509,7 +509,12 @@ def main():
                 elif r == inotify_fd:
                     changed = read_inotify_events(inotify_fd)
                     if any(name in history_names for name in changed):
-                        print(json.dumps({"type": "index"}))
+                        items = get_index_items()
+                        print(
+                            json.dumps(
+                                {"type": "index", "mode": "full", "items": items}
+                            )
+                        )
                         sys.stdout.flush()
     else:
         last_mtime = {f: f.stat().st_mtime if f.exists() else 0 for f in history_files}
@@ -533,7 +538,12 @@ def main():
                     current = f.stat().st_mtime
                     if current != last_mtime.get(f, 0):
                         last_mtime[f] = current
-                        print(json.dumps({"type": "index"}))
+                        items = get_index_items()
+                        print(
+                            json.dumps(
+                                {"type": "index", "mode": "full", "items": items}
+                            )
+                        )
                         sys.stdout.flush()
                         break
 
