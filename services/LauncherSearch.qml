@@ -625,6 +625,9 @@ Singleton {
         if (!query || query.trim() === "")
             return [];
 
+        // Capture query string for use in scoreFn closure
+        const searchQuery = query.toLowerCase();
+
         // Use multi-field search: name (primary) + keywords (secondary)
         // scoreFn integrates field weights + frecency into ranking
         const fuzzyResults = Fuzzy.go(query, root.preppedSearchables, {
@@ -640,6 +643,13 @@ Singleton {
                 const keywordsScore = result[1]?.score ?? 0;
                 const baseScore = nameScore * 1.0 + keywordsScore * 0.3;
 
+                // Exact name match bonus: if query exactly equals the name, boost significantly
+                // This ensures "fire" ranks above "firefighter" when searching "fire"
+                // Note: item.name is a fuzzysort prepared object, get original name from data
+                const originalName = item.data?.item?.name ?? item.data?.plugin?.name ?? "";
+                const nameLower = originalName.toLowerCase();
+                const exactMatchBonus = (searchQuery === nameLower) ? 0.5 : 0;
+
                 // Get frecency boost
                 const frecency = root.getFrecencyForSearchable(item);
                 const frecencyBoost = Math.min(frecency * 0.02, 0.3);  // Cap at 0.3
@@ -648,7 +658,7 @@ Singleton {
                 const historyBoost = item.isHistoryTerm ? 0.2 : 0;
 
                 // Combined score
-                return baseScore + frecencyBoost + historyBoost;
+                return baseScore + exactMatchBonus + frecencyBoost + historyBoost;
             }
         });
 

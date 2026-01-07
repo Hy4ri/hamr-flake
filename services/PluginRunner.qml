@@ -700,6 +700,8 @@ Singleton {
         }
         
         // Fuzzy search with frecency scoring
+        // Capture query string before callback (query is shadowed inside scoreFn)
+        const searchQuery = query.toLowerCase();
         const fuzzyResults = Fuzzy.go(query, searchables, {
             keys: ["name", "keywords"],
             limit: 100,
@@ -712,6 +714,10 @@ Singleton {
                 const keywordsScore = result[1]?.score ?? 0;
                 const baseScore = nameScore * 1.0 + keywordsScore * 0.3;
                 
+                // Exact name match bonus
+                const nameLower = (searchable.name ?? "").toLowerCase();
+                const exactMatchBonus = (searchQuery === nameLower) ? 0.5 : 0;
+                
                 // Frecency boost
                 const frecency = root.getItemFrecency(pluginId, searchable.item.id);
                 const frecencyBoost = Math.min(frecency * 0.02, 0.3);
@@ -719,7 +725,7 @@ Singleton {
                 // History term boost (learned shortcuts)
                 const historyBoost = searchable.isHistoryTerm ? 0.2 : 0;
                 
-                return baseScore + frecencyBoost + historyBoost;
+                return baseScore + exactMatchBonus + frecencyBoost + historyBoost;
             }
         });
         
@@ -785,6 +791,8 @@ Singleton {
             return;
         }
         
+        // Capture query string before callback (query is shadowed inside scoreFn)
+        const searchQuery = query.toLowerCase();
         const fuzzyResults = Fuzzy.go(query, searchables, {
             keys: ["name", "keywords"],
             limit: 100,
@@ -794,10 +802,12 @@ Singleton {
                 const nameScore = result[0]?.score ?? 0;
                 const keywordsScore = result[1]?.score ?? 0;
                 const baseScore = nameScore * 1.0 + keywordsScore * 0.3;
+                const nameLower = (searchable.name ?? "").toLowerCase();
+                const exactMatchBonus = (searchQuery === nameLower) ? 0.5 : 0;
                 const frecency = root.getItemFrecency(pluginId, searchable.item.id);
                 const frecencyBoost = Math.min(frecency * 0.02, 0.3);
                 const historyBoost = searchable.isHistoryTerm ? 0.2 : 0;
-                return baseScore + frecencyBoost + historyBoost;
+                return baseScore + exactMatchBonus + frecencyBoost + historyBoost;
             }
         });
         

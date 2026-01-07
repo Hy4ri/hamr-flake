@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Emoji plugin - search and copy emojis.
-Emojis are loaded from bundled emojis.txt file.
+Emojis are loaded from bundled emojis.tsv file.
 Runs as a daemon and emits full index on startup.
 """
 
@@ -18,7 +18,7 @@ TEST_MODE = os.environ.get("HAMR_TEST_MODE") == "1"
 
 # Load emojis from bundled file
 PLUGIN_DIR = Path(__file__).parent
-EMOJIS_FILE = PLUGIN_DIR / "emojis.txt"
+EMOJIS_FILE = PLUGIN_DIR / "emojis.tsv"
 
 # Recently used emojis tracking
 CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "hamr"
@@ -55,7 +55,7 @@ def save_recent_emoji(emoji: str) -> None:
 
 
 def load_emojis() -> list[dict]:
-    """Load emojis from text file. Format: emoji description keywords"""
+    """Load emojis from TSV file. Format: emoji<TAB>name<TAB>keywords"""
     emojis = []
     if not EMOJIS_FILE.exists():
         return emojis
@@ -65,16 +65,17 @@ def load_emojis() -> list[dict]:
             line = line.strip()
             if not line:
                 continue
-            # Format: emoji_char description/keywords
-            parts = line.split(" ", 1)
+            parts = line.split("\t")
             if len(parts) >= 1:
                 emoji = parts[0]
-                description = parts[1] if len(parts) > 1 else ""
+                name = parts[1] if len(parts) > 1 else ""
+                keywords = parts[2] if len(parts) > 2 else ""
                 emojis.append(
                     {
                         "emoji": emoji,
-                        "description": description,
-                        "searchable": f"{emoji} {description}".lower(),
+                        "name": name,
+                        "keywords": keywords.split() if keywords else [],
+                        "searchable": f"{emoji} {name} {keywords}".lower(),
                     }
                 )
     return emojis
@@ -102,8 +103,8 @@ def format_results(emojis: list[dict]) -> list[dict]:
     """Format emojis as hamr results (list view)."""
     return [
         {
-            "id": f"emoji:{e['emoji']}",  # Match index ID format for frecency
-            "name": e["description"][:50] if e["description"] else e["emoji"],
+            "id": f"emoji:{e['emoji']}",
+            "name": e["name"] if e["name"] else e["emoji"],
             "icon": e["emoji"],
             "iconType": "text",
             "verb": "Copy",
@@ -133,11 +134,9 @@ def format_grid_items(
                 e = emoji_lookup[emoji_char]
                 items.append(
                     {
-                        "id": f"emoji:{e['emoji']}",  # Match index ID format
-                        "name": e["description"][:20] if e["description"] else "",
-                        "keywords": e["description"].split()
-                        if e["description"]
-                        else [],
+                        "id": f"emoji:{e['emoji']}",
+                        "name": e["name"][:20] if e["name"] else "",
+                        "keywords": e["keywords"],
                         "icon": e["emoji"],
                         "iconType": "text",
                     }
@@ -147,9 +146,9 @@ def format_grid_items(
     for e in emojis:
         items.append(
             {
-                "id": f"emoji:{e['emoji']}",  # Match index ID format
-                "name": e["description"][:20] if e["description"] else "",
-                "keywords": e["description"].split() if e["description"] else [],
+                "id": f"emoji:{e['emoji']}",
+                "name": e["name"][:20] if e["name"] else "",
+                "keywords": e["keywords"],
                 "icon": e["emoji"],
                 "iconType": "text",
             }
@@ -192,12 +191,13 @@ def format_index_items(emojis: list[dict]) -> list[dict]:
     """Format emojis as indexable items for main search.
 
     Uses entryPoint for execution so handler can track recently used emojis.
+    Name and keywords are separated for proper fuzzy scoring (name matches rank higher).
     """
     return [
         {
             "id": f"emoji:{e['emoji']}",
-            "name": e["description"][:50] if e["description"] else e["emoji"],
-            "keywords": e["description"].split() if e["description"] else [],
+            "name": e["name"] if e["name"] else e["emoji"],
+            "keywords": e["keywords"],
             "icon": e["emoji"],
             "iconType": "text",
             "verb": "Copy",
@@ -298,10 +298,10 @@ def handle_request(request: dict, emojis: list[dict]) -> None:
             )
             return
 
-        # Look up emoji description for history tracking
+        # Look up emoji name for history tracking
         emoji_data = next((e for e in emojis if e["emoji"] == emoji), None)
-        description = emoji_data["description"][:30] if emoji_data else ""
-        history_name = f"{emoji} {description}" if description else emoji
+        name = emoji_data["name"][:30] if emoji_data else ""
+        history_name = f"{emoji} {name}" if name else emoji
 
         if action_id == "type":
             type_text(emoji)
