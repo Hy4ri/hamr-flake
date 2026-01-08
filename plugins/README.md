@@ -4,7 +4,7 @@ This directory contains the built-in plugins for Hamr launcher.
 
 ## Documentation
 
-Full documentation is available at: **https://stewart86.github.io/hamr**
+Full documentation is available at: **https://hamr.run**
 
 | Document | Description |
 |----------|-------------|

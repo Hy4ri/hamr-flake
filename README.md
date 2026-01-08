@@ -9,7 +9,7 @@ paru -S hamr
 ```
 
 [![AUR version](https://img.shields.io/aur/version/hamr)](https://aur.archlinux.org/packages/hamr)
-[![Documentation](https://img.shields.io/badge/docs-stewart86.github.io%2Fhamr-blue)](https://stewart86.github.io/hamr)
+[![Documentation](https://img.shields.io/badge/docs-hamr.run-blue)](https://hamr.run)
 
 </div>
 
@@ -35,7 +35,7 @@ Hamr is an extensible launcher for Wayland compositors built with [Quickshell](h
 - **30+ built-in plugins** - Apps, clipboard, emoji, files, calculator, and more
 - **Extensible** - Write plugins in Python, Bash, Go, or any language
 
-[**View all features and plugins**](https://stewart86.github.io/hamr/features/)
+[**View all features and plugins**](https://hamr.run/features/)
 
 ## Quick Start
 
@@ -49,7 +49,7 @@ paru -S hamr
 systemctl --user enable --now hamr
 ```
 
-[**Full installation guide**](https://stewart86.github.io/hamr/getting-started/installation/)
+[**Full installation guide**](https://hamr.run/getting-started/installation/)
 
 ### Keybinding
 
@@ -98,15 +98,15 @@ print(json.dumps({
 }))
 ```
 
-[**Plugin development guide**](https://stewart86.github.io/hamr/plugins/)
+[**Plugin development guide**](https://hamr.run/plugins/)
 
 ## Documentation
 
-- [Installation](https://stewart86.github.io/hamr/getting-started/installation/)
-- [Configuration](https://stewart86.github.io/hamr/getting-started/configuration/)
-- [Theming](https://stewart86.github.io/hamr/getting-started/theming/)
-- [Building Plugins](https://stewart86.github.io/hamr/plugins/)
-- [Features & Plugins](https://stewart86.github.io/hamr/features/)
+- [Installation](https://hamr.run/getting-started/installation/)
+- [Configuration](https://hamr.run/getting-started/configuration/)
+- [Theming](https://hamr.run/getting-started/theming/)
+- [Building Plugins](https://hamr.run/plugins/)
+- [Features & Plugins](https://hamr.run/features/)
 
 ## Privacy
 
