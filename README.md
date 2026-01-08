@@ -9,6 +9,7 @@ paru -S hamr
 ```
 
 [![AUR version](https://img.shields.io/aur/version/hamr)](https://aur.archlinux.org/packages/hamr)
+[![Documentation](https://img.shields.io/badge/docs-stewart86.github.io%2Fhamr-blue)](https://stewart86.github.io/hamr)
 
 </div>
 
@@ -528,7 +529,7 @@ paru -S matugen-bin
 # Type /wallpaper in Hamr
 ```
 
-For detailed setup including matugen templates, integration with DankMaterialShell, and manual theming, see [`docs/THEMING.md`](docs/THEMING.md).
+For detailed setup including matugen templates and manual theming, see the [Theming Guide](https://stewart86.github.io/hamr/getting-started/theming/).
 
 </details>
 
@@ -548,7 +549,7 @@ For simple actions, use `staticIndex` in the manifest - no handler needed.
 
 **Language agnostic:** Plugins communicate via JSON over stdin/stdout. Use Python, Bash, Go, Rust, Node.js - any language that can read/write JSON.
 
-**Full documentation:** See [`plugins/README.md`](plugins/README.md) for the complete protocol reference, response types, indexing, daemon mode, forms, and more.
+**Full documentation:** [**stewart86.github.io/hamr/plugins**](https://stewart86.github.io/hamr/plugins/) - Complete guide with screenshots covering response types, visual elements, indexing, daemon mode, forms, and more.
 
 ### What Plugins Can Do
 
