@@ -367,17 +367,17 @@ RowLayout {
                 }
             }
             
+            if (event.key === Qt.Key_Down) {
+                root.navigateDown();
+                event.accepted = true;
+                return;
+            }
+            if (event.key === Qt.Key_Up) {
+                root.navigateUp();
+                event.accepted = true;
+                return;
+            }
             if (GlobalStates.imageBrowserOpen || GlobalStates.gridBrowserOpen) {
-                if (event.key === Qt.Key_Down) {
-                    root.navigateDown();
-                    event.accepted = true;
-                    return;
-                }
-                if (event.key === Qt.Key_Up) {
-                    root.navigateUp();
-                    event.accepted = true;
-                    return;
-                }
                 if (event.key === Qt.Key_Left) {
                     root.navigateLeft();
                     event.accepted = true;
