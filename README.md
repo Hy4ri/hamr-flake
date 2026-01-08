@@ -74,14 +74,14 @@ Bind `hamr toggle` to a key in your compositor:
 
 ### Usage
 
-| Prefix | Function |
-|--------|----------|
+| Prefix | Function                      |
+| ------ | ----------------------------- |
 | (none) | Search apps and indexed items |
-| `~` | File search |
-| `;` | Clipboard history |
-| `/` | Plugins |
-| `=` | Calculator |
-| `:` | Emoji |
+| `~`    | File search                   |
+| `;`    | Clipboard history             |
+| `/`    | Plugins                       |
+| `=`    | Calculator                    |
+| `:`    | Emoji                         |
 
 ## Creating Plugins
 
