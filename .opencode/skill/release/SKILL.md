@@ -65,24 +65,22 @@ Analyze changes to determine version bump type:
 
 ### 4. Get Current Version
 
-Read the current version from PKGBUILD:
+Read the current version from VERSION file:
 
 ```bash
-grep '^pkgver=' PKGBUILD
+cat VERSION
 ```
 
-### 5. Update PKGBUILD Version
+### 5. Update VERSION File
 
-Edit the `pkgver` line in PKGBUILD:
+Edit the `VERSION` file with the new version:
 
 ```bash
 # Example: Update from 0.1.1 to 0.2.0
-sed -i 's/pkgver=.*/pkgver=0.2.0/' PKGBUILD
+echo "0.2.0" > VERSION
 ```
 
-Version rules:
-- `pkgver` - Bump for code changes
-- `pkgrel` - Reset to `1` when bumping pkgver, only increment for PKGBUILD-only changes
+The VERSION file is the single source of truth. GitHub Actions will automatically update PKGBUILD when releasing.
 
 ### 6. Commit and Push
 
@@ -139,7 +137,8 @@ cat plugins/<new-plugin>/manifest.json
 # 4. Check status
 git status --porcelain
 
-# 5. Update version in PKGBUILD (edit pkgver= line)
+# 5. Update VERSION file
+echo "X.Y.Z" > VERSION
 
 # 6. Commit and push
 git add -A && git commit -m "chore: bump version to X.Y.Z" && git push
@@ -155,8 +154,7 @@ Before releasing:
 - [ ] README.md updated with any new plugins (in alphabetical order in Built-in Plugins table)
 - [ ] All changes committed
 - [ ] Tests passing (if applicable)
-- [ ] PKGBUILD `pkgver` updated
-- [ ] PKGBUILD `pkgrel` reset to `1`
+- [ ] VERSION file updated
 
 After releasing:
 - [ ] GitHub Actions workflow completed

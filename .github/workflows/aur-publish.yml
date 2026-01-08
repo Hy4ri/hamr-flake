@@ -38,6 +38,15 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Update VERSION file
+        run: |
+          echo "${{ steps.version.outputs.version }}" > VERSION
+          git config user.email "siwei.wong@gmail.com"
+          git config user.name "Stewart Wong"
+          git add VERSION
+          git diff --cached --quiet || git commit -m "chore: sync VERSION to ${{ steps.version.outputs.version }}"
+          git push origin HEAD:main || true
+
       - name: Update PKGBUILD version
         run: |
           sed -i "s/^pkgver=.*/pkgver=${{ steps.version.outputs.version }}/" PKGBUILD
