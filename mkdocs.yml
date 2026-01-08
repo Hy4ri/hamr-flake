@@ -46,6 +46,7 @@ nav:
       - Response Types: plugins/response-types.md
       - Visual Elements: plugins/visual-elements.md
       - Advanced Features: plugins/advanced-features.md
+      - API Reference: plugins/api-reference.md
       - Testing: plugins/testing.md
       - Cheat Sheet: plugins/cheatsheet.md
       - Raycast Conversion: plugins/raycast-conversion.md
