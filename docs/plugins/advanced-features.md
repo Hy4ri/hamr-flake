@@ -154,7 +154,7 @@ if inotify_fd:
         # Handle stdin and inotify events...
 ```
 
-**Example plugins:** [`topcpu/`](../../plugins/topcpu/), [`todo/`](../../plugins/todo/), [`clipboard/`](../../plugins/clipboard/)
+**Example plugins:** [`topcpu/`](https://github.com/stewart86/hamr/tree/main/plugins/topcpu), [`todo/`](https://github.com/stewart86/hamr/tree/main/plugins/todo), [`clipboard/`](https://github.com/stewart86/hamr/tree/main/plugins/clipboard)
 
 ---
 
@@ -400,7 +400,7 @@ if step == "index":
         }))
 ```
 
-**Example plugins:** [`apps/`](../../plugins/apps/), [`bitwarden/`](../../plugins/bitwarden/)
+**Example plugins:** [`apps/`](https://github.com/stewart86/hamr/tree/main/plugins/apps), [`bitwarden/`](https://github.com/stewart86/hamr/tree/main/plugins/bitwarden)
 
 ---
 
@@ -496,7 +496,7 @@ Users can tune search behavior in `~/.config/hamr/config.json`:
 
 Display dynamic status (badges, description) on your plugin's entry in the main list.
 
-![SCREENSHOT: plugin-status.png - Plugin entry with count badge]
+![Plugin entry with status badges and chips](images/plugin-status.png)
 
 ### Via Response
 
@@ -544,7 +544,7 @@ Badges use the theme's surface color as background (not customizable).
 }
 ```
 
-**Example plugin:** [`todo/`](../../plugins/todo/)
+**Example plugin:** [`todo/`](https://github.com/stewart86/hamr/tree/main/plugins/todo)
 
 ---
 
@@ -552,7 +552,9 @@ Badges use the theme's surface color as background (not customizable).
 
 Override the floating action button (FAB) when launcher is minimized.
 
-![SCREENSHOT: fab-override.png - Minimized FAB showing timer countdown]
+| Normal FAB | With Override |
+|:----------:|:-------------:|
+| ![Normal FAB](images/fab-normal.png) | ![FAB with timer override](images/fab-override.png) |
 
 ### Set FAB Override
 
@@ -584,7 +586,7 @@ emit({
 emit({"type": "status", "status": {"fab": null}})
 ```
 
-**Example plugin:** [`timer/`](../../plugins/timer/)
+**Example plugin:** [`timer/`](https://github.com/stewart86/hamr/tree/main/plugins/timer)
 
 ---
 
@@ -592,7 +594,7 @@ emit({"type": "status", "status": {"fab": null}})
 
 Persistent status items shown in the action bar below search.
 
-![SCREENSHOT: ambient-items.png - Timer showing in action bar]
+![Timer showing in action bar](images/ambient-items.png)
 
 ### Set Ambient Items
 
@@ -647,7 +649,7 @@ When user dismisses:
 emit({"type": "status", "status": {"ambient": null}})
 ```
 
-**Example plugin:** [`timer/`](../../plugins/timer/)
+**Example plugin:** [`timer/`](https://github.com/stewart86/hamr/tree/main/plugins/timer)
 
 ---
 
@@ -732,7 +734,7 @@ call_ipc("hamr", "hamr", "toggle")
 call_ipc("ii", "todo", "refresh")  # Cross-config IPC
 ```
 
-**Example plugin:** [`todo/`](../../plugins/todo/) - Syncs with external sidebar widget
+**Example plugin:** [`todo/`](https://github.com/stewart86/hamr/tree/main/plugins/todo) - Syncs with external sidebar widget
 
 ---
 
@@ -753,7 +755,7 @@ def get_launch_time():
         return int(time.time() * 1000)
 ```
 
-**Example plugin:** [`screenrecord/`](../../plugins/screenrecord/)
+**Example plugin:** [`screenrecord/`](https://github.com/stewart86/hamr/tree/main/plugins/screenrecord)
 
 ---
 

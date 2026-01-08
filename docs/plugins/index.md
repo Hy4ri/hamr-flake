@@ -10,7 +10,7 @@ Hamr plugins extend the launcher with custom functionality. When you're done wit
 - Filters items as you type
 - Executes an action when you select an item
 
-![SCREENSHOT: results-list.png - A basic results list showing items with icons, names, and descriptions]
+![A basic results list showing items with icons, names, and descriptions](images/results-list.png)
 
 ## Quick Start: Your First Plugin
 

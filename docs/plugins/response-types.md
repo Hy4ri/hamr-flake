@@ -24,7 +24,7 @@ Every handler response must include a `type` field. This page documents all avai
 
 Display a list of selectable items. This is the most common response type.
 
-![SCREENSHOT: results-basic.png - Basic results list with items showing icon, name, and description]
+![Basic results list with items showing icon, name, and description](images/results-basic.png)
 
 ```python
 {
@@ -87,7 +87,7 @@ Display a list of selectable items. This is the most common response type.
 
 ### Action Buttons
 
-![SCREENSHOT: results-with-actions.png - Item showing action buttons on hover]
+![Item showing action buttons on hover](images/results-with-actions.png)
 
 ```python
 "actions": [
@@ -137,7 +137,7 @@ See [Plugin Indexing](advanced-features.md#plugin-indexing) for details.
 
 ### Plugin Actions (Toolbar)
 
-![SCREENSHOT: plugin-actions.png - Toolbar buttons below search bar]
+![Toolbar buttons below search bar](images/plugin-actions.png)
 
 ```python
 "pluginActions": [
@@ -164,7 +164,7 @@ When clicked, you receive:
 }
 ```
 
-**Example plugins:** [`quicklinks/`](../../plugins/quicklinks/), [`todo/`](../../plugins/todo/), [`clipboard/`](../../plugins/clipboard/)
+**Example plugins:** [`quicklinks/`](https://github.com/stewart86/hamr/tree/main/plugins/quicklinks), [`todo/`](https://github.com/stewart86/hamr/tree/main/plugins/todo), [`clipboard/`](https://github.com/stewart86/hamr/tree/main/plugins/clipboard)
 
 ---
 
@@ -244,7 +244,7 @@ subprocess.Popen(["my-command", "arg1"], start_new_session=True)
 print(json.dumps({"type": "execute", "close": True}))
 ```
 
-**Example plugins:** [`files/`](../../plugins/files/), [`bitwarden/`](../../plugins/bitwarden/)
+**Example plugins:** [`files/`](https://github.com/stewart86/hamr/tree/main/plugins/files), [`bitwarden/`](https://github.com/stewart86/hamr/tree/main/plugins/bitwarden)
 
 ---
 
@@ -252,7 +252,7 @@ print(json.dumps({"type": "execute", "close": True}))
 
 Display markdown-formatted content with optional actions.
 
-![SCREENSHOT: card-view.png - Card showing markdown content with action buttons]
+![Card showing markdown content with action buttons](images/card-view.png)
 
 ```python
 {
@@ -281,7 +281,7 @@ When user clicks a card action:
 }
 ```
 
-**Example plugins:** [`dict/`](../../plugins/dict/), [`notes/`](../../plugins/notes/)
+**Example plugins:** [`dict/`](https://github.com/stewart86/hamr/tree/main/plugins/dict), [`notes/`](https://github.com/stewart86/hamr/tree/main/plugins/notes)
 
 ---
 
@@ -289,7 +289,7 @@ When user clicks a card action:
 
 Display a multi-field input dialog.
 
-![SCREENSHOT: form-dialog.png - Form with text fields, textarea, and submit button]
+![Form with text fields, textarea, and submit button](images/form-dialog.png)
 
 ```python
 {
@@ -390,7 +390,7 @@ For forms where changes apply immediately (no submit button):
 
 On slider change, you receive `step: "formSlider"` with `fieldId` and `value`.
 
-**Example plugins:** [`notes/`](../../plugins/notes/), [`bitwarden/`](../../plugins/bitwarden/), [`settings/`](../../plugins/settings/)
+**Example plugins:** [`notes/`](https://github.com/stewart86/hamr/tree/main/plugins/notes), [`bitwarden/`](https://github.com/stewart86/hamr/tree/main/plugins/bitwarden), [`settings/`](https://github.com/stewart86/hamr/tree/main/plugins/settings)
 
 ---
 
@@ -398,7 +398,7 @@ On slider change, you receive `step: "formSlider"` with `fieldId` and `value`.
 
 Open a rich image browser with thumbnails and directory navigation.
 
-![SCREENSHOT: image-browser.png - Grid of image thumbnails with sidebar]
+![Grid of image thumbnails with sidebar](images/image-browser.png)
 
 ```python
 {
@@ -427,7 +427,7 @@ When user selects an image:
 }
 ```
 
-**Example plugins:** [`wallpaper/`](../../plugins/wallpaper/), [`screenshot/`](../../plugins/screenshot/)
+**Example plugins:** [`wallpaper/`](https://github.com/stewart86/hamr/tree/main/plugins/wallpaper), [`screenshot/`](https://github.com/stewart86/hamr/tree/main/plugins/screenshot)
 
 ---
 
@@ -435,7 +435,7 @@ When user selects an image:
 
 Display items in a grid layout. Ideal for emojis, icons, or large item sets.
 
-![SCREENSHOT: grid-browser.png - Grid of emoji items]
+![Grid of emoji items](images/grid-browser.png)
 
 ```python
 {
@@ -479,7 +479,7 @@ When user selects:
 }
 ```
 
-**Example plugin:** [`emoji/`](../../plugins/emoji/)
+**Example plugin:** [`emoji/`](https://github.com/stewart86/hamr/tree/main/plugins/emoji)
 
 ---
 
@@ -494,7 +494,7 @@ Display a simple text prompt. Typically used on initial load.
 }
 ```
 
-**Example plugin:** [`dict/`](../../plugins/dict/)
+**Example plugin:** [`dict/`](https://github.com/stewart86/hamr/tree/main/plugins/dict)
 
 ---
 
@@ -533,7 +533,7 @@ Patch individual items without replacing the entire results array. Preserves sel
 - Live status updates
 - Badge/gauge updates
 
-**Example plugin:** [`sound/`](../../plugins/sound/)
+**Example plugin:** [`sound/`](https://github.com/stewart86/hamr/tree/main/plugins/sound)
 
 ---
 
@@ -721,7 +721,7 @@ if selected.get("id") == "__back__":
     }))
 ```
 
-**Example plugins:** [`todo/`](../../plugins/todo/), [`bitwarden/`](../../plugins/bitwarden/), [`clipboard/`](../../plugins/clipboard/)
+**Example plugins:** [`todo/`](https://github.com/stewart86/hamr/tree/main/plugins/todo), [`bitwarden/`](https://github.com/stewart86/hamr/tree/main/plugins/bitwarden), [`clipboard/`](https://github.com/stewart86/hamr/tree/main/plugins/clipboard)
 
 ---
 

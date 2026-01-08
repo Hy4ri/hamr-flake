@@ -218,7 +218,7 @@ if __name__ == "__main__":
 
 ## Using AI to Convert
 
-The [`create-plugin`](../../plugins/create-plugin/) workflow can help convert Raycast extensions:
+The [`create-plugin`](https://github.com/stewart86/hamr/tree/main/plugins/create-plugin) workflow can help convert Raycast extensions:
 
 1. Run `/create-plugin` in Hamr
 2. Provide the Raycast extension URL

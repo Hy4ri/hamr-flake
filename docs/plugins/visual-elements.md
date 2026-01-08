@@ -6,7 +6,7 @@ Hamr provides rich visual elements for result items. This page covers sliders, s
 
 Sliders let users adjust numeric values (volume, brightness, etc.).
 
-![SCREENSHOT: slider-item.png - Slider showing volume control at 75%]
+![Slider showing volume control](images/slider-item.png)
 
 ```python
 {
@@ -67,7 +67,7 @@ if action == "slider":
     }))
 ```
 
-**Example plugin:** [`sound/`](../../plugins/sound/)
+**Example plugin:** [`sound/`](https://github.com/stewart86/hamr/tree/main/plugins/sound)
 
 ---
 
@@ -75,7 +75,7 @@ if action == "slider":
 
 Switches are boolean toggles (mute, enable/disable).
 
-![SCREENSHOT: switch-item.png - Switch showing mute toggle]
+![Switch showing mute toggle](images/switch-item.png)
 
 ```python
 {
@@ -135,7 +135,7 @@ if action == "switch":
     }))
 ```
 
-**Example plugin:** [`sound/`](../../plugins/sound/)
+**Example plugin:** [`sound/`](https://github.com/stewart86/hamr/tree/main/plugins/sound)
 
 ---
 
@@ -143,7 +143,7 @@ if action == "switch":
 
 Small circular indicators beside the item name. Max 5 per item.
 
-![SCREENSHOT: badges.png - Item with avatar badges and status indicator]
+![Item with avatar badges and status indicator](images/badges.png)
 
 ```python
 {
@@ -174,7 +174,7 @@ Small circular indicators beside the item name. Max 5 per item.
 
 Pill-shaped tags for longer text. Show beside the item name.
 
-![SCREENSHOT: chips.png - Item with category chips]
+![Item with category chips](images/chips.png)
 
 ```python
 {
@@ -201,7 +201,7 @@ Pill-shaped tags for longer text. Show beside the item name.
 
 Circular progress indicator shown in place of the icon.
 
-![SCREENSHOT: gauge.png - Item with circular gauge showing 75%]
+![Item with circular gauge showing 62%](images/gauge.png)
 
 ```python
 {
@@ -227,7 +227,7 @@ Circular progress indicator shown in place of the icon.
 
 Line graph shown in place of the icon. Good for trends/history.
 
-![SCREENSHOT: graph.png - Item with CPU usage graph]
+![Item with CPU usage graph](images/graph.png)
 
 ```python
 {
@@ -249,7 +249,7 @@ If `min`/`max` not provided, auto-scales from data.
 
 Horizontal progress bar shown below the name. Replaces description.
 
-![SCREENSHOT: progress-bar.png - Item with download progress bar]
+![Item with download progress bar](images/progress-bar.png)
 
 ```python
 {
@@ -278,7 +278,7 @@ Horizontal progress bar shown below the name. Replaces description.
 
 Add a `preview` field to show rich content in a side panel on hover/selection.
 
-![SCREENSHOT: preview-panel.png - Item with image preview in side panel]
+![Item with image preview in side panel](images/preview-panel.png)
 
 ```python
 {
@@ -314,7 +314,9 @@ Add a `preview` field to show rich content in a side panel on hover/selection.
 
 Users can pin previews to a floating panel that persists after launcher closes.
 
-**Example plugins:** [`pictures/`](../../plugins/pictures/), [`notes/`](../../plugins/notes/)
+![Detached preview panel floating on desktop](images/preview-panel-detached.png)
+
+**Example plugins:** [`pictures/`](https://github.com/stewart86/hamr/tree/main/plugins/pictures), [`notes/`](https://github.com/stewart86/hamr/tree/main/plugins/notes)
 
 ---
 
@@ -402,4 +404,4 @@ This preserves selection and focus - ideal for:
 - Live status updates
 - Real-time data changes
 
-**Example plugin:** [`sound/`](../../plugins/sound/)
+**Example plugin:** [`sound/`](https://github.com/stewart86/hamr/tree/main/plugins/sound)
