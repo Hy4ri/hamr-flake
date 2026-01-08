@@ -466,6 +466,9 @@ def handle_request(input_data: dict):
 
 def main():
     """Main entry point - daemon mode with inotify file watching."""
+    # Force line-buffered stdout to prevent partial writes
+    sys.stdout = open(sys.stdout.fileno(), "w", buffering=1, closefd=False)
+
     shell = os.environ.get("SHELL", "/bin/bash")
     home = Path.home()
 
